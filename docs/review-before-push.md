@@ -63,17 +63,43 @@ VERDICT: NO FINDINGS
 ## 门禁命令与不可覆盖
 
 门禁固定为 `pnpm run check:all`（`scripts/review.mjs` 的 `DEFAULT_GATE`），**不接受命令行覆盖**；
-`gate.json` 记录的命令不是该值时，`finalize` 与 `pre-push` 都会拒绝，避免用一个恒为 0 的命令伪造「门禁通过」。
+`gate.json` 记录的命令不是该值时，`finalize` 与 `pre-push` 都会拒绝。这里固定的是**命令字符串**：
+它**不**阻止有人把 `package.json` 的 `check:all` 脚本本身（或它调用的脚本）改成恒成功——那属于改动被审内容，
+会进入本次 diff 并被独立 review 看到，且 `gate.json` 另外绑定执行时的树。
+`gate` 以 `FFUI_CHECK_ALL_COALESCE_FORCE=1` 运行该命令：`check:all` 的复用缓存（`.cache/check-all/coalesce/results/*.json`，本地未跟踪）
+只影响耗时，**不再能决定被记录的退出码**——被记录的 0 必然来自一次真实运行；执行前还会清掉残留的死 owner 锁，
+并给命令设 90 分钟上限（最坏是响亮失败，而不是永不返回）。
 `gate` 与 `pre-push` 会先运行 `review:selftest`（门禁引擎自身的不变量，数量由实现打印）；自检失败直接拒绝。
 
 ## 审阅下界（base）
 
-`review:plan -- --base <commit>` 记录的是「哪些改动属于本次审阅」。约束（`plan`/`finalize`/`pre-push` 三处校验）：
+`review:plan -- --base <commit>` 记录的是「哪些改动属于本次审阅」。约束由 `baseDecision` 统一判定，
+三个阶段（`plan`/`finalize`/`pre-push`）共用同一条链路，只有**阶段策略**不同：
 
 - base 必须是 HEAD 的祖先，且**不得晚于** `merge-base(审阅下界, HEAD)`，否则 base 会吞掉未审改动、让覆盖校验空转。
+  这两条在所有阶段都生效（与阶段策略无关）。
 - 审阅下界默认取 `origin/main`；仓库没有该 ref 时，可在 `REVIEW_PLAN.json` 声明 `compareRef`（任何可解析为提交的 ref 或 sha）。
   两者都在时 **origin/main 优先**：自声明的下界不能覆盖远端基线。
-- 下界等于 HEAD（没有可审差异）时拒绝记录；首次记录必须显式给出 `--base`，没有隐式默认值。
+- **所选 `base` 等于 HEAD**（`base..HEAD` 为空）时**只在记录计划（`plan`）阶段拒绝**，并强制首次记录显式给出 `--base`
+  （没有隐式默认值）。判据是所选 base，不是 `origin/main`：远端基线会随着你自己的推送前进到 HEAD，
+  此时用更早的 base 重录计划是完全合法的（区间非空），不能因为 `origin/main == HEAD` 就拒绝。
+  同一原因，`finalize`/`pre-push` 也放行「审阅下界已包含 HEAD」的情况：被推内容已在对端，放行不会放过未审改动；
+  未审改动仍被 `proof`/`gate` 的树绑定与车道指纹拦下（v0.3.4 的 tag 推送曾被这条误拒过一次）。
+- 阶段策略是 `scripts/review.mjs` 里的数据（`BASE_PHASE_BY_COMMAND` + `DEGENERATE_BASE_PHASES`），调用点只声明命令名，
+  由 `baseProblemForCommand` 查表。`review:selftest` 同时断言：阶段表的取值、纯判定函数 `baseDecision` 的两种模式、
+  以及**真实 CLI 端到端**（一次性 git 仓库里跑 `plan --base HEAD` 必须拒绝、`origin/main == HEAD` 时用更早 base 必须通过）；
+  另有一组**接线守卫**（`selftestWiringText`）：它是**防误改的绊线，不是语义证明**。它断言三处调用点、查表语句、委派语句、
+  `phase: phase`/`baseCommit: baseCommit` 两处透传、以及 finalize/pre-push 两处消费语句行各自恰好出现一次，
+  并要求调用语句行恰好 3 条、委派语句恰好 1 条、三个调用点按命令顺序出现。
+  它能拦住的是：改写或删除被断言的语句行、把断言文本复制成**独立的语句行**（含死代码里的）、额外插入一条语句行形式的
+  `return baseProblem(..., "plan")`、互换 finalize 与 pre-push 的调用点。只把同一文本写进注释不会失败，也不改变行为（无害）。
+  **它的边界**是用守卫未覆盖的写法（`return (baseProblem(...))`、双空格、别名调用）**额外插入**覆盖语句：这类改动的保护不靠它，
+  而是机制本身——任何对 `scripts/review.mjs` 的改动都会改变该车道的内容指纹，使既有结论失效并强制重跑独立 review。
+  它也**不覆盖**把消费语句行包进 `if (false) {}` 或未调用函数：那不是等价改写，而是把 finalize/pre-push 的 base 复核变成死代码。
+  该行为**可以**端到端构造：在一次性仓库里合成 plan/verdicts/gate/proof 后，真实代码 `finalize`（base == HEAD）退出 0；
+  把调用点阶段改成 `"plan"` 则退出 1「base 等于 HEAD」；把消费行包进 `if (false) {}`（自检仍全绿）又回到退出 0。
+  当前 `review:selftest` 尚未包含这条合成状态的端到端断言，因此这类死代码化目前只能靠内容指纹失效 + 强制重审拦住。
+  对唯一的映射函数 `basePhaseFor` 另有**行为性**断言（plan/finalize/pre-push → 对应阶段）。
 
 ## 结论的失效粒度
 
@@ -85,14 +111,19 @@ VERDICT: NO FINDINGS
 - 本地钩子可被 `git push --no-verify` 或 `HUSKY=0` 有意绕过；仓库没有服务端复核。钩子保证的是「按流程推送时未审内容被拒」，
   不是「任何推送都被审」。绕过即等于跳过本门禁。
 - `scripts/review.mjs` 没有 Vitest 覆盖（Vitest 的 `include` 只含 `src/**` 与 `tools/docs-screenshots/__tests__`）；
-  它靠 `review:selftest` 保护纯函数不变量，`pre-push` 与 `gate` 每次都会执行。
+  它靠 `review:selftest`：纯函数不变量 + 一次性 git 仓库里跑**真实 CLI** 的端到端接线断言 + 针对本文件自身的
+  接线文本断言。`pre-push` 与 `gate` 每次都会执行；文本断言是接线守卫（不是行为测试），改接线必须同步改它。
 - `pre-push` 会重新校验计划、每条车道的结论与指纹、台账与门禁记录，而不是只读 `proof.json`；
   但它仍无法阻止有人**有意**同时伪造这些本地状态文件。
 
 ## 门禁对「脏」的判定
 
 `review:gate` 与 `review:finalize` 只拒绝**已跟踪文件**的未提交变更：proof、车道指纹与门禁结果都绑定提交树，
-未跟踪的本地产物（例如 `docs/adr/`、截图 fixture）不会进入推送，因此不算脏。
+未跟踪的本地产物（例如 `docs/adr/`、截图 fixture、`.cache/**` 下的各种缓存）不会进入推送，因此不算脏。
+其中 `.cache/check-all/coalesce/results/*.json` 曾能直接决定 `check:all` 的退出码；现在 `gate` 强制真实执行（见上节）。
+但**同类可伪造的结果缓存仍存在于工具链里**（例如 eslint 的 `--cache --cache-location .cache/eslint/.eslintcache`）：
+伪造这些本地未跟踪状态，与用 `--no-verify` 绕过钩子属于同一类——**有意伪造本地状态即等于绕过本门禁**，
+不在门禁能防的范围内（见上面的已知限制）。
 
 ## 与 dsh-ptc-plus 的差异（有意为之）
 

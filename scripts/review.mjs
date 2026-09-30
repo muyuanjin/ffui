@@ -15,7 +15,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import os from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const GIT_DIR = execFileSync("git", ["rev-parse", "--absolute-git-dir"], { encoding: "utf8" }).trim();
@@ -458,35 +459,84 @@ function commandFindingsNew(args) {
   note("已创建 " + FINDINGS_PATH);
 }
 
-/** 计划 base 的约束：必须是 HEAD 的祖先，且不得晚于 merge-base(origin/main, HEAD)。 */
-function baseProblem(plan, baseCommit) {
-  if (tryGit(["merge-base", "--is-ancestor", baseCommit, "HEAD"]) === null) {
-    return "记录的 base 不是 HEAD 的祖先：" + short(baseCommit);
+/**
+ * 计划 base 的约束：必须是 HEAD 的祖先，且不得晚于 merge-base(审阅下界, HEAD)。
+ *
+ * 「审阅下界等于 HEAD」（没有可审差异）只在**记录计划**时才是缺陷：此时覆盖校验 base..HEAD 会空转。
+ * finalize/pre-push 期间 origin/main 会随着自身的推送前进到 HEAD，此时按该规则判定会把已审内容
+ * 误判为不可推送，因此退化检查按阶段开关。阶段策略是数据，由 selftest 直接断言，
+ * 避免「漏传/写死该开关」这类改动无声通过自检。
+ */
+const DEGENERATE_BASE_PHASES = ["plan"];
+
+/** 生产接线：命令 → base 约束阶段。selftest 直接断言这张表，并用真实 CLI 跑端到端。 */
+const BASE_PHASE_BY_COMMAND = {
+  plan: "plan",
+  finalize: "finalize",
+  "pre-push": "pre-push",
+};
+
+/** 该阶段是否要求存在可审差异（即拒绝退化的审阅下界）。 */
+function requiresReviewable(phase) {
+  return DEGENERATE_BASE_PHASES.indexOf(String(phase)) >= 0;
+}
+
+/** base 约束的纯判定：入参为已解析的 git 值与阶段，便于 selftest 断言两种模式。 */
+function baseDecision(input) {
+  if (input.ancestorOfHead === false) return "记录的 base 不是 HEAD 的祖先：" + input.shortBase;
+  if (!input.reference) return "缺少审阅下界：仓库没有 origin/main，且 REVIEW_PLAN.json 未声明 compareRef";
+  if (!input.referenceCommit) return "审阅下界无法解析：" + input.reference;
+  if (!input.mergeBase) return "审阅下界与 HEAD 没有共同祖先：" + input.reference;
+  // 判据是**所选 base 等于 HEAD**（base..HEAD 为空才让覆盖校验空转）。
+  // 不能用「审阅下界等于 HEAD」：origin/main 会随自身推送前进到 HEAD，那时用更早的 base 重录计划是完全合法的。
+  if (requiresReviewable(input.phase) && input.baseCommit === input.head) {
+    return "base 等于 HEAD，没有可审的差异：" + input.shortBase;
   }
-  // origin/main 可解析时优先于计划里的 compareRef：自声明的下界不能覆盖远端基线。
-  const originMain = tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
-  const declared = plan && plan.compareRef ? String(plan.compareRef) : null;
-  const reference = originMain || declared;
-  if (!reference) {
-    return "缺少审阅下界：仓库没有 origin/main，且 REVIEW_PLAN.json 未声明 compareRef";
-  }
-  const referenceCommit = tryGit(["rev-parse", "--verify", "--quiet", reference + "^{commit}"]);
-  if (!referenceCommit) return "审阅下界无法解析：" + reference;
-  const mergeBase = tryGit(["merge-base", referenceCommit, "HEAD"]);
-  if (!mergeBase) return "审阅下界与 HEAD 没有共同祖先：" + reference;
-  if (mergeBase === git(["rev-parse", "HEAD"])) {
-    return "审阅下界等于 HEAD，没有可审的差异：" + reference;
-  }
-  if (tryGit(["merge-base", "--is-ancestor", baseCommit, mergeBase]) === null) {
+  if (input.baseAncestorOfMergeBase === false) {
     return (
       "base 不能晚于 merge-base(" +
-      String(reference) +
+      String(input.reference) +
       ", HEAD)=" +
-      short(mergeBase) +
+      input.shortMergeBase +
       "：否则 base 会吞掉未审的改动，使覆盖校验空转"
     );
   }
   return null;
+}
+
+/** 命令 → 阶段：唯一的映射点；selftest 对本函数做**行为性**断言（不只看文本）。 */
+function basePhaseFor(command) {
+  const phase = BASE_PHASE_BY_COMMAND[String(command)];
+  if (!phase) fail("未知命令的 base 阶段：" + String(command));
+  return phase;
+}
+
+function baseProblemForCommand(command, plan, baseCommit) {
+  return baseProblem(plan, baseCommit, basePhaseFor(command));
+}
+
+function baseProblem(plan, baseCommit, phase) {
+  const head = git(["rev-parse", "HEAD"]);
+  // origin/main 可解析时优先于计划里的 compareRef：自声明的下界不能覆盖远端基线。
+  const originMain = tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
+  const declared = plan && plan.compareRef ? String(plan.compareRef) : null;
+  const reference = originMain || declared;
+  const referenceCommit = reference ? tryGit(["rev-parse", "--verify", "--quiet", reference + "^{commit}"]) : null;
+  const mergeBase = referenceCommit ? tryGit(["merge-base", referenceCommit, "HEAD"]) : null;
+  return baseDecision({
+    ancestorOfHead: tryGit(["merge-base", "--is-ancestor", baseCommit, "HEAD"]) !== null,
+    baseAncestorOfMergeBase: mergeBase
+      ? tryGit(["merge-base", "--is-ancestor", baseCommit, mergeBase]) !== null
+      : undefined,
+    head: head,
+    baseCommit: baseCommit,
+    reference: reference,
+    referenceCommit: referenceCommit,
+    mergeBase: mergeBase,
+    phase: phase,
+    shortBase: short(baseCommit),
+    shortMergeBase: mergeBase ? short(mergeBase) : "",
+  });
 }
 
 function commandPlan(args) {
@@ -499,7 +549,7 @@ function commandPlan(args) {
   if (!resolvedBase) {
     fail("base 无法解析：" + baseRef + "（仓库没有 origin/main 时先 fetch，或在计划里声明 compareRef）");
   }
-  const baseIssue = baseProblem(plan, resolvedBase);
+  const baseIssue = baseProblemForCommand("plan", plan, resolvedBase);
   if (baseIssue) fail(baseIssue);
   const problems = validatePlanShape(plan, resolvedBase);
   if (problems.length > 0) fail("计划无效：\n  " + problems.join("\n  "));
@@ -694,15 +744,54 @@ function commandLane(args) {
   });
 }
 
+/**
+ * FORCE 路径（FFUI_CHECK_ALL_COALESCE_FORCE=1）在 check-all-coalesce.mjs 里只等待锁、不做死 owner 回收，
+ * 残留锁会让门禁永不返回。这里按同一判据（pid 不存在且锁龄超过 30 秒）先清掉死锁。
+ */
+function clearStaleCheckAllLock() {
+  const lockDir = path.join(ROOT, ".cache", "check-all", "coalesce", "check-all.lockdir");
+  const ownerPath = path.join(lockDir, "owner.json");
+  let owner;
+  try {
+    owner = JSON.parse(fs.readFileSync(ownerPath, "utf8"));
+  } catch {
+    return; // 没有锁或读不到 owner：交给 coalesce 自己的路径处理
+  }
+  const pid = Number(owner && owner.pid);
+  const startedAtMs = Number(owner && owner.startedAtMs);
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  let alive = true;
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    const code = error && error.code;
+    alive = !(code === "ESRCH" || code === "ENOENT"); // 只在确实不存在时判死
+  }
+  const ageMs = Date.now() - (Number.isFinite(startedAtMs) ? startedAtMs : 0);
+  if (!alive && ageMs > 30_000) {
+    fs.rmSync(lockDir, { recursive: true, force: true });
+    note("review: 清掉了残留的 check:all 锁（owner pid " + pid + " 已不存在）");
+  }
+}
+
 function commandGate() {
   ensureCleanWorktree("门禁");
   runSelftest();
+  clearStaleCheckAllLock();
   const started = Date.now();
+  // 强制真实执行：check:all 的复用缓存（.cache/check-all/coalesce/results/*.json）是本地未跟踪状态，
+  // 其 exitCode 曾被直接当作门禁结果；这里绕过缓存，使记录到的退出码必然来自一次真实运行。
   const result = spawnSync(DEFAULT_GATE[0], DEFAULT_GATE.slice(1), {
     cwd: ROOT,
     stdio: "inherit",
     shell: process.platform === "win32",
+    env: Object.assign({}, process.env, { FFUI_CHECK_ALL_COALESCE_FORCE: "1" }),
+    // 最坏情况应是"失败"而不是"永不返回"：FORCE 路径不回收死锁，这里给命令设上限。
+    timeout: 90 * 60 * 1000,
   });
+  if (result.error && String(result.error.code) === "ETIMEDOUT") {
+    fail("门禁命令 90 分钟未返回，可能卡在 check:all 的锁上；请检查 .cache/check-all/coalesce/check-all.lockdir");
+  }
   const exitCode = typeof result.status === "number" ? result.status : 1;
   return withLock(function () {
     writeJson(stateFile("gate.json"), {
@@ -723,7 +812,8 @@ function commandFinalize() {
   const plan = loadPlan();
   const recorded = loadRecordedPlan();
   if (!recorded) fail("计划尚未记录");
-  const recordedBaseIssue = baseProblem(plan, recorded.baseCommit);
+  // finalize 阶段放行「审阅下界等于 HEAD」：origin/main 会随自身推送前进到 HEAD。
+  const recordedBaseIssue = baseProblemForCommand("finalize", plan, recorded.baseCommit);
   if (recordedBaseIssue) fail(recordedBaseIssue);
   const planProblems = validatePlanShape(plan, recorded.baseCommit);
   if (planProblems.length > 0) fail("计划无效：\n  " + planProblems.join("\n  "));
@@ -806,7 +896,7 @@ function reviewStateRefusals(commit, tree) {
   if (refusals.length > 0) return refusals;
   if (recorded.planHash !== planHash(plan)) refusals.push("计划内容已改变，proof 失效");
   if (proof.planHash !== planHash(plan)) refusals.push("proof 绑定的计划哈希与当前计划不一致");
-  const recordedBaseIssue = baseProblem(plan, recorded.baseCommit);
+  const recordedBaseIssue = baseProblemForCommand("pre-push", plan, recorded.baseCommit);
   if (recordedBaseIssue) refusals.push(recordedBaseIssue);
   if (proof.tree !== tree) refusals.push("proof 绑定的树与被推送的树不一致");
   if (gate.tree !== tree) refusals.push("门禁记录的树与被推送的树不一致");
@@ -891,6 +981,171 @@ function commandPrePush() {
   note("review: 推送前检查通过（计划、车道结论、台账、门禁与 proof 自洽）。");
 }
 
+/**
+ * 生产接线的文本断言：finalize/pre-push 的放行行为无法在没有完整 proof/gate/verdicts 时端到端构造，
+ * 因此这里对**本文件自身**断言三处调用点与阶段查表仍然存在。这是接线守卫，不是行为测试：
+ * 把任一调用改成字面量、或把阶段映射从命令名查表改掉，都会让它失败。
+ */
+function selftestWiringText() {
+  const source = fs.readFileSync(fileURLToPath(import.meta.url), "utf8");
+  // needle 必须拼接构造：若把期望文本整段写成字面量，indexOf 会命中它自己，断言就恒真。
+  const expectedCall = function (command, baseExpression, variable) {
+    return (
+      "const " + variable + " = baseProblemForCommand(" + JSON.stringify(command) + ", plan, " + baseExpression + ");"
+    );
+  };
+  const expectations = [
+    ["const phase = " + "BASE_PHASE_BY_COMMAND[String(command)];", "阶段不再由命令名查表"],
+    [expectedCall("plan", "resolvedBase", "baseIssue"), "记录计划未走 plan 阶段"],
+    [expectedCall("finalize", "recorded.baseCommit", "recordedBaseIssue"), "finalize 未走 finalize 阶段"],
+    [expectedCall("pre-push", "recorded.baseCommit", "recordedBaseIssue"), "pre-push 未走 pre-push 阶段"],
+    ["phase: " + "phase,", "baseDecision 未收到阶段（透传被写死）"],
+    ["baseCommit: " + "baseCommit,", "baseDecision 未收到所选 base（透传被写死）"],
+    ["return baseProblem(plan, baseCommit, " + "basePhaseFor(command));", "命令→阶段的委派被改写"],
+    ["if (recordedBaseIssue) " + "fail(recordedBaseIssue);", "finalize 消费了 base 判定结果这一行被删除或改写"],
+    [
+      "if (recordedBaseIssue) " + "refusals.push(recordedBaseIssue);",
+      "pre-push 消费了 base 判定结果这一行被删除或改写",
+    ],
+  ];
+  // 只匹配**真实语句行**（整行、行首缩进后可含结尾空白）：把 needle 留在注释或死代码里、
+  // 而真实调用点被改写，必须失败。
+  const statementLine = function (text) {
+    const escaped = text.replace(/[.*+?^{}$()|[\]\\]/g, "\\$&");
+    return new RegExp("^[ \\t]*" + escaped + "[ \\t]*$", "gm");
+  };
+  const results = expectations.map(function (entry) {
+    const matches = source.match(statementLine(entry[0])) || [];
+    return [matches.length === 1, "生产接线缺失或重复（" + entry[1] + "）：期望恰好一条语句行匹配 " + entry[0]];
+  });
+  // 调用语句行总数必须恰好 3：把同一文本复制进不可达函数或模板字符串会多出语句行（注释行不算），
+  // 「死代码或字符串里的副本不影响真实接线」这类说法因此可被机械检查。
+  const declarations = source.match(/^[ \t]*const (baseIssue|recordedBaseIssue) = baseProblemForCommand\(/gm) || [];
+  results.push([
+    declarations.length === 3,
+    "生产接线语句行应为 3 条（实际 " + declarations.length + " 条）：可能存在重复副本或死代码/字符串里的同一文本",
+  ]);
+  // 委派只能有一处：多插一条 `return baseProblem(...)` 覆盖阶段（而保留原行）会多出返回语句。
+  const delegations = source.match(/^[ \t]*(?:if \(.*?\) )?return baseProblem\(/gm) || [];
+  results.push([delegations.length === 1, "命令→阶段的委派语句应为 1 条（实际 " + delegations.length + " 条）"]);
+
+  // 调用点的出现顺序必须与命令顺序一致：把 finalize/pre-push 的字面量互换会打乱顺序。
+  const order = expectations.slice(1, 4).map(function (entry) {
+    return source.indexOf(entry[0]);
+  });
+  results.push([
+    order[0] >= 0 && order[0] < order[1] && order[1] < order[2],
+    "调用点顺序与命令顺序不一致（plan/finalize/pre-push）：可能有字面量被互换",
+  ]);
+  // 行为性断言：映射函数本身（文本断言只能证明这些行存在）。
+  results.push([
+    basePhaseFor("plan") === "plan" &&
+      basePhaseFor("finalize") === "finalize" &&
+      basePhaseFor("pre-push") === "pre-push" &&
+      requiresReviewable(basePhaseFor("plan")) &&
+      !requiresReviewable(basePhaseFor("finalize")) &&
+      !requiresReviewable(basePhaseFor("pre-push")),
+    "命令→阶段的行为性断言失败（basePhaseFor 或阶段策略被改）",
+  ]);
+  return results;
+}
+
+/**
+ * 端到端接线自检：在一次性 git 仓库里跑真实 CLI，确认「记录计划时拒绝退化 base」这条
+ * 生产路径真的生效。纯函数断言覆盖不到命令接线与阶段字面量，这里补上。
+ */
+function selftestWiringChecks() {
+  const checks = [];
+  let dir;
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "ffui-review-selftest-"));
+    fs.writeFileSync(path.join(dir, "empty-gitconfig"), "");
+  } catch (error) {
+    return [[false, "端到端接线自检无法准备临时目录：" + String(error && error.message ? error.message : error)]];
+  }
+  // 隔离宿主 git 配置：commit.gpgsign / core.hooksPath / init.templateDir 等会让 fixture 提交失败，
+  // 而 gate 与 pre-push 每次都会跑这段自检。
+  const emptyConfig = path.join(dir, "empty-gitconfig");
+  const gitEnv = Object.assign({}, process.env, {
+    GIT_CONFIG_GLOBAL: emptyConfig,
+    GIT_CONFIG_SYSTEM: emptyConfig,
+  });
+  const git = function (args) {
+    return spawnSync(
+      "git",
+      ["-C", dir, "-c", "commit.gpgsign=false", "-c", "core.hooksPath=", "-c", "init.templateDir="].concat(args),
+      { encoding: "utf8", env: gitEnv },
+    );
+  };
+  const mustGit = function (args) {
+    const result = git(args);
+    if (result.status !== 0) {
+      checks.push([false, "端到端接线自检的 git 步骤失败：" + args.join(" ") + "：" + text(result).trim()]);
+    }
+    return result;
+  };
+  const run = function (args) {
+    return spawnSync(process.execPath, [path.join(dir, "scripts", "review.mjs")].concat(args), {
+      cwd: dir,
+      encoding: "utf8",
+    });
+  };
+  const text = function (result) {
+    return String(result.stdout || "") + String(result.stderr || "");
+  };
+  try {
+    mustGit(["init", "-q"]);
+    mustGit(["config", "user.email", "selftest@example.invalid"]);
+    mustGit(["config", "user.name", "review selftest"]);
+    fs.writeFileSync(path.join(dir, "a.txt"), "one\n");
+    mustGit(["add", "a.txt"]);
+    mustGit(["commit", "-q", "-m", "one"]);
+    const firstResult = git(["rev-parse", "HEAD"]);
+    const first = String(firstResult.stdout || "").trim();
+    if (firstResult.status !== 0 || !first) {
+      checks.push([false, "端到端接线自检：无法取得 fixture 的第一个提交"]);
+    }
+    fs.writeFileSync(path.join(dir, "a.txt"), "two\n");
+    mustGit(["add", "a.txt"]);
+    mustGit(["commit", "-q", "-m", "two"]);
+    fs.mkdirSync(path.join(dir, "scripts"), { recursive: true });
+    fs.copyFileSync(fileURLToPath(import.meta.url), path.join(dir, "scripts", "review.mjs"));
+    writeJson(path.join(dir, "REVIEW_PLAN.json"), {
+      schema: PLAN_SCHEMA,
+      obligations: [{ id: "test-coverage", description: "d", disposition: "covered", reason: null }],
+      lanes: [
+        {
+          id: "l",
+          scope: "s",
+          paths: ["a.txt"],
+          dependsOn: [],
+          obligations: ["test-coverage"],
+          owners: ["o"],
+          consumers: ["c"],
+          counterexamples: ["x"],
+        },
+      ],
+    });
+    mustGit(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    const degenerate = run(["plan", "--base", "HEAD"]);
+    checks.push([
+      degenerate.status !== 0 && text(degenerate).indexOf("base 等于 HEAD") >= 0,
+      "端到端：base 等于 HEAD（区间为空）时仍记录了计划",
+    ]);
+    // origin/main 已前进到 HEAD 时，用更早的 base 重录计划必须被接受（区间非空）。
+    const olderBase = run(["plan", "--base", first]);
+    checks.push([olderBase.status === 0, "端到端：origin/main 等于 HEAD 时用更早 base 重录计划被误拒"]);
+    mustGit(["update-ref", "refs/remotes/origin/main", first]);
+    const normal = run(["plan", "--base", first]);
+    checks.push([normal.status === 0, "端到端：非退化状态下记录计划被误拒"]);
+  } catch (error) {
+    checks.push([false, "端到端接线自检无法完成：" + String(error && error.message ? error.message : error)]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  return checks;
+}
+
 /** 门禁引擎自身的自检：确认纯函数的关键不变量成立。 */
 export function selftestProblems() {
   const lane = {
@@ -939,7 +1194,84 @@ export function selftestProblems() {
       ).findings.length === 1,
       "块标量正文被当成新的 finding",
     ],
+    [
+      requiresReviewable("plan") && !requiresReviewable("finalize") && !requiresReviewable("pre-push"),
+      "阶段策略：只有记录计划要求存在可审差异",
+    ],
+    [
+      baseDecision({
+        ancestorOfHead: true,
+        head: "h",
+        reference: "origin/main",
+        referenceCommit: "r",
+        mergeBase: "h",
+        baseCommit: "h",
+        phase: "plan",
+      }) !== null,
+      "记录计划时未拒绝退化的审阅下界",
+    ],
+    [
+      baseDecision({
+        ancestorOfHead: true,
+        head: "h",
+        reference: "origin/main",
+        referenceCommit: "r",
+        mergeBase: "h",
+        baseCommit: "h",
+        phase: "finalize",
+      }) === null,
+      "finalize/pre-push 误拒「远端基线已包含 HEAD」的情况",
+    ],
+    [
+      baseDecision({
+        ancestorOfHead: false,
+        head: "h",
+        reference: "origin/main",
+        referenceCommit: "r",
+        mergeBase: "m",
+        phase: "finalize",
+        shortBase: "b",
+      }) !== null,
+      "非祖先 base 未被拒绝",
+    ],
+    [
+      baseDecision({
+        ancestorOfHead: true,
+        head: "h",
+        reference: "origin/main",
+        referenceCommit: "r",
+        mergeBase: "m",
+        phase: "finalize",
+        baseAncestorOfMergeBase: false,
+        shortMergeBase: "m",
+      }) !== null,
+      "晚于 merge-base 的 base 未被拒绝",
+    ],
+    [
+      baseDecision({
+        ancestorOfHead: true,
+        head: "h",
+        baseCommit: "b",
+        reference: "origin/main",
+        referenceCommit: "r",
+        mergeBase: "h",
+        phase: "plan",
+        shortBase: "b",
+      }) === null,
+      "origin/main 已等于 HEAD 时，用更早的 base 重录计划被误拒（区间非空）",
+    ],
+    [
+      BASE_PHASE_BY_COMMAND.plan === "plan" &&
+        BASE_PHASE_BY_COMMAND.finalize === "finalize" &&
+        BASE_PHASE_BY_COMMAND["pre-push"] === "pre-push" &&
+        requiresReviewable(BASE_PHASE_BY_COMMAND.plan) &&
+        !requiresReviewable(BASE_PHASE_BY_COMMAND.finalize) &&
+        !requiresReviewable(BASE_PHASE_BY_COMMAND["pre-push"]),
+      "命令→阶段接线与阶段策略不一致（这条是生产接线，不是纯函数）",
+    ],
   ];
+  checks.push(...selftestWiringText());
+  checks.push(...selftestWiringChecks());
   return {
     problems: checks
       .filter(function (check) {
