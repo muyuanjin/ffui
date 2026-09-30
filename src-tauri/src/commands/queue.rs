@@ -78,7 +78,6 @@ mod tests {
             state.jobs.insert(
                 "job-1".to_string(),
                 TranscodeJob {
-                    execution: None,
                     id: "job-1".to_string(),
                     filename: "C:/videos/job-1.mp4".to_string(),
                     job_type: JobType::Video,
