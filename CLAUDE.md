@@ -50,3 +50,9 @@ Do not run `pnpm run test:watch` from agents. Use a non-interactive Vitest comma
 
 - Release tag `vX.Y.Z` must ship with `releases/vX.Y.Z.md`, and that file must contain both `## English` and `## 中文`.
 - For i18n-trigger text in selectors/dropdowns, render translated selected text explicitly in the trigger; do not rely on cached internal labels.
+
+## Push gate
+
+- `git push` is refused by `.husky/pre-push` unless a review proof bound to the pushed content exists; there is no exemption. See [docs/review-before-push.md](docs/review-before-push.md).
+- `REVIEW_PLAN.json` / `REVIEW_FINDINGS.md` are checkout-local and never committed.
+- Review lanes are cut by semantic responsibility: every path changed since the recorded base must belong to at least one lane, and lane verdicts are invalidated by content or plan changes.

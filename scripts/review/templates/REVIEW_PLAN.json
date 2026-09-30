@@ -1,0 +1,67 @@
+{
+  "schema": "ffui-review-plan/v1",
+  "obligations": [
+    {
+      "id": "owner-placement",
+      "description": "行为落在拥有该关系的层级（域 owner、边界封装、orchestrator），而不是在调用点补丁或下游猜测。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "contract-consistency",
+      "description": "前后端契约、Tauri 命令与字段、生成物与手写物、队列/任务字段保持一致。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "failure-and-recovery",
+      "description": "失败、取消、重试、恢复路径与残留状态可预期，且不重复外部效果。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "architecture-guardrails",
+      "description": "MainApp 薄入口、域 DI、Host/Shell 只装配、UI 不消费全局 context、invoke 只走 invokeCommand。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "test-coverage",
+      "description": "变更面有可复现的自动化验证；不声称未运行的检查。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "release-toolchain",
+      "description": "发版链路（CLI/打包器、工作流、版本号、双语 notes）与产物要求一致。",
+      "disposition": "covered",
+      "reason": null
+    },
+    {
+      "id": "docs-and-claims",
+      "description": "文档与注释同实现一致，且不把过程记录写成契约。",
+      "disposition": "covered",
+      "reason": null
+    }
+  ],
+  "lanes": [
+    {
+      "id": "replace-me",
+      "scope": "用一个稳定的语义职责边界替换本行（例如：导出校准键的作用域）。",
+      "paths": ["."],
+      "dependsOn": [],
+      "obligations": [
+        "owner-placement",
+        "contract-consistency",
+        "failure-and-recovery",
+        "architecture-guardrails",
+        "test-coverage",
+        "release-toolchain",
+        "docs-and-claims"
+      ],
+      "owners": ["Replace with the semantic owner examined by this lane."],
+      "consumers": ["Replace with the consumers whose behavior this lane checks."],
+      "counterexamples": ["Replace with a discriminating counterexample that could falsify this lane."]
+    }
+  ]
+}

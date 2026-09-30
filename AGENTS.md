@@ -78,3 +78,13 @@
 - Use clear, imperative commit messages (e.g. `feat: add video bitrate preset selector`).
 - Keep pull requests focused and small, with a short summary, motivation, and any relevant screenshots for UI changes.
 - Reference related issues in the description (e.g. `Closes #12`) and mention any manual testing steps you performed.
+
+## 推送前独立 review（硬门禁）
+
+- `git push` 由 `.husky/pre-push` 强制：没有与待推送内容绑定的 review proof 一律拒绝，**没有豁免**（缺 plan、缺台账、缺 proof、纯文档改动都不例外）。
+- `REVIEW_PLAN.json` 与 `REVIEW_FINDINGS.md` 是 checkout-local 状态，**永不提交**（见 `.gitignore`）。
+- 计划按**语义职责**（不是文件数量）划分车道；base 以来变更的每个路径必须属于至少一个车道。车道声明 scope/paths/dependsOn/obligations/owners/consumers/counterexamples，并给出一个能否证它的判别性反例。
+- 结论绑定「车道输入内容指纹 + 计划哈希」；输入或计划变化即失效，需重跑该车道及其依赖闭包，未受影响的车道结论继续有效。
+- 独立 reviewer 只拿到该车道的语义边界与项目上下文，不拿实施者的结论；证据报告必须以 `VERDICT: NO FINDINGS` / `FINDINGS` / `INCOMPLETE` 结尾，后两者不是 clean 证据。
+- 顺序：`review:plan:new` / `review:findings:new` → 填车道 → `review:plan -- --base <commit>` → 逐车道 `review:lane` → `review:gate`（干净工作树跑 `check:all`）→ `review:finalize` → `git push`。
+- 证据格式、差异说明与锁恢复见 [docs/review-before-push.md](docs/review-before-push.md)；改动本机制时同步更新该文档与 `scripts/review.mjs`。

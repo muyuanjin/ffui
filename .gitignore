@@ -58,3 +58,7 @@ scripts/backup-project.ps1
 /.claude/
 /.agents/
 /CONTEXT.md
+
+# 推送前独立 review 的 checkout-local 状态（永不提交）
+/REVIEW_PLAN.json
+/REVIEW_FINDINGS.md
