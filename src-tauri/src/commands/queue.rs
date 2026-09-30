@@ -10,11 +10,11 @@ use tauri::State;
 
 use super::wait_for_queue_recovery;
 use crate::ffui_core::input_expand::{
-    ExpandedManualJobInputs, expand_manual_job_inputs as expand_manual_job_inputs_impl,
+    expand_manual_job_inputs as expand_manual_job_inputs_impl, ExpandedManualJobInputs,
 };
 use crate::ffui_core::{
-    FfmpegJobRequest, JobRequest, JobSource, JobType, QueueStartupHint, QueueState,
-    QueueStateUiLite, TranscodeJob, TranscodingEngine,
+    JobRequest, JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
+    TranscodingEngine,
 };
 
 fn startup_hint_for_ui(engine: &TranscodingEngine) -> Option<QueueStartupHint> {
@@ -356,7 +356,7 @@ pub async fn measure_job_vmaf(
 #[tauri::command]
 pub async fn enqueue_ffmpeg_job(
     engine: State<'_, TranscodingEngine>,
-    request: FfmpegJobRequest,
+    request: JobRequest,
 ) -> Result<TranscodeJob, String> {
     let engine = engine.inner().clone();
     tauri::async_runtime::spawn_blocking(move || engine.enqueue_ffmpeg_job(request))
@@ -370,7 +370,7 @@ mod command_request_tests {
 
     #[test]
     fn ffmpeg_request_preserves_arguments_and_camel_case_working_directory() {
-        let request: FfmpegJobRequest = serde_json::from_value(serde_json::json!({
+        let request: JobRequest = serde_json::from_value(serde_json::json!({
             "name": "analysis", "args": ["-metadata", "", "-map", "0", "-map", "1"],
             "workingDirectory": "C:\\音乐"
         }))
