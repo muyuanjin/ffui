@@ -32,11 +32,11 @@ const emptyQueueBadgeLines = computed(() => {
   const currentLocale = String(locale.value ?? "");
 
   if (currentLocale.startsWith("zh")) {
-    // Chinese: prefer a balanced 2+2 split for "任务队列" instead of breaking characters arbitrarily.
+    // Chinese: prefer a balanced 2+2 split for "转码任务" instead of breaking characters arbitrarily.
     return label.length === 4 ? [label.slice(0, 2), label.slice(2)] : [label];
   }
 
-  // Non-Chinese: prefer word boundaries (e.g. "Transcode" + "Queue").
+  // Non-Chinese: prefer word boundaries (e.g. "Transcode" + "Tasks").
   const parts = label.split(/\s+/).filter(Boolean);
   if (parts.length === 2) return parts;
   if (parts.length > 2) return [parts.slice(0, -1).join(" "), parts[parts.length - 1]];

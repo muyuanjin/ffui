@@ -3,7 +3,7 @@ const app = {
   titlebar: "FFUI — FFmpeg 图形界面",
   loading: "正在启动 FFUI…",
   tabs: {
-    queue: "任务队列",
+    queue: "转码任务",
     presets: "参数预设",
     media: "媒体信息",
     monitor: "性能监控",

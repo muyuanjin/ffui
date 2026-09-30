@@ -28,7 +28,7 @@ describe("Sidebar", () => {
       },
     });
 
-    expect(wrapper.get("[data-testid='ffui-sidebar-active-title']").text()).toBe("Transcode Queue");
+    expect(wrapper.get("[data-testid='ffui-sidebar-active-title']").text()).toBe("Transcode Tasks");
     expect(wrapper.get("[data-testid='ffui-sidebar-active-hint']").text()).toContain("Manage the transcoding queue");
   });
 

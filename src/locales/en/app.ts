@@ -3,7 +3,7 @@ const app = {
   titlebar: "FFUI — FFmpeg GUI",
   loading: "Starting FFUI…",
   tabs: {
-    queue: "Transcode Queue",
+    queue: "Transcode Tasks",
     presets: "Parameter Presets",
     media: "Media Info",
     monitor: "Performance Monitor",
