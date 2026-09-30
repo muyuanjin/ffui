@@ -17,11 +17,7 @@ pub(crate) struct ExpandedManualJobInputs {
     pub skipped: usize,
 }
 
-/// 手动添加任务只接受视频：队列的执行路径是视频管线，音频/图片由 Batch Compress 负责。
-///
 /// 允许音频/图片通过这里只会制造必然失败（或静默不执行）的任务，因此对它们的处理是
-/// 『在入队前显式告知用户』，而不是让它们进入队列。
-
 fn push_unique(out: &mut Vec<String>, seen: &mut HashSet<String>, path: &Path) {
     let s = path.to_string_lossy().into_owned();
     if seen.insert(s.clone()) {

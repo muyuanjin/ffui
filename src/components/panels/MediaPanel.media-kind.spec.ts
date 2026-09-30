@@ -11,7 +11,7 @@ const analysis = {
   file: { path: "C:/music/song.mp3" },
 } as any;
 
-function mountPanel(mediaKind: "video" | "audio" | "image") {
+function mountPanel(mediaKind: "video" | "audio" | "image", previewUrl: string | null = null) {
   const i18n = createI18n({
     legacy: false,
     locale: "en",
@@ -24,7 +24,7 @@ function mountPanel(mediaKind: "video" | "audio" | "image") {
       inspecting: false,
       error: null,
       inspectedPath: "C:/music/song.mp3",
-      previewUrl: null,
+      previewUrl,
       isImage: mediaKind === "image",
       mediaKind,
       analysis,
@@ -39,5 +39,13 @@ describe("MediaPanel media kind", () => {
     const text = mountPanel("audio").text();
     expect(text).toContain("Audio");
     expect(text).not.toContain("Video");
+  });
+
+  it("plays an audio preview instead of routing it through the video fallback", () => {
+    const wrapper = mountPanel("audio", "asset://song.mp3");
+
+    expect(wrapper.find('[data-testid="media-preview-audio"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="media-preview-video"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain("nativePlaybackFailed");
   });
 });

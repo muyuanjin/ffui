@@ -50,10 +50,13 @@ const fileName = computed(() => {
   return idx >= 0 ? normalised.slice(idx + 1) : normalised;
 });
 
+// 预览与类型标签必须用同一个判据：只看 isImage 会把音频送进视频分支，
+// 而视频分支会因为拿不到 videoWidth/videoHeight 主动拆掉播放并报「原生播放失败」。
+const resolvedKind = computed<MediaKind>(() => props.mediaKind ?? (props.isImage ? "image" : "video"));
+
 const humanType = computed(() => {
   if (!hasMedia.value) return "-";
-  const kind = props.mediaKind ?? (props.isImage ? "image" : "video");
-  return t(mediaTypeLabelKey(kind));
+  return t(mediaTypeLabelKey(resolvedKind.value));
 });
 
 const summaryFields = computed(() => {
@@ -182,11 +185,19 @@ const openInspectedInSystemPlayer = async () => {
           <div class="w-full flex-1 min-h-48 rounded-md bg-muted/40 overflow-hidden flex items-center justify-center">
             <template v-if="previewUrl">
               <img
-                v-if="isImage"
+                v-if="resolvedKind === 'image'"
                 :key="previewUrl || inspectedPath || fileName"
                 :src="previewUrl"
                 :alt="fileName || 'preview'"
                 class="w-full h-full object-contain"
+              />
+              <audio
+                v-else-if="resolvedKind === 'audio'"
+                :key="previewUrl || inspectedPath || fileName"
+                :src="previewUrl"
+                controls
+                class="w-full"
+                data-testid="media-preview-audio"
               />
               <div v-else class="w-full h-full">
                 <FallbackMediaPreview
