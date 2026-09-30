@@ -27,6 +27,15 @@ set -euo pipefail
 # 而权限面必须看到镜像内存储模式，所以固定 umask。
 umask 022
 
+# 任何未被 || 兜住的命令失败都要**带阶段名与命令**地失败，否则 CI 上只剩 trap 的临时目录提示。
+STAGE="启动"
+on_error() {
+  local rc=$?
+  echo "verify-appimage: FAIL: ${STAGE} 中的命令失败（exit ${rc}）：${BASH_COMMAND}" >&2
+  exit "$rc"
+}
+trap on_error ERR
+
 env_or() { # env_or NAME DEFAULT（不用参数展开默认值，set -u 下也安全）
   local v
   v="$(printenv "$1" 2>/dev/null || true)"
@@ -76,6 +85,7 @@ fail() { echo "verify-appimage: FAIL: $1" >&2; exit 1; }
 ok() { echo "verify-appimage: OK: $1"; }
 
 # ---------- 阶段 1：结构 ----------
+STAGE="[1/4] 结构"
 echo "== [1/4] 结构：.DirIcon / .desktop / appdir-lint =="
 ( cd "$WORK" && "$IMG" --appimage-extract >extract.log 2>&1 ) || { tail -n 20 "$WORK/extract.log" >&2; fail "appimage-extract 失败"; }
 ROOT="$WORK/squashfs-root"
@@ -98,6 +108,7 @@ fi
 ( cd "$WORK" && bash appdir-lint.sh "$ROOT" ) || fail "appdir-lint.sh 报了 fatal 问题"
 
 # ---------- 阶段 2：权限面（other 位）----------
+STAGE="[2/4] 权限面"
 echo "== [2/4] 权限面（镜像内存储模式）：other-readable / other-executable / other-traversable =="
 command -v unsquashfs >/dev/null 2>&1 || fail "缺少 unsquashfs（squashfs-tools）：--appimage-extract 的目录模式恒为 0700，不能作为权限判据"
 OFFSET="$("$IMG" --appimage-offset)"
@@ -112,6 +123,7 @@ fi
 ok "权限面（镜像内存储模式）：全部条目对 other 可读/可执行/可进入"
 
 # ---------- 阶段 3：非属主启动（root 解包 + 普通用户运行）----------
+STAGE="[3/4] 非属主启动"
 echo "== [3/4] 非属主启动：Xvfb + 窗口检查 =="
 ROOTRUN="$WORK/rootrun"
 mkdir -p "$ROOTRUN"
@@ -175,7 +187,8 @@ kill "$APP_PID" 2>/dev/null || true
 
 # ---------- 阶段 4：原样 harness ----------
 if [ "$RUN_HARNESS" = "1" ] ; then
-  echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
+  STAGE="[4/4] harness"
+echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
   # 注意不要加 --quiet：它恰好抑制掉要匹配的 "an existing sandbox was detected"。
   if firejail --noprofile true 2>&1 | grep -q "existing sandbox" ; then
     echo "   SKIP: 当前环境在沙箱内（WSL/容器），firejail 无法建立自己的沙箱；CI 的 ubuntu-22.04 上会真正执行"
@@ -200,10 +213,12 @@ if [ "$RUN_HARNESS" = "1" ] ; then
     sleep 2
     printf 'http://127.0.0.1:18080/%s\n' "$BASENAME" >"$HDIR/FFUI"
     ( cd "$HDIR" && DISPLAY="$XDISP" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout "$WORKER_TIMEOUT" bash code/worker.sh FFUI >worker.log 2>&1 ) || {
-      echo "--- harness 关键行 ---" >&2
-      grep -nE 'Permission denied|ERROR|FATAL|no window|Could not|exit' "$HDIR/worker.log" | tail -n 25 >&2 || true
-      echo "--- harness 日志尾部（80 行）---" >&2
-      tail -n 80 "$HDIR/worker.log" >&2 || true
+      echo "--- harness 关键行（已过滤 set -v/-x 源码回显）---" >&2
+      grep -nE 'Permission denied|ERROR|FATAL|no window|Could not' "$HDIR/worker.log" | grep -vE 'echo "|^[0-9]+:[[:space:]]*#' | tail -n 15 >&2 || true
+      echo "--- harness 运行区间（自 TRYING TO RUN 起，最多 120 行）---" >&2
+      START_LINE="$(grep -n 'TRYING TO RUN' "$HDIR/worker.log" | head -n 1 | cut -d: -f1 || true)"
+      [ -n "$START_LINE" ] || START_LINE=1
+      tail -n +"$START_LINE" "$HDIR/worker.log" | head -n 120 >&2 || true
       echo "--- 相关进程 ---" >&2
       pgrep -af 'firejail|ffui|WebKit' >&2 || true
       fail "原样 harness 未通过（见 $HDIR/worker.log）"
