@@ -226,15 +226,19 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
 
   try {
     const expanded = await expandManualJobInputs(normalized, { recursive: true });
-    if (!Array.isArray(expanded) || expanded.length === 0) {
-      // Nothing to enqueue (e.g. folder has no transcodable files, or inputs
-      // contain only non-video files).
+    const files = expanded.accepted;
+    // 提示建立在展开结果上：目录没有扩展名，只看原始路径会把音乐专辑目录当成视频，
+    // 展开为空时就又会变成静默——那正是 issue #2 的体验。
+    const unsupportedMessage = expanded.skipped > 0 ? (deps.t?.("queue.error.unsupportedMedia") ?? "") : null;
+    if (files.length === 0) {
+      deps.queueError.value = unsupportedMessage;
       return;
     }
 
-    if (expanded.length === 1) {
+    // 队列只执行视频管线：音频/图片给出可见原因，而不是变成必然失败的任务。
+    if (files.length === 1) {
       await enqueueTranscodeJob({
-        filename: expanded[0],
+        filename: files[0],
         jobType: "video",
         source: "manual",
         originalSizeMb: 0,
@@ -243,7 +247,7 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
       });
     } else {
       await enqueueTranscodeJobs({
-        filenames: expanded,
+        filenames: files,
         jobType: "video",
         source: "manual",
         originalSizeMb: 0,
@@ -254,7 +258,8 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
 
     // Avoid racing with queue stream events; let backend be the single source of truth.
     await deps.refreshQueueFromBackend();
-    deps.queueError.value = null;
+    // 成功入队视频后仍要保留音频/图片的提示，否则用户会以为它们也被加入了。
+    deps.queueError.value = unsupportedMessage;
   } catch (error) {
     console.error("Failed to enqueue manual jobs from paths", error);
     deps.queueError.value = deps.t?.("queue.error.enqueueFailed") ?? "";

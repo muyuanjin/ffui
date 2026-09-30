@@ -284,6 +284,7 @@ const queue = {
     reorderFailed: "调整等待队列顺序时出现错误，请稍后重试或检查设置。",
     deleteActiveNotAllowed: "正在运行或排队中的任务不能直接从列表删除，请先停止或完成任务。",
     deleteFailed: "部分任务从队列中删除失败，请稍后重试或检查后端日志。",
+    unsupportedMedia: "队列只处理视频文件，音频与图片已被跳过；请改用批量压缩（Batch Compress）。",
   },
 } as const;
 

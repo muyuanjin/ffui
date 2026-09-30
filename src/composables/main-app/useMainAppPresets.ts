@@ -303,15 +303,21 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       );
       if (selectedPaths.length === 0) return;
 
+      // 提示必须建立在**展开结果**上：只看原始路径的话，目录没有扩展名会被当成视频，
+      // 于是「添加一个音乐专辑文件夹」又会一声不吭地什么都不做（issue #2 的体验）。
       const expanded = await expandManualJobInputs(selectedPaths, { recursive: true });
-      if (!Array.isArray(expanded) || expanded.length === 0) return;
+      const files = expanded.accepted;
+      if (expanded.skipped > 0) {
+        toast.error(t("queue.error.unsupportedMedia"), { duration: 6000 });
+      }
+      if (files.length === 0) return;
 
       const preset = manualJobPreset.value ?? presets.value[0];
       if (!preset) return;
 
-      if (expanded.length === 1) {
+      if (files.length === 1) {
         await enqueueTranscodeJob({
-          filename: expanded[0],
+          filename: files[0],
           jobType: "video",
           source: "manual",
           originalSizeMb: 0,
@@ -321,7 +327,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
 
       await enqueueTranscodeJobs({
-        filenames: expanded,
+        filenames: files,
         jobType: "video",
         source: "manual",
         originalSizeMb: 0,

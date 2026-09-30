@@ -9,7 +9,9 @@
 use tauri::State;
 
 use super::wait_for_queue_recovery;
-use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
+use crate::ffui_core::input_expand::{
+    ExpandedManualJobInputs, expand_manual_job_inputs as expand_manual_job_inputs_impl,
+};
 use crate::ffui_core::{
     JobRequest, JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
     TranscodingEngine,
@@ -145,6 +147,20 @@ mod tests {
     }
 }
 
+/// 手动入队只支持视频：音频/图片由 Batch Compress 负责，放行只会得到必然失败的任务。
+///
+/// 前端已经会拦下它们并给出原因，这里再兜一层——即使有别的调用方绕开 UI，
+/// 也不会在队列里造出一个注定失败的任务。
+fn reject_unsupported_manual_media(job_type: JobType, source: JobSource) -> Result<(), String> {
+    if matches!(source, JobSource::Manual) && !matches!(job_type, JobType::Video) {
+        return Err(
+            "manual queue only supports video jobs; use Batch Compress for audio and image files"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Enqueue a new transcoding job.
 #[tauri::command]
 pub async fn enqueue_transcode_job(
@@ -156,6 +172,7 @@ pub async fn enqueue_transcode_job(
     original_codec: Option<String>,
     preset_id: String,
 ) -> Result<TranscodeJob, String> {
+    reject_unsupported_manual_media(job_type, source)?;
     let engine = engine.inner().clone();
     let request = JobRequest {
         filename,
@@ -190,6 +207,7 @@ pub async fn enqueue_transcode_jobs(
     original_codec: Option<String>,
     preset_id: String,
 ) -> Result<Vec<TranscodeJob>, String> {
+    reject_unsupported_manual_media(job_type, source)?;
     let engine = engine.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         engine.enqueue_transcode_jobs(
@@ -215,7 +233,7 @@ pub async fn enqueue_transcode_jobs(
 pub async fn expand_manual_job_inputs(
     paths: Vec<String>,
     recursive: bool,
-) -> Result<Vec<String>, String> {
+) -> Result<ExpandedManualJobInputs, String> {
     tauri::async_runtime::spawn_blocking(move || expand_manual_job_inputs_impl(&paths, recursive))
         .await
         .map_err(|e| format!("failed to join expand_manual_job_inputs task: {e}"))

@@ -322,13 +322,22 @@ export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
   return queueStateLiteFromWire(wire);
 };
 
-export const expandManualJobInputs = async (paths: string[], options?: { recursive?: boolean }): Promise<string[]> => {
-  if (!hasTauri()) return [];
+/** 手动入队的展开结果：可入队的视频，以及被跳过的输入数量（音频/图片/非媒体）。 */
+export interface ExpandedManualJobInputs {
+  accepted: string[];
+  skipped: number;
+}
+
+export const expandManualJobInputs = async (
+  paths: string[],
+  options?: { recursive?: boolean },
+): Promise<ExpandedManualJobInputs> => {
+  if (!hasTauri()) return { accepted: [], skipped: 0 };
   const normalized = (paths ?? []).filter((p): p is string => typeof p === "string" && p.trim().length > 0);
-  if (normalized.length === 0) return [];
+  if (normalized.length === 0) return { accepted: [], skipped: 0 };
 
   const recursive = options?.recursive ?? true;
-  return invokeCommand<string[]>("expand_manual_job_inputs", {
+  return invokeCommand<ExpandedManualJobInputs>("expand_manual_job_inputs", {
     paths: normalized,
     recursive,
   });

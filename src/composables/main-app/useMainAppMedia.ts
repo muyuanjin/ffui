@@ -89,6 +89,7 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
             extensions: [
               ...EXTENSIONS.videos.map((ext) => ext.replace(/^\./, "")),
               ...EXTENSIONS.images.map((ext) => ext.replace(/^\./, "")),
+              ...EXTENSIONS.audios.map((ext) => ext.replace(/^\./, "")),
             ],
           },
         ],

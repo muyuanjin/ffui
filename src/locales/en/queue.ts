@@ -284,6 +284,8 @@ const queue = {
     reorderFailed: "Error while reordering the waiting queue. Please retry later or verify external tool settings.",
     deleteActiveNotAllowed: "Cannot delete jobs that are still running or waiting. Please stop or complete them first.",
     deleteFailed: "Failed to delete some jobs from the queue. Please retry later or check backend logs.",
+    unsupportedMedia:
+      "The queue transcodes video files only, so audio and image files were skipped. Use Batch Compress for those.",
   },
 } as const;
 
