@@ -21,7 +21,7 @@ const createI18nInstance = (locale: "en" | "zh-CN") =>
   });
 
 describe("QueuePanel empty state badge", () => {
-  it("keeps the English queue label inside the 48px badge", () => {
+  it("keeps the English Transcode Tasks label inside the 48px badge", () => {
     const wrapper = mount(QueuePanel, {
       props: {
         queueJobsForDisplay: [],
@@ -72,10 +72,10 @@ describe("QueuePanel empty state badge", () => {
     expect(label.classes()).toContain("flex-col");
 
     expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-0']").text()).toBe("Transcode");
-    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-1']").text()).toBe("Queue");
+    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-1']").text()).toBe("Tasks");
   });
 
-  it("splits the Chinese queue label into 2+2 lines", () => {
+  it("splits the Chinese Transcode Tasks label into 2+2 lines", () => {
     const wrapper = mount(QueuePanel, {
       props: {
         queueJobsForDisplay: [],
@@ -118,7 +118,7 @@ describe("QueuePanel empty state badge", () => {
       },
     });
 
-    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-0']").text()).toBe("任务");
-    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-1']").text()).toBe("队列");
+    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-0']").text()).toBe("转码");
+    expect(wrapper.get("[data-testid='ffui-empty-queue-badge-line-1']").text()).toBe("任务");
   });
 });
