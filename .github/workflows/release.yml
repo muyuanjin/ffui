@@ -85,14 +85,15 @@ jobs:
               -F draft=true \
               -F body=@"$file" >/dev/null
           else
-            gh release create "$tag" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --draft \
-              --title "$title" \
-              --notes-file "$file" \
-              --target "$target"
-            release_id="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-              --jq ".[] | select(.tag_name == \"${tag}\") | .id" | head -n 1)"
+            # 用 REST 直接创建并取回 id：gh release create 之后的列表查询可能与创建存在可见性延迟
+            #（v0.3.5 首次运行就是这样卡在解析上），而 POST 的响应体直接带 id。
+            release_id="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$tag" \
+              -f target_commitish="$target" \
+              -f name="$title" \
+              -F draft=true \
+              -F body=@"$file" \
+              --jq '.id')"
           fi
 
           if [ -z "${release_id}" ]; then
