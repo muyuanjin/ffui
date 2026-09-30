@@ -145,8 +145,9 @@ APP_PID="$(cat "$WORK/app.pid" 2>/dev/null || true)"
 FOUND=""
 i=0
 while [ "$i" -lt 30 ] ; do
-  # 只认应用自己的窗口（类名/标题含 ffui/FFUI）：只看到窗口管理器自己的窗口不算通过。
-  WIN="$(xwininfo -root -tree 2>/dev/null | grep -E '\(ffui|"FFUI"' | head -n 5 || true)"
+  # 只认应用自己的、真正映射出来的窗口：xwininfo 的 WM_CLASS 带引号（("ffui" "Ffui")），
+  # 标题为 FFUI；同时排除 1x1/10x10 这类隐藏的 leader 占位窗口与窗口管理器自己的窗口。
+  WIN="$(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -E '"ffui"|"FFUI"' | grep -vE ' 1x1\+| 10x10\+' | head -n 5 || true)"
   if [ -n "$WIN" ] ; then FOUND="$WIN"; break ; fi
   i=$((i + 1))
   sleep 1
