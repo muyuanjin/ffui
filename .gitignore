@@ -56,3 +56,5 @@ backup_windows.cmd
 scripts/backup-project.ps1
 /.codex/
 /.claude/
+/.agents/
+/CONTEXT.md
