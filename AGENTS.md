@@ -1,5 +1,30 @@
 # Repository Guidelines
 
+## 通用工作原则
+
+- 以项目原则、指导、约束与流程为准绳，在**更正确且更容易正确的源头**修改：优先修正拥有该关系的层级（域 owner、边界封装、契约定义、门禁脚本），而不是在调用点打补丁或让下游猜测。
+- 合理实现提案：解决需求背后的真实问题、遵守项目核心理念，而不是死板照搬字面要求。当存在既更简单、又更正确、也更容易保持正确的方案时，采用该方案，并在同一改动里说明它取代了什么。
+- 编写高阶优化的代码：让违规状态在适用范围内无法产生，保留合法反例，不为覆盖未来调用者而破坏不受约束的用途。
+- 对项目内持久化的文本（代码注释、JSDoc、README、文档、发布说明、`.agents/skills/**`）：**既不范畴混淆，也不泄露思考过程**。
+  - 范畴混淆（把上层话语、协商过程、执行细节搬进产物）按 [`.agents/skills/meta-layer-guard/SKILL.md`](.agents/skills/meta-layer-guard/SKILL.md) 处理。
+  - CoT 泄露按 [`.agents/skills/trim-cot-leakage/SKILL.md`](.agents/skills/trim-cot-leakage/SKILL.md) 处理。
+- 规则载体分工：本文件承载长期规则；[docs/review-before-push.md](docs/review-before-push.md) 承载推送前 review 的机制；`.agents/skills/**` 承载可复用方法论；`releases/*.md` 承载面向用户的变化说明。
+- 上面两节是本仓库自己的长期规则，clone 或换一个 harness 仍然生效。与跨项目共享指引重叠的条目是为了让本仓库自足，不额外增加约束；有分歧时以本文件的表述为准。
+- 新增 `.agents/skills/<name>/` 时必须同时在 `.gitignore` 放行该目录，否则它只在当前 checkout 里存在、clone 后消失，而本机 skill provider 仍能发现它，作者不会察觉。
+
+## 通用工程约束
+
+- **证据分层**：代码与测试确立当前行为，文档确立契约，运行记录只说明当次条件，用户反馈说明需求。不要让一种证据冒充另一种；来源冲突时先确认谁拥有该契约，再更新其受影响的下游。
+- **失败归因到 owner**：同类失败反复出现时沿语义 owner 追。合规输入按既有规则走仍然违约，就修正规则或表示本身，并让下游从同一 owner 获得正确行为，而不是在各处累积例外。
+- **显式优于隐式**：默认值必须是拥有该关系的实现里显式的解析步骤，不能是调用深处隐藏的 `?? default`。
+- **配置错误要响亮**：自包含的在加载时失败，否则在最早可解析处失败；绝不静默跳过缺失的引用。
+- **在正确的边界校验**：类型系统已能保证的同进程边界不要加运行时校验；校验放在解析/配置、IPC、文件、进程与线上边界。
+- **空 `catch` 必须说明它吞掉了什么、为什么其它路径到不了这里**；`try` 只包一条语句。
+- **注释与诊断只写契约、归属、失败与恢复后果**，不写评审讨论、实现日记或本地执行记录。
+- 不为代码里显而易见的事实写注释；并行的值保持对称——无法解释的不对称通常意味着漏了一次抽取。
+- **测试描述行为，而不是正确性**：行为变更与它的测试一起改，并在 PR 里说明为什么。
+- **PR 历史要有意识**：独立改动拆开；重写用 `--force-with-lease`，远端移动即中止，绝不用裸 `--force`。
+
 ## Project Structure & Module Organization
 
 - Frontend source lives in `src` (Vue 3 + TypeScript); shared assets are under `src/assets`.
@@ -38,6 +63,7 @@
   - Release notes SHOULD be user-facing summaries (not raw commit logs), and the EN/ZH content MUST be consistent.
 - Use `node scripts/generate-release-notes.mjs vX.Y.Z vA.B.C > releases/vX.Y.Z.md` to scaffold, then rewrite into a polished bilingual note before tagging.
 - The release workflow reads `releases/${tag}.md` and fails fast if it is missing or not bilingual, to prevent publishing releases with placeholder notes.
+- 说明按用户可观察性排序（可用性 → 行为变化 → 修复 → 升级要求），只写产品事实，不写作者时间戳、验证叙述或内部交付流程。
 
 ## Coding Style & Naming Conventions
 

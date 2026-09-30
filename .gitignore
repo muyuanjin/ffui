@@ -55,8 +55,16 @@ target-*/
 backup_windows.cmd
 scripts/backup-project.ps1
 /.codex/
+# 本机 agent 工具的配置目录不进入仓库：里面是本机权限与凭据，不属于项目内容。
 /.claude/
-/.agents/
+# 项目 skill 属于仓库内容（否则规则只存在于一个 checkout，clone 后就丢了）。
+# 注意 git 的否定规则不能重新包含「父目录已被排除」的文件，因此只排除直接子项；
+# 新增 .agents/skills/<name>/ 时必须在这里放行，并在 AGENTS.md 的规则载体分工里登记。
+/.agents/*
+!/.agents/skills
+/.agents/skills/*
+!/.agents/skills/meta-layer-guard
+!/.agents/skills/trim-cot-leakage
 /CONTEXT.md
 
 # 推送前独立 review 的 checkout-local 状态（永不提交）
