@@ -105,9 +105,12 @@ function withLock(body) {
 }
 
 function ensureCleanWorktree(action) {
-  const dirty = git(["status", "--porcelain"]).split("\n").filter(Boolean);
+  // 只检查已跟踪文件的未提交变更：proof 与车道指纹都绑定提交树，未跟踪的本地产物不会进入推送。
+  const dirty = git(["status", "--porcelain", "--untracked-files=no"]).split("\n").filter(Boolean);
   if (dirty.length > 0) {
-    fail(action + " 要求工作树干净，当前有 " + dirty.length + " 处未提交变更：\n  " + dirty.slice(0, 10).join("\n  "));
+    fail(
+      action + " 要求已跟踪文件无未提交变更，当前有 " + dirty.length + " 处：\n  " + dirty.slice(0, 10).join("\n  "),
+    );
   }
 }
 

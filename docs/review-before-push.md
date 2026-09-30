@@ -57,6 +57,11 @@ VERDICT: NO FINDINGS
 改动哪个车道的输入（或它声明依赖的上游指纹变化），就重跑该车道及其依赖闭包；未受影响的车道结论继续有效。
 计划定义本身变化（增删车道、改 paths/obligations）后必须重新 `review:plan`，旧结论全部失效。
 
+## 门禁对「脏」的判定
+
+`review:gate` 与 `review:finalize` 只拒绝**已跟踪文件**的未提交变更：proof、车道指纹与门禁结果都绑定提交树，
+未跟踪的本地产物（例如 `docs/adr/`、截图 fixture）不会进入推送，因此不算脏。
+
 ## 与 dsh-ptc-plus 的差异（有意为之）
 
 - **只卡 pre-push**：本仓库提交频率高，把 proof 绑到 pre-commit 会阻断日常小提交；门禁落在真正对外的一步。
