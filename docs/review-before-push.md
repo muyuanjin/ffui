@@ -49,8 +49,10 @@ VERDICT: NO FINDINGS
 ```
 
 `VERDICT:` 取值：`NO FINDINGS`（clean）、`FINDINGS`、`INCOMPLETE`。后两者都不是 clean 证据：
-证据不足、被打断、覆盖缺口一律记 `INCOMPLETE`。`HEAD`/`FINGERPRINT` 与当前候选不一致时记录会被拒绝，
-避免「审的是旧版本」。
+证据不足、被打断、覆盖缺口一律记 `INCOMPLETE`。
+
+`FINGERPRINT` 与当前不一致时记录会被**拒绝**：它绑定的是车道声明路径的内容，这才是「审的是不是当前版本」的权威。
+`HEAD` 只作来源记录（不一致时打印提示）：不相关的提交不应作废某条车道的结论，否则每次提交都得重跑全部车道。
 
 ## 修完之后重跑哪些车道
 

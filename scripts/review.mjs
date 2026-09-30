@@ -536,9 +536,12 @@ function commandLane(args) {
   const head = git(["rev-parse", "HEAD"]);
   const fingerprint = laneFingerprint(lane);
   const declaredHead = /^HEAD:\s*(.+)$/m.exec(report);
-  if (declaredHead && declaredHead[1].trim() !== head) {
-    fail(
-      "报告声明的 HEAD 与当前候选不一致（报告 " + declaredHead[1].trim() + "，当前 " + head + "）：报告审的是别的版本",
+  const reviewedHead = declaredHead ? declaredHead[1].trim() : null;
+  // HEAD 只作来源记录：结论的权威绑定是车道输入指纹（下方校验）与计划哈希。
+  // 不相关的提交不应作废某条车道的结论，否则每次提交都要重跑全部门禁。
+  if (reviewedHead && reviewedHead !== head) {
+    process.stdout.write(
+      "提示：报告完成于 " + short(reviewedHead) + "，当前候选 " + short(head) + "；车道指纹一致时结论仍然有效。\n",
     );
   }
   const declaredFingerprint = /^FINGERPRINT:\s*(.+)$/m.exec(report);
@@ -558,6 +561,7 @@ function commandLane(args) {
       verdict: verdict,
       fingerprint: fingerprint,
       head: head,
+      reviewedHead: reviewedHead,
       planHash: recorded.planHash,
       evidencePath: path.resolve(evidencePath),
       evidenceHash: sha256(report),
