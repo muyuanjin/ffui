@@ -127,6 +127,9 @@ Xvfb "$XDISP" -screen 0 800x600x24 >/dev/null 2>&1 &
 XVFB_PID=$!
 sleep 2
 export DISPLAY="$XDISP"
+# 只在这个 X 服务器上判定：清掉 Wayland（WSLg 会把窗口渲染到 Windows 桌面，Xvfb 上就没有窗口）。
+unset WAYLAND_DISPLAY
+export GDK_BACKEND=x11
 icewm >/dev/null 2>&1 &
 WM_PID=$!
 sleep 2
@@ -142,14 +145,17 @@ APP_PID="$(cat "$WORK/app.pid" 2>/dev/null || true)"
 FOUND=""
 i=0
 while [ "$i" -lt 30 ] ; do
-  WIN="$(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -vE ' 1x1\+' | head -n 5 || true)"
+  # 只认应用自己的窗口（类名/标题含 ffui/FFUI）：只看到窗口管理器自己的窗口不算通过。
+  WIN="$(xwininfo -root -tree 2>/dev/null | grep -E '\(ffui|"FFUI"' | head -n 5 || true)"
   if [ -n "$WIN" ] ; then FOUND="$WIN"; break ; fi
   i=$((i + 1))
   sleep 1
 done
 if [ -z "$FOUND" ] ; then
-  echo "--- 应用输出尾部 ---" >&2
-  tail -n 30 "$WORK/app.log" >&2 || true
+  echo "--- 应用输出（60 行）---" >&2
+  tail -n 60 "$WORK/app.log" >&2 || true
+  echo "--- 相关进程 ---" >&2
+  pgrep -af 'ffui|WebKit' >&2 || true
   fail "非属主启动 30 秒内没有出现窗口（沙箱/别的 uid 下无法启动）"
 fi
 echo "$FOUND" | sed -e 's/^/   window: /'
@@ -184,7 +190,12 @@ if [ "$RUN_HARNESS" = "1" ] ; then
     sleep 2
     printf 'http://127.0.0.1:18080/%s\n' "$BASENAME" >"$HDIR/FFUI"
     ( cd "$HDIR" && DISPLAY="$XDISP" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout "$WORKER_TIMEOUT" bash code/worker.sh FFUI >worker.log 2>&1 ) || {
-      grep -nE 'Permission denied|ERROR|FATAL|no window' "$HDIR/worker.log" | tail -n 20 >&2
+      echo "--- harness 关键行 ---" >&2
+      grep -nE 'Permission denied|ERROR|FATAL|no window|Could not|exit' "$HDIR/worker.log" | tail -n 25 >&2 || true
+      echo "--- harness 日志尾部（80 行）---" >&2
+      tail -n 80 "$HDIR/worker.log" >&2 || true
+      echo "--- 相关进程 ---" >&2
+      pgrep -af 'firejail|ffui|WebKit' >&2 || true
       fail "原样 harness 未通过（见 $HDIR/worker.log）"
     }
     ok "原样 harness：AppImageHub 的 worker.sh 通过"
