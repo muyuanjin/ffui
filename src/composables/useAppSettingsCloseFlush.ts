@@ -4,7 +4,7 @@ import { getCurrentWindow, type CloseRequestedEvent } from "@tauri-apps/api/wind
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
-const CLOSE_FLUSH_TIMEOUT_MS = isTestEnv ? 50 : 800;
+const CLOSE_FLUSH_TIMEOUT_MS = isTestEnv ? 50 : 2_000;
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timeoutHandle: number | undefined;

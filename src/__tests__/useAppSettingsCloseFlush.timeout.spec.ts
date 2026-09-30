@@ -63,4 +63,55 @@ describe("installAppSettingsCloseFlush", () => {
 
     wrapper.unmount();
   });
+
+  it("waits for the final persistence flush before reissuing close", async () => {
+    await vi.resetModules();
+
+    const close = vi.fn(async () => {});
+    let closeRequestedHandler: ((event: { preventDefault: () => void }) => Promise<void>) | null = null;
+    vi.doMock("@tauri-apps/api/window", () => ({
+      getCurrentWindow: async () => ({
+        onCloseRequested: async (handler: any) => {
+          closeRequestedHandler = handler;
+          return () => {
+            closeRequestedHandler = null;
+          };
+        },
+        close,
+      }),
+    }));
+    let finishFlush!: () => void;
+    const persistNow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFlush = resolve;
+        }),
+    );
+    const { installAppSettingsCloseFlush } = await import("@/composables/useAppSettingsCloseFlush");
+    const TestHarness = defineComponent({
+      setup() {
+        installAppSettingsCloseFlush({ enabled: () => true, persistNow });
+        return {};
+      },
+      template: "<div />",
+    });
+    const wrapper = mount(TestHarness);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const preventDefault = vi.fn();
+    const handlerPromise = (closeRequestedHandler as any)({ preventDefault });
+    await Promise.resolve();
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(close).not.toHaveBeenCalled();
+
+    finishFlush();
+    await handlerPromise;
+    expect(close).toHaveBeenCalledTimes(1);
+    const reissuedPreventDefault = vi.fn();
+    await (closeRequestedHandler as any)({ preventDefault: reissuedPreventDefault });
+    expect(reissuedPreventDefault).not.toHaveBeenCalled();
+    expect(persistNow).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
 });
