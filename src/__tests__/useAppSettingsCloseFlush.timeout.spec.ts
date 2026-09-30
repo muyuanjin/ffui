@@ -114,4 +114,11 @@ describe("installAppSettingsCloseFlush", () => {
     expect(persistNow).toHaveBeenCalledTimes(1);
     wrapper.unmount();
   });
+
+  it("pins the production flush budget", async () => {
+    await vi.resetModules();
+    const { PRODUCTION_CLOSE_FLUSH_TIMEOUT_MS } = await import("@/composables/useAppSettingsCloseFlush");
+
+    expect(PRODUCTION_CLOSE_FLUSH_TIMEOUT_MS).toBe(2_000);
+  });
 });
