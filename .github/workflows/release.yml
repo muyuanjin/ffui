@@ -260,7 +260,7 @@ jobs:
           # An absolute symlink resolves only on the build machine, so appdir-lint.sh
           # reports the entry as missing once the AppImage is mounted elsewhere.
           test -e squashfs-root/.DirIcon
-          for entry in squashfs-root/.DirIcon squashfs-root/usr/share/applications/*.desktop; do
+          for entry in squashfs-root/.DirIcon squashfs-root/*.desktop squashfs-root/usr/share/applications/*.desktop; do
             [ -L "${entry}" ] || continue
             target="$(readlink "${entry}")"
             echo "${entry} -> ${target}"
