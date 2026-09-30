@@ -54,39 +54,40 @@ const queueErrorValue = (deps: SingleJobOpsDeps) =>
   (deps as unknown as { queueError: { value: string | null } }).queueError.value;
 
 describe("enqueueManualJobsFromPaths", () => {
-  it("enqueues video files and reports that audio and image inputs were skipped", async () => {
+  it("enqueues regular files and reports inaccessible entries", async () => {
     await withManualEnqueueMock(async ({ enqueueManualJobsFromPaths, jobMock, expandMock, deps }) => {
       expandMock.mockResolvedValueOnce({ accepted: ["C:/v/a.mp4"], skipped: 1 });
 
       await enqueueManualJobsFromPaths(["C:/v/a.mp4", "C:/m/b.mp3"], deps);
 
       expect(jobMock).toHaveBeenCalledTimes(1);
-      expect(jobMock).toHaveBeenCalledWith(expect.objectContaining({ filename: "C:/v/a.mp4", jobType: "video" }));
+      expect(jobMock).toHaveBeenCalledWith(expect.objectContaining({ filename: "C:/v/a.mp4", jobType: "other" }));
       expect(queueErrorValue(deps)).toBe("queue.error.unsupportedMedia");
     });
   });
 
-  it("explains an audio-only selection without enqueueing anything", async () => {
+  it("enqueues an audio-only selection without a media gate", async () => {
     await withManualEnqueueMock(async ({ enqueueManualJobsFromPaths, jobMock, jobsMock, expandMock, deps }) => {
-      expandMock.mockResolvedValueOnce({ accepted: [], skipped: 1 });
+      expandMock.mockResolvedValueOnce({ accepted: ["C:/m/b.flac"], skipped: 0 });
 
       await enqueueManualJobsFromPaths(["C:/m/b.flac"], deps);
 
-      expect(jobMock).not.toHaveBeenCalled();
+      expect(jobMock).toHaveBeenCalledWith(expect.objectContaining({ filename: "C:/m/b.flac", jobType: "other" }));
       expect(jobsMock).not.toHaveBeenCalled();
-      expect(queueErrorValue(deps)).toBe("queue.error.unsupportedMedia");
+      expect(queueErrorValue(deps)).toBeNull();
     });
   });
 
-  it("explains a music folder that contains no video (this used to be silence)", async () => {
+  it("enqueues a music folder including its image cover", async () => {
     await withManualEnqueueMock(async ({ enqueueManualJobsFromPaths, jobMock, jobsMock, expandMock, deps }) => {
-      expandMock.mockResolvedValueOnce({ accepted: [], skipped: 3 });
+      const filenames = ["C:/Music/Album/a.flac", "C:/Music/Album/b.mp3", "C:/Music/Album/cover.png"];
+      expandMock.mockResolvedValueOnce({ accepted: filenames, skipped: 0 });
 
       await enqueueManualJobsFromPaths(["C:/Music/Album"], deps);
 
       expect(jobMock).not.toHaveBeenCalled();
-      expect(jobsMock).not.toHaveBeenCalled();
-      expect(queueErrorValue(deps)).toBe("queue.error.unsupportedMedia");
+      expect(jobsMock).toHaveBeenCalledWith(expect.objectContaining({ filenames, jobType: "other" }));
+      expect(queueErrorValue(deps)).toBeNull();
     });
   });
 

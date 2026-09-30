@@ -48,6 +48,8 @@ pub struct ProgressPhaseTelemetry {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLite {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<super::JobExecution>,
     /* jscpd:ignore-start */
     pub id: String,
     pub filename: String,
@@ -262,6 +264,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
 
         Self {
             id: job.id.clone(),
+            execution: config.execution,
             filename: config.filename,
             job_type: config.job_type,
             source: config.source,
@@ -331,6 +334,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
 
         Self {
             id: job.id,
+            execution: job.execution,
             filename: job.filename,
             job_type: job.job_type,
             source: job.source,

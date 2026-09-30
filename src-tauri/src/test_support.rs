@@ -18,6 +18,7 @@ pub fn make_transcode_job_for_tests(
 
     /* jscpd:ignore-start */
     TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("{id}.mp4"),
         job_type: JobType::Video,

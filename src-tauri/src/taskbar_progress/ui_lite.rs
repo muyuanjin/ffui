@@ -4,6 +4,9 @@ use crate::ffui_core::{
 
 // jscpd:ignore-start
 impl super::JobProgressModel for TranscodeJobUiLite {
+    fn execution_mode(&self) -> Option<crate::ffui_core::JobExecutionMode> {
+        self.execution_mode
+    }
     fn status(&self) -> &crate::ffui_core::JobStatus {
         &self.status
     }
@@ -54,7 +57,7 @@ pub fn update_taskbar_progress_ui_lite(
 ) {
     let completed_queue =
         state.jobs.iter().all(|job| super::is_terminal(&job.status)) && !state.jobs.is_empty();
-    let progress = compute_taskbar_progress_ui_lite(state, mode, scope);
+    let progress = super::compute_taskbar_progress_value_generic(&state.jobs, mode, scope);
     super::update_windows_taskbar_progress_bar(app, progress, completed_queue);
 }
 

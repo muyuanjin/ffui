@@ -46,6 +46,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         preset,
         settings_snapshot,
         job_type,
+        has_video_execution,
         preset_id,
         cached_media_info,
         job_filename,
@@ -57,28 +58,28 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             None => return Ok(None),
         };
 
-        let preset = state
-            .presets
-            .iter()
-            .find(|p| p.id == job.preset_id)
-            .cloned();
+        let preset = match job.execution.as_ref() {
+            Some(crate::ffui_core::domain::JobExecution::Video { preset }) => Some(preset.as_ref().clone()),
+            _ => state.presets.iter().find(|p| p.id == job.preset_id).cloned(),
+        };
         let cached_media_info = state.media_info_cache.get(&job.filename).cloned();
 
         (
-            PathBuf::from(&job.filename),
+            PathBuf::from(job.input_path.as_deref().unwrap_or(&job.filename)),
             preset,
             state.settings.clone(),
             job.job_type,
+            matches!(job.execution, Some(crate::ffui_core::JobExecution::Video { .. })),
             job.preset_id.clone(),
             cached_media_info,
-            job.filename.clone(),
+            job.input_path.clone().unwrap_or(job.filename.clone()),
             job.wait_metadata,
         )
     };
 
     let original_size_bytes = fs::metadata(&job_filename).map(|m| m.len()).unwrap_or(0);
 
-    if job_type != JobType::Video {
+    if !has_video_execution && job_type != JobType::Video {
         // For now, only video jobs are processed by the background worker.
         {
             let mut state = inner.state.lock_unpoisoned();

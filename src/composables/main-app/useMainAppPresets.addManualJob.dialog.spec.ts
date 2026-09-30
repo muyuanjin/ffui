@@ -120,22 +120,21 @@ describe("useMainAppPresets addManualJob dialog (Tauri v2 internals)", () => {
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
-  it("enqueues the video files of a mixed selection and explains the skipped ones", async () => {
+  it("enqueues audio and image files without claiming they are video", async () => {
     openDialogMock.mockResolvedValueOnce(["C:/videos/a.mp4", "C:/music/b.mp3"]);
-    expandManualJobInputsMock.mockResolvedValueOnce({ accepted: ["C:/videos/a.mp4"], skipped: 1 });
+    const filenames = ["C:/music/b.mp3", "C:/pictures/图像.png"];
+    expandManualJobInputsMock.mockResolvedValueOnce({ accepted: filenames, skipped: 0 });
     enqueueTranscodeJobMock.mockResolvedValueOnce({ id: "job-1" });
 
     const api = mountPresets();
     await api.addManualJob("files");
     await flushPromises();
 
-    expect(enqueueTranscodeJobMock).toHaveBeenCalledWith(
-      expect.objectContaining({ filename: "C:/videos/a.mp4", jobType: "video" }),
-    );
-    expect(toastErrorMock).toHaveBeenCalledWith("queue.error.unsupportedMedia", { duration: 6000 });
+    expect(enqueueTranscodeJobsMock).toHaveBeenCalledWith(expect.objectContaining({ filenames, jobType: "other" }));
+    expect(toastErrorMock).not.toHaveBeenCalled();
   });
 
-  it("explains a folder that contains no video (this used to be silence)", async () => {
+  it("reports a folder containing only inaccessible entries", async () => {
     openDialogMock.mockResolvedValueOnce(["C:/Music/Album"]);
     expandManualJobInputsMock.mockResolvedValueOnce({ accepted: [], skipped: 5 });
 

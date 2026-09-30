@@ -12,6 +12,7 @@ mod batch_media_snapshot_tests {
         saving: BatchCompressSavingCondition,
     ) -> TranscodeJob {
         TranscodeJob {
+            execution: None,
             id: job_id.to_string(),
             filename: format!("C:/media/{job_id}.png"),
             job_type,

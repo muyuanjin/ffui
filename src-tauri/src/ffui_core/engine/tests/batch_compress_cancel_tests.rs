@@ -2,6 +2,7 @@ use super::*;
 
 fn make_batch_child(job_id: &str, batch_id: &str) -> TranscodeJob {
     TranscodeJob {
+        execution: None,
         id: job_id.to_string(),
         filename: "C:/videos/queued-child.mp4".to_string(),
         job_type: JobType::Video,

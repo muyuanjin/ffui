@@ -20,6 +20,10 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
         guard.drain().collect()
     };
 
+    super::super::super::manual_execution::hydrate_legacy_jobs(
+        inner,
+        &auto_paused_set.iter().cloned().collect::<Vec<_>>(),
+    );
     let (resume_ids_in_queue, resume_extra_ids) = {
         let state = inner.state.lock_unpoisoned();
 
@@ -36,7 +40,12 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
             let Some(job) = state.jobs.get(job_id) else {
                 continue;
             };
-            if job.status != JobStatus::Paused {
+            if job.status != JobStatus::Paused
+                || job
+                    .execution
+                    .as_ref()
+                    .is_some_and(|execution| !execution.can_replay_automatically())
+            {
                 continue;
             }
             resume_ids_in_queue.push(job_id.clone());
@@ -49,7 +58,12 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
             let Some(job) = state.jobs.get(job_id) else {
                 continue;
             };
-            if job.status != JobStatus::Paused {
+            if job.status != JobStatus::Paused
+                || job
+                    .execution
+                    .as_ref()
+                    .is_some_and(|execution| !execution.can_replay_automatically())
+            {
                 continue;
             }
             resume_extra_ids.push(job_id.clone());

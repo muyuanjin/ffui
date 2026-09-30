@@ -1,7 +1,10 @@
 use crate::ffui_core::{
-    JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope, TranscodeJob,
+    JobExecutionMode, JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope,
+    TaskbarProgressValue, TranscodeJob, is_indeterminate_job_progress,
 };
 
+#[cfg(test)]
+mod generic_execution_tests;
 #[allow(dead_code)]
 mod lite;
 #[allow(dead_code)]
@@ -22,14 +25,14 @@ const fn is_terminal(status: &JobStatus) -> bool {
 #[cfg(windows)]
 fn update_windows_taskbar_progress_bar(
     app: &tauri::AppHandle,
-    progress: Option<f64>,
+    progress: TaskbarProgressValue,
     completed_queue: bool,
 ) {
     use tauri::window::{ProgressBarState, ProgressBarStatus};
     use tauri::{Manager, UserAttentionType};
 
     if let Some(window) = app.get_webview_window("main") {
-        if let Some(progress) = progress {
+        if let TaskbarProgressValue::Determinate(progress) = progress {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
 
@@ -78,7 +81,11 @@ fn update_windows_taskbar_progress_bar(
             }
         } else {
             let state = ProgressBarState {
-                status: Some(ProgressBarStatus::None),
+                status: Some(if progress == TaskbarProgressValue::Indeterminate {
+                    ProgressBarStatus::Indeterminate
+                } else {
+                    ProgressBarStatus::None
+                }),
                 progress: None,
             };
             if let Err(err) = window.set_progress_bar(state) {
@@ -89,6 +96,7 @@ fn update_windows_taskbar_progress_bar(
 }
 
 pub trait JobProgressModel {
+    fn execution_mode(&self) -> Option<JobExecutionMode>;
     fn status(&self) -> &JobStatus;
     fn progress_percent(&self) -> f64;
     fn start_time_ms(&self) -> Option<u64>;
@@ -98,6 +106,11 @@ pub trait JobProgressModel {
 }
 
 impl JobProgressModel for TranscodeJob {
+    fn execution_mode(&self) -> Option<JobExecutionMode> {
+        self.execution
+            .as_ref()
+            .map(crate::ffui_core::JobExecution::mode)
+    }
     fn status(&self) -> &JobStatus {
         &self.status
     }
@@ -187,14 +200,28 @@ pub fn compute_taskbar_progress_generic<J: JobProgressModel>(
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,
 ) -> Option<f64> {
+    match compute_taskbar_progress_value_generic(jobs, mode, scope) {
+        TaskbarProgressValue::Determinate(value) => Some(value),
+        TaskbarProgressValue::Empty | TaskbarProgressValue::Indeterminate => None,
+    }
+}
+
+pub(super) fn compute_taskbar_progress_value_generic<J: JobProgressModel>(
+    jobs: &[J],
+    mode: TaskbarProgressMode,
+    scope: TaskbarProgressScope,
+) -> TaskbarProgressValue {
     if jobs.is_empty() {
-        return None;
+        return TaskbarProgressValue::Empty;
     }
 
     let mut weighted_total = 0.0f64;
     let mut total_weight = 0.0f64;
 
     for job in eligible_jobs_for_scope_generic(jobs, scope) {
+        if is_indeterminate_job_progress(*job.status(), job.execution_mode()) {
+            return TaskbarProgressValue::Indeterminate;
+        }
         let w = job_weight_generic(job, mode);
         let p = normalized_job_progress_generic(job);
         weighted_total += w * p;
@@ -202,16 +229,16 @@ pub fn compute_taskbar_progress_generic<J: JobProgressModel>(
     }
 
     if total_weight <= 0.0 {
-        return None;
+        return TaskbarProgressValue::Empty;
     }
 
-    Some((weighted_total / total_weight).clamp(0.0, 1.0))
+    TaskbarProgressValue::Determinate((weighted_total / total_weight).clamp(0.0, 1.0))
 }
 
 /// Compute an application-level progress value for the Windows taskbar based on
 /// the current queue state and the configured aggregation mode. The returned
 /// value is in the range [0.0, 1.0] when progress should be shown, or `None`
-/// when the taskbar progress bar should be cleared.
+/// when a determinate reading is unavailable.
 pub fn compute_taskbar_progress(
     state: &QueueState,
     mode: TaskbarProgressMode,

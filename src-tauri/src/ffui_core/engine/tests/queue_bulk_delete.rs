@@ -10,6 +10,7 @@ fn bulk_delete_jobs_removes_all_and_notifies_once() {
     let failed_id = "job-bulk-delete-failed".to_string();
 
     let make_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -96,6 +97,7 @@ fn bulk_delete_jobs_ignores_non_terminal_jobs() {
     let queued_id = "job-bulk-delete-reject-queued".to_string();
 
     let make_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -197,6 +199,7 @@ fn bulk_delete_batch_compress_batches_deletes_children_and_metadata_and_notifies
         );
 
         let base_job = |id: &str, status: JobStatus| TranscodeJob {
+            execution: None,
             id: id.to_string(),
             filename: format!("C:/videos/{id}.mp4"),
             job_type: JobType::Video,

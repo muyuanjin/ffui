@@ -22,6 +22,8 @@ const props = defineProps<{
   hasActiveFilters: boolean;
   hasSelection: boolean;
   selectedCount: number;
+  bulkWaitEligible?: boolean;
+  bulkResumeEligible?: boolean;
   hasPrimarySortTies: boolean;
   queueMode: QueueMode;
   visibleCount: number;
@@ -331,6 +333,8 @@ const toggleSecondarySortDirection = () => {
         v-if="props.hasSelection || selectionBarPinned"
         :selection-bar-pinned="selectionBarPinned"
         :selected-count="props.selectedCount"
+        :bulk-wait-eligible="props.bulkWaitEligible"
+        :bulk-resume-eligible="props.bulkResumeEligible"
         :queue-mode="props.queueMode"
         :bulk-action-in-progress="props.bulkActionInProgress ?? null"
         @select-all-visible-jobs="emit('select-all-visible-jobs')"

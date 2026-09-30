@@ -6,9 +6,11 @@ pub(super) mod bench;
 mod engine_facade_extras;
 mod enqueue_bulk;
 mod ffmpeg_args;
+mod ffmpeg_job;
 mod file_times;
 mod job_runner;
 mod listeners;
+mod manual_execution;
 mod os_paths;
 mod output_policy_paths;
 mod preview_cache_gc;
@@ -28,7 +30,6 @@ mod ui_lite;
 mod vmaf;
 mod worker;
 mod worker_utils;
-pub(crate) use batch_compress::is_video_file;
 #[cfg(test)]
 pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
 #[cfg(test)]
@@ -343,6 +344,13 @@ impl TranscodingEngine {
             original_codec,
             preset_id,
         )
+    }
+
+    pub fn enqueue_ffmpeg_job(
+        &self,
+        request: crate::ffui_core::domain::FfmpegJobRequest,
+    ) -> std::result::Result<TranscodeJob, String> {
+        worker::enqueue_ffmpeg_job(&self.inner, request)
     }
 
     pub fn preview_output_path(

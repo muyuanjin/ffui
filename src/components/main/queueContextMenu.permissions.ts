@@ -1,5 +1,7 @@
 import { computed } from "vue";
 import type { JobSource, JobStatus, JobType, QueueBulkActionKind, QueueMode } from "@/types";
+import type { JobExecutionMode } from "@/types/queue";
+import { canReplayQueueJob } from "@/lib/queueExecutionCapabilities";
 
 export interface QueueContextMenuPermissionProps {
   mode: "single" | "bulk";
@@ -7,6 +9,9 @@ export interface QueueContextMenuPermissionProps {
   jobStatus?: JobStatus;
   jobType?: JobType;
   jobSource?: JobSource;
+  jobExecutionMode?: JobExecutionMode;
+  bulkWaitEligible?: boolean;
+  bulkResumeEligible?: boolean;
   hasSelection: boolean;
   bulkActionInProgress?: QueueBulkActionKind | null;
   canRevealInputPath?: boolean;
@@ -23,8 +28,9 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
   const isTerminalStatus = (value: JobStatus | undefined) =>
     value === "completed" || value === "failed" || value === "skipped" || value === "cancelled";
   // 允许在显示模式下也能进行暂停/继续操作（仅影响单个任务状态，不改变队列优先级）。
-  const canWait = computed(() => props.mode === "single" && status.value === "processing");
-  const canResume = computed(() => props.mode === "single" && status.value === "paused");
+  const replayable = computed(() => canReplayQueueJob({ executionMode: props.jobExecutionMode }));
+  const canWait = computed(() => props.mode === "single" && replayable.value && status.value === "processing");
+  const canResume = computed(() => props.mode === "single" && replayable.value && status.value === "paused");
 
   const canRestart = computed(
     () =>
@@ -55,8 +61,8 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
 
   const canBulkCancel = computed(() => canBulkBase.value);
   // 批量暂停/继续在显示模式下也允许；批量移动仍仅在队列模式下。
-  const canBulkWait = computed(() => canBulkBase.value);
-  const canBulkResume = computed(() => canBulkBase.value);
+  const canBulkWait = computed(() => canBulkBase.value && (props.bulkWaitEligible ?? true));
+  const canBulkResume = computed(() => canBulkBase.value && (props.bulkResumeEligible ?? true));
   const canBulkRestart = computed(() => canBulkBase.value);
   const canBulkMove = computed(() => canBulkBase.value && isQueueMode.value);
   const canBulkDelete = computed(() => canBulkBase.value);

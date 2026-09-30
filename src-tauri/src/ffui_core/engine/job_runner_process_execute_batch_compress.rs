@@ -77,6 +77,7 @@ mod batch_compress_video_savings_tests {
 
     fn batch_video_job(job_id: &str, batch_id: &str) -> TranscodeJob {
         TranscodeJob {
+            execution: None,
             id: job_id.to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,

@@ -120,6 +120,7 @@ impl JobRecord {
 impl From<TranscodeJobLite> for JobRecord {
     fn from(job: TranscodeJobLite) -> Self {
         let config = JobConfig {
+            execution: job.execution,
             filename: job.filename,
             job_type: job.job_type,
             source: job.source,
@@ -181,6 +182,7 @@ impl From<JobRecord> for TranscodeJobLite {
         } = record;
 
         let JobConfig {
+            execution,
             filename,
             job_type,
             source,
@@ -221,6 +223,7 @@ impl From<JobRecord> for TranscodeJobLite {
 
         Self {
             id,
+            execution,
             filename,
             job_type,
             source,

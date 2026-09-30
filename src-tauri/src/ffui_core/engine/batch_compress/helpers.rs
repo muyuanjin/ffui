@@ -90,6 +90,7 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         .and_then(super::super::file_times::system_time_to_epoch_ms);
 
     TranscodeJob {
+        execution: None,
         id: job_id,
         filename,
         job_type,

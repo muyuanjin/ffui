@@ -90,12 +90,12 @@ impl TaskbarDeltaUiState {
         };
 
         let completed_queue = self.tracker.completed_queue();
-        let progress = self.tracker.progress();
+        let progress = self.tracker.display_progress();
 
         let mut desired_status: ProgressBarStatus = ProgressBarStatus::None;
         let mut desired_pct: Option<u64> = None;
 
-        if let Some(p) = progress {
+        if let crate::ffui_core::TaskbarProgressValue::Determinate(p) = progress {
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let pct = (p * 100.0).round().clamp(0.0, 100.0) as u64;
             desired_pct = Some(pct);
@@ -119,6 +119,9 @@ impl TaskbarDeltaUiState {
                 self.attention_sent_for_completion = false;
             }
         } else {
+            if progress == crate::ffui_core::TaskbarProgressValue::Indeterminate {
+                desired_status = ProgressBarStatus::Indeterminate;
+            }
             self.attention_sent_for_completion = false;
         }
 

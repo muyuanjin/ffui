@@ -206,6 +206,24 @@ pub(super) fn update_job_progress(
     log_line: Option<&str>,
     speed: Option<f64>,
 ) {
+    update_job_progress_guarded(inner, (job_id, None), percent, progress_out_time_seconds, progress_frame, log_line, speed);
+}
+
+pub(super) fn update_ffmpeg_job_progress(inner: &Inner, job_id: &str, attempt: usize, line: &str) {
+    let sample = parse_ffmpeg_progress_sample(line);
+    update_job_progress_guarded(inner, (job_id, Some(attempt)), None, sample.elapsed_seconds, sample.frame, Some(line), sample.speed);
+}
+
+fn update_job_progress_guarded(
+    inner: &Inner,
+    identity: (&str, Option<usize>),
+    percent: Option<f64>,
+    progress_out_time_seconds: Option<f64>,
+    progress_frame: Option<u64>,
+    log_line: Option<&str>,
+    speed: Option<f64>,
+) {
+    let (job_id, expected_attempt) = identity;
     let mut should_notify = false;
     let mut progress_changed = false;
     let mut telemetry_changed = false;
@@ -216,6 +234,11 @@ pub(super) fn update_job_progress(
 
     {
         let mut state = inner.state.lock_unpoisoned();
+        if let Some(attempt) = expected_attempt
+            && !state.jobs.get(job_id).is_some_and(|job| job.status == JobStatus::Processing && job.runs.len() == attempt)
+        {
+            return;
+        }
         let base_snapshot_revision = state.queue_snapshot_revision;
         let last_persist_snapshot_at_ms = state.last_queue_persist_snapshot_at_ms;
         let mut next_persist_snapshot_at_ms: Option<u64> = None;
@@ -425,7 +448,9 @@ pub(super) fn update_job_progress(
         notify_queue_lite_delta_listeners(inner, delta);
     }
 
-    update_job_progress_phase_sample(inner, job_id, progress_out_time_seconds, speed);
+    if expected_attempt.is_none() {
+        update_job_progress_phase_sample(inner, job_id, progress_out_time_seconds, speed);
+    }
 
     if should_persist_snapshot {
         persist_queue_state_lite_best_effort(inner);

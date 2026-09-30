@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
+import QueueIndeterminateProgress from "./QueueIndeterminateProgress.vue";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 import type { CompositeBatchCompressTask, TranscodeJob } from "@/types";
 import type { QueueListItem } from "@/composables";
 import { getProgressVariant, getStatusClass, getTypeIcon } from "./queueCarousel3dView.helpers";
@@ -34,9 +36,11 @@ const job = computed<TranscodeJob | null>(() => {
 });
 
 const jobIdForPreview = computed(() => job.value?.id ?? null);
+const indeterminate = computed(() => props.item.kind === "job" && hasIndeterminateQueueProgress(props.item.job));
 
 const statusKey = computed(() => {
   if (props.item.kind !== "job") return null;
+  if (indeterminate.value) return "queue.command.indeterminate";
   const raw = props.item.job.status;
   return `queue.status.${raw}`;
 });
@@ -107,20 +111,21 @@ const phaseText = computed(() => {
 
     <!-- 进度条与百分比 -->
     <div v-if="item.kind === 'job'" class="flex items-center gap-2">
+      <QueueIndeterminateProgress v-if="indeterminate" class="h-1 flex-1" />
       <Progress
-        v-if="item.job.status !== 'queued' && item.job.status !== 'skipped'"
+        v-else-if="item.job.status !== 'queued' && item.job.status !== 'skipped'"
         :model-value="displayProgress"
         :variant="getProgressVariant(item.job.status)"
         class="h-1 flex-1"
       />
       <span
-        v-if="phaseText"
+        v-if="!indeterminate && phaseText"
         class="text-[10px] text-muted-foreground shrink-0"
         data-testid="queue-carousel-phase-label"
         >{{ phaseText }}</span
       >
       <span
-        v-else-if="displayProgress > 0 && displayProgress < 100"
+        v-else-if="!indeterminate && displayProgress > 0 && displayProgress < 100"
         class="text-[10px] text-muted-foreground font-mono shrink-0"
         >{{ Math.round(displayProgress) }}%</span
       >

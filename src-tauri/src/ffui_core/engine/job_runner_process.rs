@@ -63,6 +63,18 @@ struct PreparedBatchCompressMediaJob {
 }
 
 pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
+    super::manual_execution::hydrate_legacy_manual_job(inner, job_id);
+    let execution = inner.state.lock_unpoisoned().jobs.get(job_id).and_then(|job| job.execution.clone());
+    match execution {
+        Some(crate::ffui_core::domain::JobExecution::Ffmpeg { invocation }) => {
+            return super::ffmpeg_job::process_ffmpeg_job(inner, job_id, invocation);
+        }
+        Some(crate::ffui_core::domain::JobExecution::Invalid { reason }) => {
+            super::ffmpeg_job::mark_invalid_job(inner, job_id, reason);
+            return Ok(());
+        }
+        _ => {}
+    }
     let dispatch = {
         let state = inner.state.lock_unpoisoned();
         state
@@ -71,15 +83,8 @@ pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             .map(|job| (job.job_type, job.source))
     };
 
-    match dispatch {
-        Some((JobType::Image | JobType::Audio, JobSource::BatchCompress)) => {
-            return process_batch_compress_media_job(inner, job_id);
-        }
-        Some((JobType::Image | JobType::Audio, JobSource::Manual)) => {
-            mark_unsupported_manual_media_job(inner, job_id);
-            return Ok(());
-        }
-        _ => {}
+    if let Some((JobType::Image | JobType::Audio, JobSource::BatchCompress)) = dispatch {
+        return process_batch_compress_media_job(inner, job_id);
     }
 
     // Phase 1: inspect queue state, resolve preset/paths, and persist media
@@ -124,7 +129,7 @@ fn process_batch_compress_media_job(inner: &Inner, job_id: &str) -> Result<()> {
             &prepared.batch_id,
             Some(job_id.to_string()),
         ),
-        JobType::Video => unreachable!("video jobs use the transcode path"),
+        JobType::Video | JobType::Other => unreachable!("non-media jobs use their execution description"),
     };
 
     match result {
@@ -435,25 +440,6 @@ fn mark_batch_compress_media_failed(inner: &Inner, job_id: &str, err: anyhow::Er
 
     if should_wake_worker {
         inner.cv.notify_all();
-    }
-}
-
-fn mark_unsupported_manual_media_job(inner: &Inner, job_id: &str) {
-    let mut state = inner.state.lock_unpoisoned();
-    if let Some(job) = state.jobs.get_mut(job_id) {
-        job.status = JobStatus::Failed;
-        job.progress = 100.0;
-        job.end_time = Some(current_time_millis());
-        let reason = format!(
-            "Manual {} queue execution is not supported",
-            match job.job_type {
-                JobType::Image => "image",
-                JobType::Audio => "audio",
-                JobType::Video => "video",
-            }
-        );
-        job.failure_reason = Some(reason.clone());
-        super::worker_utils::append_job_log_line(job, reason);
     }
 }
 

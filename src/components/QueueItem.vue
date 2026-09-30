@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Progress, type ProgressSegment, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
+import QueueIndeterminateProgress from "@/components/queue-item/QueueIndeterminateProgress.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import QueueItemMiniRow from "@/components/queue-item/QueueItemMiniRow.vue";
 import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
@@ -14,6 +15,7 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import { isQueuePerfEnabled, recordQueueItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
 import { resolveUiJobStatus, type UiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
+import { canReplayQueueJob, hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -101,9 +103,13 @@ const statusTextClass = computed(() => {
 });
 
 const { t } = useI18n();
-const localizedStatus = computed(() => t(`queue.status.${effectiveStatus.value}`));
+const indeterminateProgress = computed(() => hasIndeterminateQueueProgress(props.job));
+const localizedStatus = computed(() =>
+  t(indeterminateProgress.value ? "queue.command.indeterminate" : `queue.status.${effectiveStatus.value}`),
+);
 
 const typeLabel = computed(() => {
+  if (props.job.type === "other") return t("queue.typeOther");
   if (props.job.type === "image") {
     return t("queue.typeImage");
   }
@@ -126,9 +132,11 @@ const isCancellable = computed(
     (props.job.status === "queued" || props.job.status === "processing" || props.job.status === "paused"),
 );
 
-const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !isPausing.value);
+const isWaitable = computed(
+  () => canReplayQueueJob(props.job) && props.canWait && props.job.status === "processing" && !isPausing.value,
+);
 
-const isResumable = computed(() => props.canResume && props.job.status === "paused");
+const isResumable = computed(() => canReplayQueueJob(props.job) && props.canResume && props.job.status === "paused");
 
 const isRestartable = computed(
   () => props.canRestart && props.job.status !== "completed" && props.job.status !== "skipped",
@@ -389,7 +397,7 @@ if (isQueuePerfEnabled) {
     @contextmenu.prevent.stop="onCardContextMenu"
   >
     <QueueItemProgressLayer
-      v-if="!isMini"
+      v-if="!isMini && !indeterminateProgress"
       :show-card-fill-progress="showCardFillProgress"
       :show-ripple-card-progress="showRippleCardProgress"
       :preview-url="previewUrl"
@@ -448,7 +456,7 @@ if (isQueuePerfEnabled) {
     />
 
     <Progress
-      v-if="!isMini && showBarProgress"
+      v-if="!isMini && showBarProgress && !indeterminateProgress"
       :model-value="displayedClampedProgress"
       :variant="progressVariant"
       :transition-ms="progressTransitionMs"
@@ -456,6 +464,7 @@ if (isQueuePerfEnabled) {
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />
+    <QueueIndeterminateProgress v-if="indeterminateProgress" />
     <div v-if="!isCompact && !isMini && (rawCommand || mediaSummary)">
       <QueueItemCommandPreview
         :raw-command="rawCommand"

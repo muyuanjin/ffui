@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 
 use crate::ffui_core::{
-    JobStatus, QueueStateLiteDelta, QueueStateUiLite, TaskbarProgressMode, TaskbarProgressScope,
+    JobExecutionMode, JobStatus, QueueStateLiteDelta, QueueStateUiLite, TaskbarProgressMode,
+    TaskbarProgressScope, TaskbarProgressValue, is_indeterminate_job_progress,
 };
 
 #[derive(Debug, Clone)]
 struct JobSnapshot {
     status: JobStatus,
+    execution_mode: Option<JobExecutionMode>,
     progress: f64,
     start_time: Option<u64>,
     size_mb: f64,
@@ -15,6 +17,9 @@ struct JobSnapshot {
 }
 
 impl JobSnapshot {
+    fn is_indeterminate(&self) -> bool {
+        is_indeterminate_job_progress(self.status, self.execution_mode)
+    }
     fn is_terminal(&self) -> bool {
         matches!(
             self.status,
@@ -63,6 +68,7 @@ pub struct TaskbarProgressDeltaTracker {
     jobs: HashMap<String, JobSnapshot>,
     job_count: usize,
     terminal_count: usize,
+    indeterminate_count: usize,
 
     config: Option<TrackerConfig>,
     total_weight: f64,
@@ -86,6 +92,9 @@ impl TaskbarProgressDeltaTracker {
     }
 
     pub fn progress(&self) -> Option<f64> {
+        if self.indeterminate_count > 0 {
+            return None;
+        }
         if self.job_count == 0 {
             return None;
         }
@@ -93,6 +102,17 @@ impl TaskbarProgressDeltaTracker {
             return None;
         }
         Some((self.weighted_total / self.total_weight).clamp(0.0, 1.0))
+    }
+
+    pub fn display_progress(&self) -> TaskbarProgressValue {
+        if self.indeterminate_count > 0 {
+            TaskbarProgressValue::Indeterminate
+        } else {
+            self.progress().map_or(
+                TaskbarProgressValue::Empty,
+                TaskbarProgressValue::Determinate,
+            )
+        }
     }
 
     pub fn reset_from_ui_lite(
@@ -105,6 +125,7 @@ impl TaskbarProgressDeltaTracker {
         self.jobs.clear();
         self.job_count = snapshot.jobs.len();
         self.terminal_count = 0;
+        self.indeterminate_count = 0;
         self.non_terminal_count = 0;
         self.non_terminal_min_start_time = None;
 
@@ -122,12 +143,16 @@ impl TaskbarProgressDeltaTracker {
 
             let snap = JobSnapshot {
                 status: job.status,
+                execution_mode: job.execution_mode,
                 progress: job.progress,
                 start_time: job.start_time,
                 size_mb,
                 duration_seconds,
                 estimated_seconds: job.estimated_seconds,
             };
+            if snap.is_indeterminate() {
+                self.indeterminate_count += 1;
+            }
             if snap.is_terminal() {
                 self.terminal_count += 1;
             } else {
@@ -185,6 +210,9 @@ impl TaskbarProgressDeltaTracker {
             }
 
             let old_terminal = old_job.is_terminal();
+            if old_job.is_indeterminate() {
+                self.indeterminate_count = self.indeterminate_count.saturating_sub(1);
+            }
 
             let new_job = {
                 let Some(job) = self.jobs.get_mut(&patch.id) else {
@@ -195,6 +223,9 @@ impl TaskbarProgressDeltaTracker {
             };
 
             let new_terminal = new_job.is_terminal();
+            if new_job.is_indeterminate() {
+                self.indeterminate_count += 1;
+            }
             if old_terminal != new_terminal {
                 cohort_recompute_needed = true;
                 if old_terminal {

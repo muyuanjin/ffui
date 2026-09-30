@@ -116,6 +116,13 @@ export const transcodeJobFromWire = (wire: WireTranscodeJob): TranscodeJob => {
     modifiedTimeMs: optional(wire.modifiedTimeMs),
     outputPath: optional(wire.outputPath),
     outputPolicy: mapOutputPolicy(wire.outputPolicy),
+    executionMode: optional(
+      wire.execution?.kind === "ffmpeg"
+        ? wire.execution.invocation.output.kind === "managedFile"
+          ? "managed"
+          : "transparent"
+        : wire.execution?.kind,
+    ),
     ffmpegCommand: optional(wire.ffmpegCommand),
     runs: mapJobRuns(wire.runs),
     mediaInfo: optional(wire.mediaInfo as TranscodeJob["mediaInfo"] | null | undefined),
@@ -134,6 +141,7 @@ export const transcodeJobFromWire = (wire: WireTranscodeJob): TranscodeJob => {
 export const transcodeJobLiteFromWire = (wire: WireTranscodeJobLite): TranscodeJobLite => {
   return {
     id: wire.id,
+    executionMode: optional(wire.executionMode),
     filename: wire.filename,
     type: wire.type,
     source: wire.source,

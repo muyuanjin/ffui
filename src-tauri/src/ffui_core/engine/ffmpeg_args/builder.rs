@@ -67,14 +67,7 @@ pub(crate) fn build_ffmpeg_args(
     non_interactive: bool,
     output_policy: Option<&OutputPolicy>,
 ) -> Vec<String> {
-    let mut forced_muxer = forced_muxer_for_policy(output_policy, input);
-    if forced_muxer.as_deref() == Some("webm")
-        && let Some(policy) = output_policy
-        && matches!(policy.container, OutputContainerPolicy::Force { .. })
-        && should_fallback_webm_forced_container(preset, input)
-    {
-        forced_muxer = Some("matroska".to_string());
-    }
+    let forced_muxer = resolved_forced_muxer(preset, input, output_policy);
 
     if preset.advanced_enabled.unwrap_or(false)
         && preset
@@ -348,4 +341,35 @@ pub(crate) fn build_ffmpeg_args(
 
     args.push(output.to_string_lossy().into_owned());
     args
+}
+
+fn resolved_forced_muxer(
+    preset: &FFmpegPreset,
+    input: &Path,
+    output_policy: Option<&OutputPolicy>,
+) -> Option<String> {
+    let mut forced_muxer = forced_muxer_for_policy(output_policy, input);
+    if forced_muxer.as_deref() == Some("webm")
+        && let Some(policy) = output_policy
+        && matches!(policy.container, OutputContainerPolicy::Force { .. })
+        && should_fallback_webm_forced_container(preset, input)
+    {
+        forced_muxer = Some("matroska".to_string());
+    }
+    forced_muxer
+}
+
+pub(in crate::ffui_core::engine) fn effective_output_muxer(
+    preset: &FFmpegPreset,
+    input: &Path,
+    output: &Path,
+    policy: &OutputPolicy,
+) -> Option<String> {
+    let forced_muxer = resolved_forced_muxer(preset, input, Some(policy));
+    resolve_auto_map_muxer(preset, forced_muxer.as_deref()).or_else(|| {
+        output
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .map(super::normalize_container_format)
+    })
 }

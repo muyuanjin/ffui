@@ -22,6 +22,11 @@ pub(in crate::ffui_core::engine) fn probe_crash_recovery_wait_metadata_for_proce
         if job.status != JobStatus::Processing {
             return false;
         }
+        if job.execution.as_ref().is_some_and(|execution| {
+            !matches!(execution, crate::ffui_core::JobExecution::Video { .. })
+        }) {
+            return false;
+        }
         let existing_wait_metadata = job.wait_metadata.clone();
         let had_resume_evidence = job.elapsed_ms.is_some_and(|ms| ms > 0)
             || existing_wait_metadata

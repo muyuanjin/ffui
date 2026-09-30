@@ -1,4 +1,4 @@
-fn input_file_times_for_policy(
+pub(super) fn input_file_times_for_policy(
     policy: &crate::ffui_core::domain::PreserveFileTimesPolicy,
     input_path: &Path,
 ) -> Option<super::file_times::FileTimesSnapshot> {

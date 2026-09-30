@@ -1,9 +1,12 @@
 import { computed, proxyRefs } from "vue";
 import { useQueueDomain } from "@/MainApp.setup";
+import { getQueueReplayEligibility } from "@/lib/queueExecutionCapabilities";
 
 export function useMainQueueContextMenuOrchestrator() {
   const queue = proxyRefs(useQueueDomain());
   const menu = proxyRefs(queue.queueContextMenu);
+  const selectedJobs = computed(() => queue.jobs.filter((job) => queue.selectedJobIds.has(job.id)));
+  const replayEligibility = computed(() => getQueueReplayEligibility(selectedJobs.value));
 
   const menuProps = proxyRefs({
     visible: computed(() => menu.queueContextMenuVisible),
@@ -13,8 +16,11 @@ export function useMainQueueContextMenuOrchestrator() {
     jobStatus: computed(() => menu.queueContextMenuJobStatus),
     jobType: computed(() => menu.queueContextMenuJob?.type),
     jobSource: computed(() => menu.queueContextMenuJob?.source),
+    jobExecutionMode: computed(() => menu.queueContextMenuJob?.executionMode),
     queueMode: computed(() => queue.queueMode),
     hasSelection: computed(() => queue.hasSelection),
+    bulkWaitEligible: computed(() => replayEligibility.value.wait),
+    bulkResumeEligible: computed(() => replayEligibility.value.resume),
     bulkActionInProgress: computed(() => queue.bulkActionInProgress),
     canRevealInputPath: computed(() => menu.queueContextMenuCanRevealInputPath),
     canRevealOutputPath: computed(() => menu.queueContextMenuCanRevealOutputPath),

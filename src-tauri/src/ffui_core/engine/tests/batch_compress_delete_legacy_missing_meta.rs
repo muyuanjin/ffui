@@ -12,6 +12,7 @@ fn delete_batch_compress_batch_succeeds_without_batch_metadata_when_all_children
         let mut state = engine.inner.state.lock_unpoisoned();
 
         let base_job = |id: &str, status: JobStatus| TranscodeJob {
+            execution: None,
             id: id.to_string(),
             filename: format!("C:/videos/{id}.mp4"),
             job_type: JobType::Video,
@@ -95,6 +96,7 @@ fn delete_batch_compress_batch_rejects_without_batch_metadata_when_any_child_is_
             };
 
             TranscodeJob {
+                execution: None,
                 id: id.to_string(),
                 filename: format!("C:/videos/{id}.mp4"),
                 job_type: JobType::Video,

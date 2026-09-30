@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 fn make_batch_compress_media_child(id: &str, status: JobStatus, job_type: JobType) -> TranscodeJob {
     TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type,
@@ -680,6 +681,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: input_path.to_string_lossy().into_owned(),
                 job_type: JobType::Video,

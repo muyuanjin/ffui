@@ -15,6 +15,7 @@ mod domain_contract_tests {
     #[test]
     fn transcode_job_uses_stable_mb_field_names_and_aliases() {
         let job = TranscodeJob {
+            execution: None,
             id: "1".to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
@@ -514,6 +515,7 @@ mod domain_contract_tests {
     #[test]
     fn job_config_extracts_persistable_fields_only() {
         let job = TranscodeJob {
+            execution: None,
             id: "job-1".to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
@@ -587,6 +589,7 @@ mod domain_contract_tests {
     #[test]
     fn queue_state_lite_roundtrip_preserves_batch_compress_saving_condition() {
         let job = TranscodeJob {
+            execution: None,
             id: "batch-video-1".to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
@@ -746,6 +749,7 @@ mod domain_contract_tests {
     #[test]
     fn auto_compress_result_uses_camel_case_batch_fields() {
         let job = TranscodeJob {
+            execution: None,
             id: "1".to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,

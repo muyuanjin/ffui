@@ -19,6 +19,8 @@ mod settings;
 mod shutdown_marker;
 #[cfg(any(windows, feature = "bench"))]
 mod taskbar_progress_delta;
+#[cfg(any(windows, feature = "bench"))]
+mod taskbar_progress_value;
 mod template_validation;
 pub mod tools;
 
@@ -127,4 +129,6 @@ pub(crate) use shutdown_marker::{
 pub use taskbar_progress_delta::TaskbarProgressDeltaTracker;
 #[cfg(all(not(feature = "bench"), windows))]
 pub(crate) use taskbar_progress_delta::TaskbarProgressDeltaTracker;
+#[cfg(any(windows, feature = "bench"))]
+pub(crate) use taskbar_progress_value::{TaskbarProgressValue, is_indeterminate_job_progress};
 pub use tools::{ExternalToolCandidate, ExternalToolStatus};

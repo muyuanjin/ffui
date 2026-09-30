@@ -88,6 +88,7 @@ pub enum JobType {
     Video,
     Image,
     Audio,
+    Other,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
@@ -121,6 +122,8 @@ pub struct JobRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct JobConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<super::JobExecution>,
     pub filename: String,
     #[serde(rename = "type")]
     pub job_type: JobType,
@@ -183,6 +186,8 @@ pub struct JobRun {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJob {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution: Option<super::JobExecution>,
     /* jscpd:ignore-start */
     pub id: String,
     pub filename: String,
@@ -305,6 +310,7 @@ pub struct TranscodeJob {
 impl From<&TranscodeJob> for JobConfig {
     fn from(job: &TranscodeJob) -> Self {
         Self {
+            execution: job.execution.clone(),
             filename: job.filename.clone(),
             job_type: job.job_type,
             source: job.source,

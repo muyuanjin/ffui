@@ -168,6 +168,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
         state.settings.preview_capture_percent = new_percent;
 
         let job = TranscodeJob {
+            execution: None,
             id: "job-1".to_string(),
             filename: input.to_string_lossy().into_owned(),
             job_type: JobType::Video,
@@ -293,6 +294,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
         state.settings.preview_capture_percent = new_percent;
 
         let job = TranscodeJob {
+            execution: None,
             id: "job-1".to_string(),
             filename: input.to_string_lossy().into_owned(),
             job_type: JobType::Video,

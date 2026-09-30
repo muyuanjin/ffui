@@ -2,10 +2,14 @@ import { computed, proxyRefs } from "vue";
 import { useQueueDomain, useShellDomain } from "@/MainApp.setup";
 import type { QueueSortDirection, QueueSortField } from "@/composables";
 import type { QueueMode } from "@/types";
+import { getQueueReplayEligibility } from "@/lib/queueExecutionCapabilities";
 
 export function useMainQueueFiltersBarOrchestrator() {
   const shell = proxyRefs(useShellDomain());
   const queue = proxyRefs(useQueueDomain());
+  const replayEligibility = computed(() =>
+    getQueueReplayEligibility(queue.jobs.filter((job) => queue.selectedJobIds.has(job.id))),
+  );
 
   const barVisible = computed(() => shell.activeTab === "queue");
 
@@ -23,6 +27,8 @@ export function useMainQueueFiltersBarOrchestrator() {
     hasActiveFilters: computed(() => queue.hasActiveFilters),
     hasSelection: computed(() => queue.hasSelection),
     selectedCount: computed(() => queue.selectedJobIds.size),
+    bulkWaitEligible: computed(() => replayEligibility.value.wait),
+    bulkResumeEligible: computed(() => replayEligibility.value.resume),
     queueMode: computed(() => queue.queueMode),
     visibleCount: computed(() => queue.queueJobsForDisplay.length),
     totalCount: computed(() => queue.queueTotalCount),

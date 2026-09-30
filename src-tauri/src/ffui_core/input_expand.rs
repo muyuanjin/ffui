@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 
-use crate::ffui_core::engine::is_video_file;
-
 /// 手动入队的展开结果。
 ///
 /// `skipped` 是必需的：提示只能建立在展开结果上。只看原始路径时，目录没有扩展名，
@@ -81,18 +79,13 @@ fn expand_dir(
             continue;
         }
 
-        if is_video_file(&path) {
-            push_unique(out, seen, &path);
-        } else {
-            // 音频/图片/非媒体都算被跳过：目录展开为空时前端要能说出原因。
-            *skipped += 1;
-        }
+        push_unique(out, seen, &path);
     }
 }
 
 /// Expand a list of user-provided input paths (files and directories) into an
-/// ordered, de-duplicated list of transcodable video file paths plus how many
-/// inputs were skipped: audio, images, other files, symlinks, unreadable
+/// ordered, de-duplicated list of regular file paths plus how many
+/// inputs were skipped: symlinks, non-regular files, unreadable
 /// directories and paths that no longer exist.
 ///
 /// Ordering rules:
@@ -108,11 +101,11 @@ pub(crate) fn expand_manual_job_inputs(
     let mut skipped: usize = 0;
 
     for raw in paths {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
+        if raw.is_empty() {
+            skipped += 1;
             continue;
         }
-        let path = PathBuf::from(trimmed);
+        let path = PathBuf::from(raw);
         let Ok(meta) = fs::symlink_metadata(&path) else {
             // 路径不存在或读不到：既不能入队，也不该静默。
             skipped += 1;
@@ -130,11 +123,9 @@ pub(crate) fn expand_manual_job_inputs(
         }
 
         if file_type.is_file() {
-            if is_video_file(&path) {
-                push_unique(&mut out, &mut seen, &path);
-            } else {
-                skipped += 1;
-            }
+            push_unique(&mut out, &mut seen, &path);
+        } else {
+            skipped += 1;
         }
     }
 
@@ -154,7 +145,7 @@ mod tests {
     use super::{expand_dir, expand_manual_job_inputs};
 
     #[test]
-    fn expands_directories_in_stable_name_order_and_filters_unsupported() {
+    fn expands_regular_files_in_stable_name_order() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
 
@@ -172,13 +163,12 @@ mod tests {
             .iter()
             .map(|p| p.rsplit(['/', '\\']).next().unwrap_or_default().to_string())
             .collect();
-        // 音频/图片/非媒体都不是队列的输入（前端据此给出可见原因），因此只留下视频。
-        assert_eq!(names, vec!["a.mp4", "c.mkv"]);
-        assert_eq!(expanded.skipped, 3, "b.txt / d.mp3 / e.png 都应计入被跳过");
+        assert_eq!(names, vec!["a.mp4", "b.txt", "c.mkv", "d.mp3", "e.png"]);
+        assert_eq!(expanded.skipped, 0);
     }
 
     #[test]
-    fn rejects_audio_and_image_files_because_the_queue_is_video_only() {
+    fn accepts_audio_image_and_video_files_without_media_gating() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
 
@@ -195,31 +185,26 @@ mod tests {
             video.to_string_lossy().to_string(),
         ];
         let expanded = expand_manual_job_inputs(&paths, true);
-        // 音频/图片必须在入队前被拦下（前端会给用户可见原因），只有视频进队列。
-        assert_eq!(expanded.accepted.len(), 1);
-        assert!(expanded.accepted[0].ends_with("clip.webm"));
-        assert_eq!(expanded.skipped, 2);
+        assert_eq!(expanded.accepted, paths);
+        assert_eq!(expanded.skipped, 0);
     }
 
     #[test]
-    fn skips_files_with_unsupported_extensions() {
+    fn preserves_unknown_extensions_spaces_and_deduplicates() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
 
-        let text = root.join("notes.txt");
+        let text = root.join(" notes.unknown ");
         fs::write(&text, b"no").expect("write text");
 
-        let paths = vec![text.to_string_lossy().to_string()];
+        let paths = vec![text.to_string_lossy().to_string(); 2];
         let expanded = expand_manual_job_inputs(&paths, true);
-        assert!(expanded.accepted.is_empty());
-        assert_eq!(
-            expanded.skipped, 1,
-            "被跳过的输入必须被记账，否则前端无话可说"
-        );
+        assert_eq!(expanded.accepted, vec![paths[0].clone()]);
+        assert_eq!(expanded.skipped, 0);
     }
 
     #[test]
-    fn reports_skipped_entries_for_a_folder_without_videos() {
+    fn expands_audio_album_without_videos() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
 
@@ -230,8 +215,8 @@ mod tests {
 
         let paths = vec![root.to_string_lossy().to_string()];
         let expanded = expand_manual_job_inputs(&paths, true);
-        assert!(expanded.accepted.is_empty());
-        assert_eq!(expanded.skipped, 3);
+        assert_eq!(expanded.accepted.len(), 3);
+        assert_eq!(expanded.skipped, 0);
     }
 
     #[test]
@@ -302,14 +287,7 @@ mod tests {
         ];
 
         let expanded = expand_manual_job_inputs(&paths, true);
-        assert_eq!(
-            expanded.accepted.len(),
-            2,
-            "音频被过滤，只剩两个视频：{:?}",
-            expanded.accepted
-        );
-        assert!(expanded.accepted[0].ends_with("second.mkv"));
-        assert!(expanded.accepted[1].ends_with("first.mp4"));
-        assert_eq!(expanded.skipped, 1);
+        assert_eq!(expanded.accepted, paths);
+        assert_eq!(expanded.skipped, 0);
     }
 }

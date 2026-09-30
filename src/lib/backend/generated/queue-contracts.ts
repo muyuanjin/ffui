@@ -24,6 +24,20 @@ export type BatchCompressSavingCondition_Serialize = {
 	replaceOriginal?: boolean | null,
 };
 
+export type FfmpegInvocation = {
+	args: string[],
+	workingDirectory: string | null,
+	output: FfmpegOutput,
+};
+
+export type FfmpegJobRequest = {
+	name: string,
+	args: string[],
+	workingDirectory: string | null,
+};
+
+export type FfmpegOutput = { kind: "managedFile"; path: string; argumentIndex: number } | { kind: "transparent" };
+
 export type ImageTargetFormat = "avif" | "webp";
 
 export type JobCompareOutput = JobCompareOutput_Serialize | JobCompareOutput_Deserialize;
@@ -47,6 +61,10 @@ export type JobCompareSources_Serialize = {
 	output: JobCompareOutput_Serialize,
 	maxCompareSeconds?: number | null,
 };
+
+export type JobExecution = { kind: "video"; preset: unknown } | { kind: "ffmpeg"; invocation: FfmpegInvocation } | { kind: "invalid"; reason: string };
+
+export type JobExecutionMode = "video" | "managed" | "transparent" | "invalid";
 
 export type JobLogLine = {
 	text: string,
@@ -93,7 +111,7 @@ export type JobStatus_Deserialize = "queued" | "waiting" | "processing" | "pause
 
 export type JobStatus_Serialize = "queued" | "processing" | "paused" | "completed" | "failed" | "skipped" | "cancelled";
 
-export type JobType = "video" | "image" | "audio";
+export type JobType = "video" | "image" | "audio" | "other";
 
 export type JobWarning = {
 	/**  Stable machine-readable warning identifier. */
@@ -391,6 +409,7 @@ export type TranscodeJobLiteTelemetryDelta_Serialize = {
 export type TranscodeJobUiLite = TranscodeJobUiLite_Serialize | TranscodeJobUiLite_Deserialize;
 
 export type TranscodeJobUiLite_Deserialize = {
+	executionMode?: JobExecutionMode | null,
 	id: string,
 	filename: string,
 	type: JobType,
@@ -435,6 +454,7 @@ export type TranscodeJobUiLite_Deserialize = {
 };
 
 export type TranscodeJobUiLite_Serialize = {
+	executionMode?: JobExecutionMode | null,
 	id: string,
 	filename: string,
 	type: JobType,
@@ -477,6 +497,7 @@ export type TranscodeJobUiLite_Serialize = {
 } & ProgressPhaseTelemetry_Serialize;
 
 export type TranscodeJob_Deserialize = {
+	execution?: JobExecution | null,
 	id: string,
 	filename: string,
 	type: JobType,
@@ -603,6 +624,7 @@ export type TranscodeJob_Deserialize = {
 };
 
 export type TranscodeJob_Serialize = {
+	execution?: JobExecution | null,
 	id: string,
 	filename: string,
 	type: JobType,

@@ -5,6 +5,7 @@ import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { Eye, Hourglass, Play, RefreshCw, XCircle } from "lucide-vue-next";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -178,6 +179,7 @@ const primaryAction = computed<
       </div>
 
       <Progress
+        v-if="!hasIndeterminateQueueProgress(job)"
         class="h-1.5"
         :model-value="progressValue"
         :variant="progressVariant"

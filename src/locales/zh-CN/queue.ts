@@ -2,6 +2,18 @@ const queue = {
   typeVideo: "视频",
   typeImage: "图片",
   typeAudio: "音频",
+  typeOther: "FFmpeg",
+  command: {
+    title: "FFmpeg 命令",
+    description:
+      "输入有序的 JSON 参数数组（不包含 ffmpeg 程序名），不会经过 shell 展开。输入和输出保持原义；队列不托管产物，也不会自动重放。暂不支持媒体 stdin/stdout 管道。",
+    name: "任务名称",
+    args: "参数（JSON 字符串数组）",
+    directory: "工作目录（可选）",
+    enqueue: "添加命令",
+    invalid: "请填写任务名称及非空的 JSON 字符串数组。",
+    indeterminate: "运行中 · 进度未知",
+  },
   skippedPrefix: "已跳过：",
   skippedStackHint: "← 滑动或滚轮切换 →",
   skipReasons: {
@@ -284,8 +296,7 @@ const queue = {
     reorderFailed: "调整等待队列顺序时出现错误，请稍后重试或检查设置。",
     deleteActiveNotAllowed: "正在运行或排队中的任务不能直接从列表删除，请先停止或完成任务。",
     deleteFailed: "部分任务从队列中删除失败，请稍后重试或检查后端日志。",
-    unsupportedMedia:
-      "队列只处理视频文件，所选内容里的非视频文件已被跳过；音频与图片请改用批量压缩（Batch Compress）。",
+    unsupportedMedia: "部分输入无法访问或不是普通文件（包括符号链接），已跳过。",
   },
 } as const;
 

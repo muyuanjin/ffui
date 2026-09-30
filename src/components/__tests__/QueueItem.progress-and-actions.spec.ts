@@ -268,6 +268,23 @@ describe("QueueItem progress and actions", () => {
     expect(wrapper.emitted("restart")?.[0]).toEqual([job.id]);
   });
 
+  it("shows indeterminate progress and forbids wait/resume for transparent commands", async () => {
+    const job = makeJob({ status: "processing", type: "other", executionMode: "transparent" });
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canCancel: true, canWait: true, canResume: true, canRestart: true },
+      global: { plugins: [i18n] },
+    });
+    expect(wrapper.find('[data-testid="queue-item-progress-bar"]').exists()).toBe(false);
+    expect(
+      wrapper.get('[data-testid="queue-item-progress-indeterminate"]').attributes("aria-valuenow"),
+    ).toBeUndefined();
+    expect(wrapper.find('[data-testid="queue-item-wait-button"]').exists()).toBe(false);
+    expect(wrapper.text()).toContain(en.queue.command.indeterminate);
+    await wrapper.setProps({ job: { ...job, status: "paused" } });
+    expect(wrapper.find('[data-testid="queue-item-resume-button"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="queue-item-restart-button"]').exists()).toBe(true);
+  });
+
   it("allows wait and restart for processing Batch Compress image/audio children", () => {
     const job = makeJob({
       status: "processing",

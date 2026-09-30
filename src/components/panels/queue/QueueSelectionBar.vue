@@ -22,6 +22,8 @@ import {
 const props = defineProps<{
   selectionBarPinned: boolean;
   selectedCount: number;
+  bulkWaitEligible?: boolean;
+  bulkResumeEligible?: boolean;
   queueMode: QueueMode;
   bulkActionInProgress?: QueueBulkActionKind | null;
 }>();
@@ -222,7 +224,7 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            :disabled="bulkBusy || !hasSelection"
+            :disabled="bulkBusy || !hasSelection || props.bulkResumeEligible === false"
             :title="t('queue.actions.bulkResume')"
             :aria-label="t('queue.actions.bulkResume')"
             @click="emit('bulk-resume')"
@@ -243,7 +245,7 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            :disabled="bulkBusy || !hasSelection"
+            :disabled="bulkBusy || !hasSelection || props.bulkWaitEligible === false"
             :title="t('queue.actions.bulkWait')"
             :aria-label="t('queue.actions.bulkWait')"
             @click="emit('bulk-wait')"

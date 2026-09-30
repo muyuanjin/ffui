@@ -318,7 +318,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       if (files.length === 1) {
         await enqueueTranscodeJob({
           filename: files[0],
-          jobType: "video",
+          jobType: "other",
           source: "manual",
           originalSizeMb: 0,
           presetId: preset.id,
@@ -328,7 +328,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
 
       await enqueueTranscodeJobs({
         filenames: files,
-        jobType: "video",
+        jobType: "other",
         source: "manual",
         originalSizeMb: 0,
         presetId: preset.id,

@@ -36,6 +36,11 @@ fn delete_job_cleans_resume_segment_tmp_artifacts() {
             100.0,
             Some(1),
         );
+        job.execution = Some(crate::ffui_core::JobExecution::Video {
+            preset: Box::new(crate::test_support::make_ffmpeg_preset_for_tests(
+                "preset-1",
+            )),
+        });
         job.filename = dir.path().join("in.mp4").to_string_lossy().into_owned();
         job.output_path = Some(output_path.to_string_lossy().into_owned());
         job.wait_metadata = Some(WaitMetadata {

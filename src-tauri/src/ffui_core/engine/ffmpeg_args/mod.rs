@@ -14,6 +14,7 @@ mod utils;
 // Internal helpers that are safe and useful across engine sub-modules (enqueue,
 // Batch Compress queueing, etc).
 pub(crate) use builder::build_ffmpeg_args;
+pub(super) use builder::effective_output_muxer;
 pub(super) use builder_tail::{
     apply_audio_args, apply_audio_filter_args, apply_container_args, apply_global_args,
     apply_mapping_disposition_and_metadata_args,

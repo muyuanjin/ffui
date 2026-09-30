@@ -240,6 +240,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
         snapshot_revision: 10,
         latest_delta_revision: 0,
         jobs: vec![crate::ffui_core::TranscodeJobUiLite {
+            execution_mode: None,
             /* jscpd:ignore-start */
             id: "job-1".to_string(),
             filename: "C:/in.mp4".to_string(),

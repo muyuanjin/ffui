@@ -1,6 +1,7 @@
 import { computed, onMounted, onUnmounted, watch, ref, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { formatElapsedTime, estimateTotalTime, estimateRemainingTime, computeJobElapsedMs } from "@/lib/timeUtils";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 
 const sharedNowMs = ref(Date.now());
 let sharedIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -119,6 +120,7 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
 
   // 预估总时间（毫秒）
   const estimatedTotalMs = computed(() => {
+    if (hasIndeterminateQueueProgress(job.value)) return null;
     return estimateTotalTime(elapsedMs.value, progressForEstimates.value);
   });
 
@@ -163,6 +165,7 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
   });
 
   const estimatedRemainingMs = computed(() => {
+    if (hasIndeterminateQueueProgress(job.value)) return null;
     if (phaseEtaMs.value != null) return phaseEtaMs.value;
     if (job.value.progressPhase && job.value.status === "processing") return null;
     return estimateRemainingTime(elapsedMs.value, progressForEstimates.value);

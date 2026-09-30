@@ -91,6 +91,7 @@ fn delete_batch_compress_child_job_is_deletable() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/input.mp4".to_string(),
                 job_type: JobType::Video,
@@ -180,6 +181,7 @@ fn delete_batch_compress_non_terminal_job_is_rejected() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/input.mp4".to_string(),
                 job_type: JobType::Video,
@@ -267,6 +269,7 @@ fn delete_batch_compress_batch_deletes_all_terminal_children_and_batch_metadata(
         );
 
         let base_job = |id: &str, status: JobStatus| TranscodeJob {
+            execution: None,
             id: id.to_string(),
             filename: format!("C:/videos/{id}.mp4"),
             job_type: JobType::Video,
@@ -380,6 +383,7 @@ fn delete_batch_compress_batch_rejects_when_children_are_not_terminal() {
                 50.0
             };
             TranscodeJob {
+                execution: None,
                 id: id.to_string(),
                 filename: format!("C:/videos/{id}.mp4"),
                 job_type: JobType::Video,
@@ -485,6 +489,7 @@ fn delete_batch_compress_batch_succeeds_when_status_is_running_but_all_children_
         );
 
         let base_job = |id: &str, status: JobStatus| TranscodeJob {
+            execution: None,
             id: id.to_string(),
             filename: format!("C:/videos/{id}.mp4"),
             job_type: JobType::Video,

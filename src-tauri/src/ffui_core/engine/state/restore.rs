@@ -160,6 +160,18 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         let mut state = inner.state.lock_unpoisoned();
 
         for mut job in snapshot.jobs {
+            if job.execution.is_none()
+                && matches!(
+                    job.status,
+                    JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
+                )
+            {
+                super::super::manual_execution::hydrate_legacy_job_snapshot(
+                    &mut job,
+                    &state.presets,
+                    &state.settings.queue_output_policy,
+                );
+            }
             let id = job.id.clone();
             let processing_on_auto_wait_exit = auto_wait_processing_ids.contains(&id);
 
@@ -200,6 +212,21 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // auto-paused, even if they already reached Paused before shutdown.
             if !auto_paused && processing_on_auto_wait_exit {
                 auto_paused = true;
+            }
+
+            if job
+                .execution
+                .as_ref()
+                .is_some_and(|execution| !execution.can_replay_automatically())
+            {
+                auto_paused = false;
+                if job.status == JobStatus::Paused {
+                    append_job_log_line(
+                        &mut job,
+                        "This command requires an explicit restart; automatic replay is disabled"
+                            .to_string(),
+                    );
+                }
             }
 
             // 处理耗时基线属于运行期信息，恢复时清空，待重新进入 Processing 时再设置。

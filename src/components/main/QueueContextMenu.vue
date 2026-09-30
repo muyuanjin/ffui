@@ -292,8 +292,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { JobSource, JobStatus, JobType, QueueBulkActionKind, QueueMode } from "@/types";
-import { createQueueContextMenuPermissions } from "./queueContextMenu.permissions";
+import {
+  createQueueContextMenuPermissions,
+  type QueueContextMenuPermissionProps,
+} from "./queueContextMenu.permissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -317,25 +319,18 @@ import {
   XCircle,
 } from "lucide-vue-next";
 
-const props = defineProps<{
-  visible: boolean;
-  x: number;
-  y: number;
-  mode: "single" | "bulk";
-  /**
-   * When true, the overlay container is teleported to `document.body` so the
-   * fixed positioning is not affected by transformed ancestors (e.g. dialogs).
-   */
-  teleportToBody?: boolean;
-  jobStatus?: JobStatus;
-  jobType?: JobType;
-  jobSource?: JobSource;
-  queueMode: QueueMode;
-  hasSelection: boolean;
-  bulkActionInProgress?: QueueBulkActionKind | null;
-  canRevealInputPath?: boolean;
-  canRevealOutputPath?: boolean;
-}>();
+const props = defineProps<
+  QueueContextMenuPermissionProps & {
+    visible: boolean;
+    x: number;
+    y: number;
+    /**
+     * When true, the overlay container is teleported to `document.body` so the
+     * fixed positioning is not affected by transformed ancestors (e.g. dialogs).
+     */
+    teleportToBody?: boolean;
+  }
+>();
 
 const emit = defineEmits<{
   (e: "inspect"): void;

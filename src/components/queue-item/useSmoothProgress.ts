@@ -1,6 +1,7 @@
 import { computed, onMounted, onScopeDispose, onUnmounted, ref, watch, type ComputedRef } from "vue";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { clampProgressUpdateIntervalMs } from "@/lib/progressTransition";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 
 interface UseSmoothProgressOptions {
   job: ComputedRef<TranscodeJob>;
@@ -42,6 +43,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
 
   const estimateProgressPercentNow = (nowMs: number, allowDecrease: boolean): number => {
     const job = options.job.value;
+    if (hasIndeterminateQueueProgress(job)) return 0;
     if (job.status !== "processing") return clampedProgress.value;
     if (job.progressPhase && job.progressPhase !== "transcoding") return clampedProgress.value;
 

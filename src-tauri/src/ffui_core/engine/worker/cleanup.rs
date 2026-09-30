@@ -2,9 +2,37 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use super::super::segment_discovery;
-use crate::ffui_core::domain::{JobType, TranscodeJob};
+use crate::ffui_core::domain::{JobSource, JobType, TranscodeJob};
 
-pub(super) fn collect_job_tmp_cleanup_paths(job: &TranscodeJob) -> Vec<PathBuf> {
+pub(in crate::ffui_core::engine) fn collect_job_tmp_cleanup_paths(
+    job: &TranscodeJob,
+) -> Vec<PathBuf> {
+    if let Some(execution) = &job.execution {
+        match execution {
+            crate::ffui_core::JobExecution::Ffmpeg { invocation } => {
+                let crate::ffui_core::FfmpegOutput::ManagedFile { path, .. } = &invocation.output
+                else {
+                    return Vec::new();
+                };
+                return job
+                    .wait_metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.tmp_output_path.as_deref())
+                    .map(PathBuf::from)
+                    .filter(|temporary| {
+                        temporary.parent() == Path::new(path).parent()
+                            && temporary
+                                .file_name()
+                                .and_then(|name| name.to_str())
+                                .is_some_and(|name| name.starts_with(&format!(".ffui-{}-", job.id)))
+                    })
+                    .into_iter()
+                    .collect();
+            }
+            crate::ffui_core::JobExecution::Invalid { .. } => return Vec::new(),
+            crate::ffui_core::JobExecution::Video { .. } => {}
+        }
+    }
     let mut out: Vec<PathBuf> = Vec::new();
     let mut seen: HashSet<PathBuf> = HashSet::new();
 
@@ -17,7 +45,9 @@ pub(super) fn collect_job_tmp_cleanup_paths(job: &TranscodeJob) -> Vec<PathBuf> 
         }
     }
 
-    if job.job_type != JobType::Video {
+    if job.job_type != JobType::Video
+        || (matches!(job.source, JobSource::Manual) && job.execution.is_none())
+    {
         return out;
     }
 

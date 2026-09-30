@@ -11,6 +11,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/monotonic.mp4".to_string(),
                 job_type: JobType::Video,
@@ -598,6 +599,7 @@ fn update_job_progress_filters_ffmpeg_progress_noise_from_logs() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/noise.mp4".to_string(),
                 job_type: JobType::Video,
@@ -695,6 +697,7 @@ fn worker_selection_does_not_preserve_stale_progress_without_resumable_metadata(
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/stale_progress.mp4".to_string(),
                 job_type: JobType::Video,
@@ -765,6 +768,7 @@ fn worker_selection_bumps_progress_epoch_and_applies_resume_baseline() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/in.mp4".to_string(),
                 job_type: JobType::Video,
@@ -859,6 +863,7 @@ fn worker_selection_allows_complete_resume_baseline_before_final_phase() {
         let mut state = engine.inner.state.lock_unpoisoned();
         state.queue.push_back(job_id.clone());
         let job = TranscodeJob {
+            execution: None,
             id: job_id.clone(),
             filename: "C:/videos/in.mp4".to_string(),
             job_type: JobType::Video,
@@ -943,6 +948,7 @@ fn worker_crash_recovery_probe_clears_stale_resume_paths_when_missing_on_disk() 
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: input.to_string_lossy().into_owned(),
                 job_type: JobType::Video,
@@ -1037,6 +1043,7 @@ fn update_job_progress_ignores_whitespace_only_log_lines() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "dummy.mp4".to_string(),
                 job_type: JobType::Video,
@@ -1127,6 +1134,7 @@ fn update_job_progress_delta_carries_base_snapshot_revision_without_bumping() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "dummy.mp4".to_string(),
                 job_type: JobType::Video,
@@ -1222,6 +1230,7 @@ fn update_job_progress_delta_omits_large_fields_for_ipc() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "dummy.mp4".to_string(),
                 job_type: JobType::Video,
@@ -1321,6 +1330,7 @@ fn update_job_progress_delta_carries_processing_start_and_elapsed_on_telemetry_o
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "dummy.mp4".to_string(),
                 job_type: JobType::Video,
@@ -1420,6 +1430,7 @@ fn process_transcode_job_marks_failure_when_preset_missing() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/sample.mp4".to_string(),
                 job_type: JobType::Video,
@@ -1497,6 +1508,7 @@ fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/trim-test.mp4".to_string(),
                 job_type: JobType::Video,

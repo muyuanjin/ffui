@@ -16,6 +16,7 @@ mod execute_success_finalize_tests {
         use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
 
         TranscodeJob {
+            execution: None,
             id: job_id.to_string(),
             filename: format!("C:/videos/{job_id}.mp4"),
             job_type: JobType::Video,

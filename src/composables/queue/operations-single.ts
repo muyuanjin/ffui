@@ -235,11 +235,10 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
       return;
     }
 
-    // 队列只执行视频管线：音频/图片给出可见原因，而不是变成必然失败的任务。
     if (files.length === 1) {
       await enqueueTranscodeJob({
         filename: files[0],
-        jobType: "video",
+        jobType: "other",
         source: "manual",
         originalSizeMb: 0,
         originalCodec: undefined,
@@ -248,7 +247,7 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
     } else {
       await enqueueTranscodeJobs({
         filenames: files,
-        jobType: "video",
+        jobType: "other",
         source: "manual",
         originalSizeMb: 0,
         originalCodec: undefined,
@@ -258,7 +257,6 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
 
     // Avoid racing with queue stream events; let backend be the single source of truth.
     await deps.refreshQueueFromBackend();
-    // 成功入队视频后仍要保留音频/图片的提示，否则用户会以为它们也被加入了。
     deps.queueError.value = unsupportedMessage;
   } catch (error) {
     console.error("Failed to enqueue manual jobs from paths", error);

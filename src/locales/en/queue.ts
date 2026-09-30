@@ -2,6 +2,18 @@ const queue = {
   typeVideo: "VIDEO",
   typeImage: "IMAGE",
   typeAudio: "AUDIO",
+  typeOther: "FFMPEG",
+  command: {
+    title: "FFmpeg command",
+    description:
+      "Ordered JSON argument array (without the ffmpeg executable). No shell expansion. Inputs and outputs are left unchanged. The queue does not manage outputs or automatically replay this command. Media stdin/stdout pipes are not supported.",
+    name: "Task name",
+    args: "Arguments (JSON array of strings)",
+    directory: "Working directory (optional)",
+    enqueue: "Add command",
+    invalid: "Enter a task name and a non-empty JSON array of strings.",
+    indeterminate: "Running · progress unknown",
+  },
   skippedPrefix: "Skipped:",
   skippedStackHint: "← Swipe or scroll to browse →",
   skipReasons: {
@@ -285,7 +297,7 @@ const queue = {
     deleteActiveNotAllowed: "Cannot delete jobs that are still running or waiting. Please stop or complete them first.",
     deleteFailed: "Failed to delete some jobs from the queue. Please retry later or check backend logs.",
     unsupportedMedia:
-      "The queue transcodes video files only, so every non-video file in the selection was skipped. Use Batch Compress for audio and image files.",
+      "Some inputs were skipped because they are inaccessible or are not regular files (including symbolic links).",
   },
 } as const;
 

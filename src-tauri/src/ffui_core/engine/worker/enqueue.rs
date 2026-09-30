@@ -8,7 +8,8 @@ use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 use crate::ffui_core::domain::{
-    JobLogLine, JobSource, JobStatus, JobType, MediaInfo, OutputPolicy, TranscodeJob,
+    FfmpegInvocation, FfmpegJobRequest, FfmpegOutput, JobExecution, JobLogLine, JobRequest,
+    JobSource, JobStatus, JobType, MediaInfo, OutputPolicy, TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 
@@ -31,13 +32,18 @@ fn normalize_os_path_string(raw: String) -> String {
 
 fn enqueue_transcode_job_no_notify(
     inner: &Arc<Inner>,
-    filename: String,
-    job_type: JobType,
-    source: JobSource,
-    original_size_mb: f64,
-    original_codec: Option<String>,
-    preset_id: String,
+    request: JobRequest,
+    explicit_execution: Option<JobExecution>,
 ) -> TranscodeJob {
+    let JobRequest {
+        filename,
+        mut job_type,
+        source,
+        original_size_mb,
+        original_codec,
+        preset_id,
+    } = request;
+    let direct_command = explicit_execution.is_some();
     let id = {
         let next_id = inner.next_job_id.fetch_add(1, Ordering::Relaxed);
         format!("job-{next_id}")
@@ -45,16 +51,34 @@ fn enqueue_transcode_job_no_notify(
 
     let now_ms = current_time_millis();
 
-    let normalized_filename = normalize_os_path_string(filename);
-    let input_path = normalized_filename.clone();
+    let normalized_filename = if direct_command {
+        filename
+    } else {
+        normalize_os_path_string(filename)
+    };
+    let mut path_error = None;
+    let input_path = if matches!(source, JobSource::Manual) && !direct_command {
+        match std::path::absolute(&normalized_filename) {
+            Ok(path) => path.to_string_lossy().into_owned(),
+            Err(error) => {
+                path_error = Some(format!("Cannot resolve input file address: {error}"));
+                normalized_filename.clone()
+            }
+        }
+    } else {
+        normalized_filename.clone()
+    };
+    if matches!(source, JobSource::Manual) && !direct_command {
+        job_type = super::super::manual_execution::presentation_type(Path::new(&input_path));
+    }
 
     // Prefer a backend-derived size based on the actual file on disk; fall back
     // to the caller-provided value if metadata is unavailable.
-    let computed_original_size_mb = fs::metadata(&normalized_filename)
+    let computed_original_size_mb = fs::metadata(&input_path)
         .map(|m| m.len() as f64 / (1024.0 * 1024.0))
         .unwrap_or(original_size_mb);
 
-    let input_times = super::super::file_times::read_file_times(Path::new(&normalized_filename));
+    let input_times = super::super::file_times::read_file_times(Path::new(&input_path));
     let created_time_ms = input_times
         .created
         .and_then(super::super::file_times::system_time_to_epoch_ms);
@@ -71,8 +95,10 @@ fn enqueue_transcode_job_no_notify(
             .as_ref()
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
         let queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
-        let (output_path, warnings) = if matches!(job_type, JobType::Video) {
-            let path = PathBuf::from(&normalized_filename);
+        let (mut output_path, warnings) = if !direct_command
+            && (matches!(source, JobSource::Manual) || matches!(job_type, JobType::Video))
+        {
+            let path = PathBuf::from(&input_path);
             let plan =
                 plan_video_output_path(&path, preset.as_ref(), &queue_output_policy, |candidate| {
                     let c = candidate.to_string_lossy();
@@ -90,7 +116,50 @@ fn enqueue_transcode_job_no_notify(
             (None, Vec::new())
         };
 
-        let planned_command = if matches!(job_type, JobType::Video) {
+        if matches!(source, JobSource::Manual)
+            && !direct_command
+            && let Some(path) = &output_path
+        {
+            match std::path::absolute(path) {
+                Ok(path) => output_path = Some(path.to_string_lossy().into_owned()),
+                Err(error) => {
+                    path_error = Some(format!("Cannot resolve output file address: {error}"))
+                }
+            }
+        }
+        let execution = if direct_command {
+            explicit_execution
+        } else if let Some(reason) = path_error {
+            Some(JobExecution::Invalid { reason })
+        } else if matches!(source, JobSource::Manual) {
+            Some(match (preset.as_ref(), output_path.as_deref()) {
+                (Some(preset), Some(output)) => {
+                    super::super::manual_execution::plan_manual_execution(
+                        Path::new(&input_path),
+                        preset,
+                        Path::new(output),
+                        &queue_output_policy,
+                    )
+                    .unwrap_or_else(|reason| JobExecution::Invalid { reason })
+                }
+                _ => JobExecution::Invalid {
+                    reason: format!("No preset found for preset id '{preset_id}'"),
+                },
+            })
+        } else {
+            None
+        };
+        let estimated_seconds = if matches!(
+            execution,
+            Some(JobExecution::Ffmpeg { .. } | JobExecution::Invalid { .. })
+        ) {
+            None
+        } else {
+            estimated_seconds
+        };
+        let planned_command = if let Some(JobExecution::Ffmpeg { invocation }) = &execution {
+            Some(format_command_for_log("ffmpeg", &invocation.args))
+        } else if matches!(job_type, JobType::Video) {
             match (preset.as_ref(), output_path.as_deref()) {
                 (Some(preset), Some(output_path)) => {
                     let input_path_buf = PathBuf::from(&normalized_filename);
@@ -116,6 +185,11 @@ fn enqueue_transcode_job_no_notify(
         } else {
             None
         };
+        if matches!(execution.as_ref(), Some(JobExecution::Ffmpeg { invocation })
+            if matches!(invocation.output, FfmpegOutput::Transparent))
+        {
+            output_path = None;
+        }
 
         let mut logs: Vec<JobLogLine> = Vec::new();
         for w in &warnings {
@@ -126,6 +200,7 @@ fn enqueue_transcode_job_no_notify(
         }
 
         let job = TranscodeJob {
+            execution,
             id: id.clone(),
             filename: normalized_filename,
             job_type,
@@ -144,7 +219,7 @@ fn enqueue_transcode_job_no_notify(
             logs,
             log_head: None,
             skip_reason: None,
-            input_path: Some(input_path),
+            input_path: (!direct_command).then_some(input_path),
             created_time_ms,
             modified_time_ms,
             output_path,
@@ -188,12 +263,15 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
 ) -> TranscodeJob {
     let job = enqueue_transcode_job_no_notify(
         inner,
-        filename,
-        job_type,
-        source,
-        original_size_mb,
-        original_codec,
-        preset_id,
+        JobRequest {
+            filename,
+            job_type,
+            source,
+            original_size_mb,
+            original_codec,
+            preset_id,
+        },
+        None,
     );
     // Wake all waiting workers: enqueueing can add many jobs at once and we want
     // the concurrency limit to be reached immediately (not only after the first
@@ -221,12 +299,15 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_jobs(
     for filename in filenames {
         let job = enqueue_transcode_job_no_notify(
             inner,
-            filename,
-            job_type,
-            source,
-            original_size_mb,
-            original_codec.clone(),
-            preset_id.clone(),
+            JobRequest {
+                filename,
+                job_type,
+                source,
+                original_size_mb,
+                original_codec: original_codec.clone(),
+                preset_id: preset_id.clone(),
+            },
+            None,
         );
         jobs.push(job);
     }
@@ -235,4 +316,34 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_jobs(
     inner.cv.notify_all();
     notify_queue_listeners(inner);
     jobs
+}
+
+pub(in crate::ffui_core::engine) fn enqueue_ffmpeg_job(
+    inner: &Arc<Inner>,
+    request: FfmpegJobRequest,
+) -> Result<TranscodeJob, String> {
+    if request.name.trim().is_empty() || request.name.contains('\0') {
+        return Err("Command job name must be non-empty and contain no NUL".to_string());
+    }
+    let invocation = FfmpegInvocation {
+        args: request.args,
+        working_directory: request.working_directory,
+        output: FfmpegOutput::Transparent,
+    };
+    super::super::manual_execution::validate_invocation(&invocation)?;
+    let job = enqueue_transcode_job_no_notify(
+        inner,
+        JobRequest {
+            filename: request.name,
+            job_type: JobType::Other,
+            source: JobSource::Manual,
+            original_size_mb: 0.0,
+            original_codec: None,
+            preset_id: String::new(),
+        },
+        Some(JobExecution::Ffmpeg { invocation }),
+    );
+    inner.cv.notify_all();
+    notify_queue_listeners(inner);
+    Ok(job)
 }

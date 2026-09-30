@@ -19,12 +19,12 @@ import type {
   SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
-import type { WireQueueState, WireQueueStateLite } from "./backend/generated/queue-contracts";
+import type { WireQueueState, WireQueueStateLite, WireTranscodeJob } from "./backend/generated/queue-contracts";
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 import { hasTauri } from "./backend.core";
 import { invokeCommand } from "./backend/invokeCommand";
-import { queueStateFromWire, queueStateLiteFromWire } from "./backend/queueContract";
+import { queueStateFromWire, queueStateLiteFromWire, transcodeJobFromWire } from "./backend/queueContract";
 import { appendQueryParam } from "./url";
 import { validateAndNormalizePresetForSave } from "./presetSaveContract";
 export type {
@@ -322,7 +322,7 @@ export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
   return queueStateLiteFromWire(wire);
 };
 
-/** 手动入队的展开结果：可入队的视频，以及被跳过的输入数量（音频/图片/非媒体）。 */
+/** 手动入队的普通文件，以及不可访问或非普通文件的数量。 */
 export interface ExpandedManualJobInputs {
   accepted: string[];
   skipped: number;
@@ -357,7 +357,7 @@ export const previewOutputPath = async (params: {
 
 export const enqueueTranscodeJob = async (params: EnqueueTranscodeJobRequest): Promise<TranscodeJob> => {
   const { filename, jobType, source, originalSizeMb, originalCodec, presetId } = params;
-  return invokeCommand<TranscodeJob>("enqueue_transcode_job", {
+  const wire = await invokeCommand<WireTranscodeJob>("enqueue_transcode_job", {
     filename,
     jobType,
     source,
@@ -365,11 +365,19 @@ export const enqueueTranscodeJob = async (params: EnqueueTranscodeJobRequest): P
     originalCodec,
     presetId,
   });
+  return transcodeJobFromWire(wire);
+};
+
+export const enqueueFfmpegJob = async (request: import("@/types/queue").FfmpegJobRequest): Promise<TranscodeJob> => {
+  const wire = await invokeCommand<WireTranscodeJob>("enqueue_ffmpeg_job", {
+    request: { ...request, workingDirectory: request.workingDirectory ?? null },
+  });
+  return transcodeJobFromWire(wire);
 };
 
 export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest): Promise<TranscodeJob[]> => {
   const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
-  return invokeCommand<TranscodeJob[]>("enqueue_transcode_jobs", {
+  const wire = await invokeCommand<WireTranscodeJob[]>("enqueue_transcode_jobs", {
     filenames,
     jobType,
     source,
@@ -377,6 +385,7 @@ export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest):
     originalCodec,
     presetId,
   });
+  return wire.map(transcodeJobFromWire);
 };
 
 export type { FallbackFrameQuality } from "./backend/fallbackPreview";

@@ -8,6 +8,7 @@ fn make_job(
     start_time: Option<u64>,
 ) -> TranscodeJobUiLite {
     TranscodeJobUiLite {
+        execution_mode: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -90,6 +91,74 @@ fn patch_status(id: &str, status: JobStatus) -> crate::ffui_core::TranscodeJobLi
         telemetry: None,
         elapsed_ms: None,
         preview: None,
+    }
+}
+
+#[test]
+fn generic_progress_remains_indeterminate_through_snapshot_and_status_deltas() {
+    for mode in [JobExecutionMode::Managed, JobExecutionMode::Transparent] {
+        for scope in [
+            TaskbarProgressScope::AllJobs,
+            TaskbarProgressScope::ActiveAndQueued,
+        ] {
+            let mut generic = make_job("generic", JobStatus::Processing, 42.0, Some(10));
+            generic.execution_mode = Some(mode);
+            let snapshot = make_snapshot(
+                1,
+                vec![
+                    generic,
+                    make_job("video", JobStatus::Processing, 50.0, Some(10)),
+                ],
+            );
+            let mut tracker = TaskbarProgressDeltaTracker::default();
+            tracker.reset_from_ui_lite(&snapshot, TaskbarProgressMode::BySize, scope);
+            assert_eq!(
+                tracker.display_progress(),
+                TaskbarProgressValue::Indeterminate
+            );
+            assert_eq!(tracker.progress(), None);
+            tracker.apply_delta(
+                &make_delta(1, 1, vec![patch_status("generic", JobStatus::Paused)]),
+                TaskbarProgressMode::BySize,
+                scope,
+            );
+            assert!(matches!(
+                tracker.display_progress(),
+                TaskbarProgressValue::Determinate(_)
+            ));
+            tracker.apply_delta(
+                &make_delta(1, 2, vec![patch_status("generic", JobStatus::Processing)]),
+                TaskbarProgressMode::BySize,
+                scope,
+            );
+            assert_eq!(
+                tracker.display_progress(),
+                TaskbarProgressValue::Indeterminate
+            );
+            tracker.apply_delta(
+                &make_delta(
+                    1,
+                    3,
+                    vec![
+                        patch_status("generic", JobStatus::Completed),
+                        patch_status("video", JobStatus::Completed),
+                    ],
+                ),
+                TaskbarProgressMode::BySize,
+                scope,
+            );
+            assert_eq!(
+                tracker.display_progress(),
+                TaskbarProgressValue::Determinate(1.0)
+            );
+            assert!(tracker.completed_queue());
+            tracker.reset_from_ui_lite(
+                &make_snapshot(2, vec![]),
+                TaskbarProgressMode::BySize,
+                scope,
+            );
+            assert_eq!(tracker.display_progress(), TaskbarProgressValue::Empty);
+        }
     }
 }
 

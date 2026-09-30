@@ -578,7 +578,12 @@ fn restore_from_persisted_lite_snapshot(
         crash_recovery_log_retention: None,
         ..Default::default()
     };
-    let inner = super::super::state::Inner::new(Vec::new(), settings);
+    let inner = super::super::state::Inner::new(
+        vec![crate::test_support::make_ffmpeg_preset_for_tests(
+            "preset-1",
+        )],
+        settings,
+    );
     super::super::state::restore_jobs_from_persisted_queue(&inner);
     inner
 }

@@ -1,7 +1,14 @@
 import type { OutputPolicy } from "./output-policy";
 
 export type JobStatus = "queued" | "processing" | "paused" | "completed" | "failed" | "skipped" | "cancelled";
-export type JobType = "video" | "image" | "audio";
+export type JobType = "video" | "image" | "audio" | "other";
+export type JobExecutionMode = "video" | "managed" | "transparent" | "invalid";
+
+export interface FfmpegJobRequest {
+  name: string;
+  args: string[];
+  workingDirectory?: string | null;
+}
 export type JobSource = "manual" | "batch_compress";
 export type ProgressPhase = "transcoding" | "concatenating" | "audioFinalizing" | "muxing" | "completed";
 
@@ -206,6 +213,7 @@ export interface TranscodeJob {
   outputPath?: string;
   /** Output policy snapshot captured at enqueue time. */
   outputPolicy?: OutputPolicy;
+  executionMode?: JobExecutionMode;
   /** Human-readable ffmpeg command used for this job. */
   ffmpegCommand?: string;
   /** Ordered history of external tool invocations for this job. */
@@ -251,6 +259,7 @@ export interface TranscodeJob {
  */
 export interface TranscodeJobUiLite {
   id: string;
+  executionMode?: JobExecutionMode;
   filename: string;
   type: JobType;
   source: JobSource;

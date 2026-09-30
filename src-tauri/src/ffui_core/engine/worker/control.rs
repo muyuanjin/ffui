@@ -190,12 +190,20 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 /// its worker slot while preserving progress. The actual state change is
 /// performed cooperatively inside the worker loop.
 pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    crate::ffui_core::engine::manual_execution::hydrate_legacy_jobs(inner, &[job_id.to_string()]);
     let (result, should_notify) = {
         let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
             Some(job) => job.status,
             None => return false,
         };
+        if state.jobs.get(job_id).is_some_and(|job| {
+            job.execution
+                .as_ref()
+                .is_some_and(|execution| !execution.can_replay_automatically())
+        }) {
+            return false;
+        }
 
         match status {
             JobStatus::Processing => {
@@ -235,6 +243,7 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
     inner: &Arc<Inner>,
     job_ids: Vec<String>,
 ) -> bool {
+    crate::ffui_core::engine::manual_execution::hydrate_legacy_jobs(inner, &job_ids);
     let Some(unique_job_ids) = unique_nonempty_job_ids(job_ids) else {
         return true;
     };
@@ -250,6 +259,14 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
                 None => continue,
             };
             touched_any = true;
+
+            if state.jobs.get(job_id.as_str()).is_some_and(|job| {
+                job.execution
+                    .as_ref()
+                    .is_some_and(|execution| !execution.can_replay_automatically())
+            }) {
+                continue;
+            }
 
             match status {
                 JobStatus::Processing if state.wait_requests.insert(job_id.clone()) => {

@@ -9,13 +9,14 @@ import {
   waitTranscodeJobsBulk,
 } from "@/lib/backend";
 import { waitForQueueSnapshotRevision } from "./waitForQueueUpdate";
+import { canReplayQueueJob } from "@/lib/queueExecutionCapabilities";
 
 async function syncQueueSnapshotAfterBulkOp(deps: BulkOpsDeps, sinceRevision: number | null) {
   const preferRevision = typeof sinceRevision === "number" && Number.isFinite(sinceRevision);
-  if (!preferRevision || !deps.lastQueueSnapshotRevision) return;
-
-  const synced = await waitForQueueSnapshotRevision(deps.lastQueueSnapshotRevision, { sinceRevision });
-  if (synced) return;
+  if (preferRevision && deps.lastQueueSnapshotRevision) {
+    const synced = await waitForQueueSnapshotRevision(deps.lastQueueSnapshotRevision, { sinceRevision });
+    if (synced) return;
+  }
 
   const previousError = deps.queueError.value;
   try {
@@ -99,7 +100,9 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
  * Affects jobs with status === "processing" | "queued".
  */
 export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
-  const selected = deps.selectedJobs.value.filter((job) => job.status === "processing" || job.status === "queued");
+  const selected = deps.selectedJobs.value.filter(
+    (job) => canReplayQueueJob(job) && (job.status === "processing" || job.status === "queued"),
+  );
   const ids = selected.map((job) => job.id);
   if (ids.length === 0) return;
 
@@ -133,7 +136,7 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
  */
 export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
   const ids = deps.selectedJobs.value
-    .filter((job) => job.status === "paused")
+    .filter((job) => job.status === "paused" && canReplayQueueJob(job))
     .slice()
     .sort(compareJobsByQueueOrderThenStartTimeThenId)
     .map((job) => job.id);
@@ -159,14 +162,6 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
       }
       deps.queueError.value = errorText;
       return;
-    }
-
-    const idSet = new Set(ids);
-    for (const job of deps.jobs.value) {
-      if (!idSet.has(job.id)) continue;
-      if (job.status === "paused") {
-        job.status = "queued";
-      }
     }
 
     deps.queueError.value = null;

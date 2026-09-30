@@ -129,7 +129,7 @@ describe("MainApp Tauri drag & drop integration", () => {
       // compute metadata and build output paths correctly.
       filename: droppedPath,
       source: "manual",
-      jobType: "video",
+      jobType: "other",
     });
 
     wrapper.unmount();
@@ -162,7 +162,7 @@ describe("MainApp Tauri drag & drop integration", () => {
     expect(payload).toMatchObject({
       filenames: dropped,
       source: "manual",
-      jobType: "video",
+      jobType: "other",
     });
 
     wrapper.unmount();

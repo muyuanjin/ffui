@@ -10,6 +10,7 @@ fn bulk_wait_pauses_queued_jobs_before_worker_slot_is_freed() {
     let engine = make_engine_with_preset();
 
     let make_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -112,6 +113,7 @@ fn bulk_wait_ignores_terminal_jobs_instead_of_failing() {
     let engine = make_engine_with_preset();
 
     let make_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -198,6 +200,7 @@ fn bulk_wait_requests_active_media_child_and_pauses_other_selected_jobs() {
         let mut state = engine.inner.state.lock_unpoisoned();
 
         let mut media_child = TranscodeJob {
+            execution: None,
             id: media_child_id.clone(),
             filename: format!("C:/images/{media_child_id}.png"),
             job_type: JobType::Image,

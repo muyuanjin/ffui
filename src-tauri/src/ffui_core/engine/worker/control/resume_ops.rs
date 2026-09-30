@@ -9,6 +9,19 @@ use crate::sync_ext::MutexExt;
 /// keeping its progress/wait metadata intact。Processing 状态下如仍有待处理暂停
 /// 请求，则直接取消，避免快速“暂停→继续”引发的竞态。
 pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    crate::ffui_core::engine::manual_execution::hydrate_legacy_jobs(inner, &[job_id.to_string()]);
+    {
+        let state = inner.state.lock_unpoisoned();
+        if state.jobs.get(job_id).is_some_and(|job| {
+            job.status == JobStatus::Paused
+                && job
+                    .execution
+                    .as_ref()
+                    .is_some_and(|execution| !execution.can_replay_automatically())
+        }) {
+            return false;
+        }
+    }
     let queued_result = {
         let state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 
 fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
     TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -92,6 +93,7 @@ fn build_segment_probe_jobs(
         let id = format!("job-{i}");
         jobs.push(TranscodeJob {
             id,
+            execution: None,
             filename: input_path_str.clone(),
             job_type: JobType::Video,
             source: JobSource::Manual,
@@ -135,6 +137,10 @@ fn build_segment_probe_jobs(
 #[test]
 fn restore_marks_auto_wait_processing_ids_as_startup_auto_paused() {
     let engine = TranscodingEngine::new_for_tests();
+    engine.inner.state.lock_unpoisoned().presets =
+        std::sync::Arc::new(vec![crate::test_support::make_ffmpeg_preset_for_tests(
+            "preset-1",
+        )]);
     {
         let mut guard = engine.inner.previous_shutdown_marker.lock_unpoisoned();
         *guard = Some(ShutdownMarker {

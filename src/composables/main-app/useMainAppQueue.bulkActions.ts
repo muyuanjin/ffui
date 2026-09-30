@@ -3,6 +3,7 @@ import { toast } from "vue-sonner";
 import type { TranscodeJob, Translate } from "@/types";
 import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
 import { isWaitingStatus } from "./useMainAppQueue.waiting";
+import { canReplayQueueJob } from "@/lib/queueExecutionCapabilities";
 
 interface CreateQueueBulkActionsWithFeedbackOptions {
   t: Translate;
@@ -133,8 +134,8 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
-    const queued = selectedBefore.filter((job) => job.status === "queued").length;
-    const processing = selectedBefore.filter((job) => job.status === "processing").length;
+    const queued = selectedBefore.filter((job) => job.status === "queued" && canReplayQueueJob(job)).length;
+    const processing = selectedBefore.filter((job) => job.status === "processing" && canReplayQueueJob(job)).length;
     const eligible = queued + processing;
     const ignored = selectedBefore.length - eligible;
     const detailsAction = detailsActionFor(
@@ -184,10 +185,10 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
 
   const bulkResume = async () => {
     await nextTick();
-    const selectedBefore = selectedJobs.value.slice();
+    const selectedBefore = selectedJobs.value.map((job) => ({ ...job }));
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
-    const eligible = selectedBefore.filter((job) => job.status === "paused").length;
+    const eligible = selectedBefore.filter((job) => job.status === "paused" && canReplayQueueJob(job)).length;
     const ignored = selectedBefore.length - eligible;
     const detailsAction = detailsActionFor(
       buildReport({ selectedBefore, selectedAfter: resolveSelectedAfter(selectedIds), eligible, ignored }),
@@ -214,9 +215,29 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
       return;
     }
 
+    const resumed = selectedBefore.filter(
+      (job) =>
+        job.status === "paused" &&
+        canReplayQueueJob(job) &&
+        selectedAfter.some(
+          (after) => after.id === job.id && (after.status === "queued" || after.status === "processing"),
+        ),
+    ).length;
+    if (resumed === 0) {
+      await showNoopToast(
+        t("queue.feedback.bulkResume.noneTitle"),
+        t("queue.feedback.bulkResume.noneDescription", { selected: selectedCount }),
+        detailsActionFor(buildReport({ selectedBefore, selectedAfter, eligible, ignored })),
+      );
+      return;
+    }
     await showSuccessToast(
       t("queue.feedback.bulkResume.successTitle"),
-      t("queue.feedback.bulkResume.successDescription", { selected: selectedCount, count: eligible, ignored }),
+      t("queue.feedback.bulkResume.successDescription", {
+        selected: selectedCount,
+        count: resumed,
+        ignored: selectedCount - resumed,
+      }),
       detailsActionFor(buildReport({ selectedBefore, selectedAfter, eligible, ignored })),
     );
   };

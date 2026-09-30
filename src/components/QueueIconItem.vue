@@ -9,6 +9,9 @@ import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
 import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDisplay";
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
+import QueueIndeterminateProgress from "@/components/queue-item/QueueIndeterminateProgress.vue";
+import { progressColorClassForPhase } from "@/components/queue-item/queueProgressPhaseStyle";
 import {
   compactTimeDisplayParts,
   joinTimeDisplayParts,
@@ -70,7 +73,6 @@ const clampedProgress = computed(() => {
     return Math.max(0, Math.min(100, raw));
   }
 
-  // waiting / queued
   return 0;
 });
 
@@ -94,19 +96,6 @@ const phaseProgressPercent = computed(() => {
 const progressTransformForPercent = (percent: number) => ({
   transform: `translateX(-${100 - Math.max(0, Math.min(100, percent))}%)`,
 });
-
-const progressColorClassForPhase = (phase: ProgressPhase | undefined) => {
-  switch (phase) {
-    case "audioFinalizing":
-      return "bg-cyan-400";
-    case "muxing":
-      return "bg-emerald-400";
-    case "concatenating":
-      return "bg-amber-400";
-    default:
-      return "bg-primary";
-  }
-};
 
 const iconPhaseProgressSegments = computed(() => {
   const currentPhase = props.job.progressPhase === "completed" ? "muxing" : props.job.progressPhase;
@@ -134,7 +123,6 @@ const showRippleCardProgress = computed(
 
 const uiStatus = computed(() => resolveUiJobStatus(props.job));
 
-// 根据任务状态计算进度条颜色类
 const progressColorClass = computed(() => {
   switch (uiStatus.value) {
     case "completed":
@@ -154,7 +142,6 @@ const progressColorClass = computed(() => {
   }
 });
 
-// 波纹进度条的渐变色类
 const rippleProgressColorClass = computed(() => {
   switch (uiStatus.value) {
     case "completed":
@@ -176,7 +163,14 @@ const rippleProgressColorClass = computed(() => {
 
 const displayStatusKey = computed(() => uiStatus.value);
 
-const statusLabel = computed(() => t(`queue.status.${displayStatusKey.value}`) as string);
+const statusLabel = computed(
+  () =>
+    t(
+      hasIndeterminateQueueProgress(props.job)
+        ? "queue.command.indeterminate"
+        : `queue.status.${displayStatusKey.value}`,
+    ) as string,
+);
 
 const statusBadgeClass = computed(() => {
   switch (uiStatus.value) {
@@ -227,7 +221,6 @@ const displayFilename = computed(() => {
 const isSelectable = computed(() => props.canSelect === true);
 const isSelected = computed(() => !!props.selected);
 
-// 使用时间显示组合式函数
 const {
   elapsedTimeDisplay,
   estimatedTotalTimeDisplay,
@@ -239,12 +232,10 @@ const {
   isProcessing,
 } = useJobTimeDisplay(toRef(props, "job"));
 
-// 时间显示片段（简短版本，适合图标视图）。标签和值拆开，保证垂直对齐。
 const timeDisplayParts = computed<TimeDisplayPart[]>(() => {
   if (!shouldShowTimeInfo.value) return [];
 
   if (isTerminalState.value) {
-    // 终态：显示总耗时
     if (elapsedTimeDisplay.value !== "-") {
       return compactTimeDisplayParts([valuePart(elapsedTimeDisplay.value)]);
     }
@@ -456,9 +447,9 @@ if (isQueuePerfEnabled) {
         </div>
       </div>
 
-      <!-- 底部进度条：根据 progressStyle 切换不同视觉样式，颜色随任务状态变化 -->
+      <QueueIndeterminateProgress v-if="hasIndeterminateQueueProgress(job)" />
       <div
-        v-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
+        v-else-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
         class="relative mt-1.5 h-1 w-full bg-muted/60 rounded-full overflow-hidden"
         data-testid="queue-icon-item-progress-container"
       >

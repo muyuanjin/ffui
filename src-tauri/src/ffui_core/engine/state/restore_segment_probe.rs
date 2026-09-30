@@ -29,9 +29,9 @@ pub(in crate::ffui_core::engine) fn build_segment_probe_for_job(
 
     SegmentProbe {
         id: job.id.clone(),
-        input_path: PathBuf::from(job.filename.trim()),
-        output_path: job.output_path.as_deref().map(|s| PathBuf::from(s.trim())),
-        scan_output_dir,
+        input_path: PathBuf::from(job.input_path.as_deref().unwrap_or(&job.filename)),
+        output_path: job.output_path.as_deref().map(PathBuf::from),
+        scan_output_dir: scan_output_dir || job.output_path.is_some(),
         scan_input_dir,
         progress: job.progress,
         elapsed_ms: job.elapsed_ms,
@@ -254,4 +254,42 @@ fn wait_metadata_existing_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffui_core::domain::{JobStatus, OutputPolicy};
+
+    #[test]
+    fn persisted_addresses_remain_authoritative_when_policy_is_snapshotted() {
+        let directory = tempfile::tempdir().expect("directory");
+        let input = directory.path().join(" bound input.mp4 ");
+        let output = directory.path().join("chosen-name.mkv");
+        let segment = directory
+            .path()
+            .join("chosen-name.job-address.seg0.tmp.mkv");
+        std::fs::write(&segment, b"segment").expect("segment");
+        let mut job = crate::test_support::make_transcode_job_for_tests(
+            "job-address",
+            JobStatus::Processing,
+            12.0,
+            Some(1),
+        );
+        job.filename = "relative-display-name.mp4".into();
+        job.input_path = Some(input.to_string_lossy().into_owned());
+        job.output_path = Some(output.to_string_lossy().into_owned());
+        job.output_policy = Some(OutputPolicy::default());
+        let probe = build_segment_probe_for_job(&job);
+        assert_eq!(probe.input_path, input);
+        assert_eq!(probe.output_path.as_deref(), Some(output.as_path()));
+        assert!(probe.scan_output_dir);
+        let metadata =
+            recover_wait_metadata_from_filesystem(&probe, &mut SegmentDirCache::default())
+                .expect("recover recorded output segments");
+        assert_eq!(
+            metadata.segments,
+            Some(vec![segment.to_string_lossy().into_owned()])
+        );
+    }
 }

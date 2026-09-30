@@ -70,6 +70,8 @@ pub struct WaitMetadataUiLite {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobUiLite {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_mode: Option<super::JobExecutionMode>,
     pub id: String,
     pub filename: String,
     #[serde(rename = "type")]
@@ -178,6 +180,7 @@ impl From<&WaitMetadata> for WaitMetadataUiLite {
 impl From<TranscodeJobLite> for TranscodeJobUiLite {
     fn from(job: TranscodeJobLite) -> Self {
         let TranscodeJobLite {
+            execution,
             id,
             filename,
             job_type,
@@ -220,6 +223,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
 
         Self {
             id,
+            execution_mode: execution.as_ref().map(super::JobExecution::mode),
             filename,
             job_type,
             source,
@@ -288,6 +292,7 @@ mod ui_lite_tests {
     #[test]
     fn queue_state_ui_lite_omits_recovery_only_fields() {
         let job = TranscodeJobLite {
+            execution: None,
             id: "job-1".to_string(),
             filename: "C:/videos/in.mp4".to_string(),
             job_type: JobType::Video,

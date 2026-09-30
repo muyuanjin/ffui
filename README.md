@@ -47,7 +47,7 @@ These examples line up with the queue, preset editing, compare, monitor, setting
 
 ## Features
 
-- Queue-first workflow: add jobs, track progress and status, and review per-job logs (with optional crash recovery).
+- Queue-first workflow: add jobs, track progress and status, and review per-job logs (with optional crash recovery). Manual audio/image jobs and transparent FFmpeg commands are described in [the queue guide](docs/manual-ffmpeg-queue.md).
 - Presets (with stats): manage reusable presets and see usage, average compression ratio, speed stats, plus optional VQ-based predictions and measured VMAF.
 - Input vs output compare: side-by-side playback or frame snapshots to quickly spot quality differences.
 - FFmpeg management: auto-download/auto-update FFmpeg (plus `ffprobe` / `avifenc`) or point to your own binaries.

@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
 import QueueFiltersBar from "./QueueFiltersBar.vue";
+import { getQueueReplayEligibility } from "@/lib/queueExecutionCapabilities";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { QueueFilterKind, QueueFilterStatus } from "@/composables";
@@ -28,6 +29,8 @@ function makeDefaultProps() {
     hasActiveFilters: false,
     hasSelection: true,
     selectedCount: 2,
+    bulkWaitEligible: true,
+    bulkResumeEligible: true,
     hasPrimarySortTies: false,
     queueMode: "display",
     visibleCount: 2,
@@ -36,6 +39,24 @@ function makeDefaultProps() {
 }
 
 describe("QueueFiltersBar bulk actions", () => {
+  it("propagates transparent-only and mixed replay eligibility to the selection toolbar", async () => {
+    const eligibility = getQueueReplayEligibility([{ status: "paused", executionMode: "transparent" }]);
+    const wrapper = mount(QueueFiltersBar, {
+      props: { ...makeDefaultProps(), bulkWaitEligible: eligibility.wait, bulkResumeEligible: eligibility.resume },
+      global: { plugins: [i18n] },
+    });
+    const actions = en.queue.actions;
+    expect(wrapper.get(`button[title="${actions.bulkWait}"]`).attributes("disabled")).toBeDefined();
+    expect(wrapper.get(`button[title="${actions.bulkResume}"]`).attributes("disabled")).toBeDefined();
+    const mixed = getQueueReplayEligibility([
+      { status: "paused", executionMode: "transparent" },
+      { status: "paused", executionMode: "managed" },
+      { status: "processing", executionMode: "video" },
+    ]);
+    await wrapper.setProps({ bulkWaitEligible: mixed.wait, bulkResumeEligible: mixed.resume });
+    expect(wrapper.get(`button[title="${actions.bulkWait}"]`).attributes("disabled")).toBeUndefined();
+    expect(wrapper.get(`button[title="${actions.bulkResume}"]`).attributes("disabled")).toBeUndefined();
+  });
   it("enables bulk wait/resume in display mode when there is a selection", async () => {
     const wrapper = mount(QueueFiltersBar, { props: makeDefaultProps(), global: { plugins: [i18n] } });
 

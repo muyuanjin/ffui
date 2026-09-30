@@ -10,6 +10,7 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
     let engine = make_engine_with_preset();
 
     let make_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,
@@ -105,6 +106,7 @@ fn notify_queue_listeners_only_excludes_media_children_with_live_worker_owner() 
     let engine = make_engine_with_preset();
 
     let make_media_job = |id: &str, status: JobStatus| TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.png"),
         job_type: JobType::Image,

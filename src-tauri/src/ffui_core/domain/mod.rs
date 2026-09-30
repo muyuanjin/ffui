@@ -18,6 +18,9 @@ pub use job::{
 mod job_record;
 pub use job_record::*;
 
+mod job_execution;
+pub use job_execution::*;
+
 mod job_lite;
 pub use job_lite::*;
 

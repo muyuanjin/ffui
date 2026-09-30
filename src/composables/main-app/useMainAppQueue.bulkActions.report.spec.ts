@@ -49,6 +49,33 @@ describe("createQueueBulkActionsWithFeedback details report", () => {
     toastMocks.message.mockReset();
   });
 
+  it.each(["cancelled", "failed", "skipped", "completed"] as const)(
+    "does not report an ignored resume whose authoritative status is %s as successful",
+    async (status) => {
+      const jobs = ref<TranscodeJob[]>([{ ...makeJob("paused", "paused"), executionMode: "managed" }]);
+      const api = createQueueBulkActionsWithFeedback({
+        t,
+        jobs,
+        selectedJobs: computed(() => jobs.value),
+        selectedJobIds: ref(new Set(["paused"])),
+        queueError: ref(null),
+        lastQueueSnapshotRevision: ref(null),
+        refreshQueueFromBackend: async () => {},
+        bulkWaitSelectedJobs: async () => {},
+        bulkResumeSelectedJobs: async () => {
+          jobs.value = jobs.value.map((job) => ({ ...job, status }));
+        },
+        bulkRestartSelectedJobs: async () => {},
+        bulkCancelSelectedJobs: async () => {},
+        bulkMoveSelectedJobsToTopInner: async () => {},
+        bulkMoveSelectedJobsToBottomInner: async () => {},
+      });
+      await api.bulkResume();
+      expect(toastMocks.success).not.toHaveBeenCalled();
+      expect(toastMocks.info).toHaveBeenCalledWith("queue.feedback.bulkResume.noneTitle", expect.anything());
+    },
+  );
+
   it("attaches a details action that opens a report toast", async () => {
     const jobs = ref<TranscodeJob[]>([makeJob("job-paused", "paused"), makeJob("job-queued", "queued")]);
     const selectedJobIds = ref<Set<string>>(new Set(["job-paused", "job-queued"]));
@@ -93,4 +120,38 @@ describe("createQueueBulkActionsWithFeedback details report", () => {
     expect(reportOpts?.description).toContain("queue.status.paused");
     expect(reportOpts?.description).toContain("queue.status.queued: 2");
   });
+
+  it.each(["transparent", "managed"] as const)(
+    "does not report an unconfirmed %s resume as success",
+    async (executionMode) => {
+      const jobs = ref<TranscodeJob[]>([{ ...makeJob("paused", "paused"), executionMode }]);
+      const resume = vi.fn(async () => {});
+      const wait = vi.fn(async () => {});
+      const api = createQueueBulkActionsWithFeedback({
+        t,
+        jobs,
+        selectedJobs: computed(() => jobs.value),
+        selectedJobIds: ref(new Set(["paused"])),
+        queueError: ref(null),
+        lastQueueSnapshotRevision: ref(null),
+        refreshQueueFromBackend: async () => {},
+        bulkWaitSelectedJobs: wait,
+        bulkResumeSelectedJobs: resume,
+        bulkRestartSelectedJobs: async () => {},
+        bulkCancelSelectedJobs: async () => {},
+        bulkMoveSelectedJobsToTopInner: async () => {},
+        bulkMoveSelectedJobsToBottomInner: async () => {},
+      });
+      await api.bulkResume();
+      expect(toastMocks.success).not.toHaveBeenCalled();
+      expect(toastMocks.info).toHaveBeenCalledWith("queue.feedback.bulkResume.noneTitle", expect.anything());
+      expect(resume).toHaveBeenCalledTimes(executionMode === "transparent" ? 0 : 1);
+      jobs.value = jobs.value.map((job) => ({ ...job, status: "queued" }));
+      if (executionMode === "transparent") {
+        await api.bulkWait();
+        expect(wait).not.toHaveBeenCalled();
+        expect(toastMocks.info).toHaveBeenLastCalledWith("queue.feedback.bulkWait.noneTitle", expect.anything());
+      }
+    },
+  );
 });

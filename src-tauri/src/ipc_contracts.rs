@@ -42,6 +42,7 @@ pub fn queue_contracts_path() -> PathBuf {
 
 fn queue_contract_types() -> Types {
     Types::default()
+        .register::<crate::ffui_core::FfmpegJobRequest>()
         .register::<JobStatus>()
         .register::<JobType>()
         .register::<JobSource>()
@@ -81,6 +82,7 @@ mod tests {
 
     fn representative_lite_job() -> TranscodeJobUiLite {
         TranscodeJobUiLite {
+            execution_mode: None,
             id: "job-1".to_string(),
             filename: "C:/videos/in.mp4".to_string(),
             job_type: JobType::Video,

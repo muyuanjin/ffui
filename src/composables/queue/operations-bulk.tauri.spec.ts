@@ -253,7 +253,9 @@ describe("bulkResumeSelectedJobs (tauri)", () => {
         selectedJobIds,
         selectedJobs,
         queueError: ref(null),
-        refreshQueueFromBackend: async () => {},
+        refreshQueueFromBackend: async () => {
+          jobs.value = jobs.value.map((job) => (job.status === "paused" ? { ...job, status: "queued" } : job));
+        },
         handleCancelJob: async () => {},
         handleWaitJob: async () => {},
         handleResumeJob,

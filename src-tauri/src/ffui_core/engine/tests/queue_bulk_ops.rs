@@ -5,6 +5,7 @@ use super::*;
 
 fn make_manual_job(id: &str, status: JobStatus) -> TranscodeJob {
     TranscodeJob {
+        execution: None,
         id: id.to_string(),
         filename: format!("C:/videos/{id}.mp4"),
         job_type: JobType::Video,

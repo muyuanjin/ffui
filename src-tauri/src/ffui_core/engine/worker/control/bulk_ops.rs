@@ -86,6 +86,7 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
     inner: &Arc<Inner>,
     job_ids: Vec<String>,
 ) -> bool {
+    crate::ffui_core::engine::manual_execution::hydrate_legacy_jobs(inner, &job_ids);
     if job_ids.is_empty() {
         return true;
     }
@@ -120,6 +121,13 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
                 }
                 JobStatus::Paused => {
                     if let Some(job) = state.jobs.get_mut(job_id.as_str()) {
+                        if job
+                            .execution
+                            .as_ref()
+                            .is_some_and(|execution| !execution.can_replay_automatically())
+                        {
+                            continue;
+                        }
                         job.status = JobStatus::Queued;
                         should_notify = true;
                     }

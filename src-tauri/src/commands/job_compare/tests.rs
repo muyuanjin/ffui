@@ -7,6 +7,7 @@ use crate::ffui_core::{
 
 fn sample_video_job(status: JobStatus) -> TranscodeJob {
     TranscodeJob {
+        execution: None,
         id: "job-1".to_string(),
         filename: "C:/videos/input.mp4".to_string(),
         job_type: JobType::Video,

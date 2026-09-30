@@ -28,6 +28,9 @@ pub(crate) fn normalize_container_format(format: &str) -> String {
         "rm" | "rmvb" => "rm",
         // Pass-through known muxers.
         "mov" => "mov",
+        "hls" | "m3u8" => "hls",
+        "dash" | "mpd" => "dash",
+        "png" | "jpg" | "jpeg" | "bmp" | "tif" | "tiff" => "image2",
         "webm" => "webm",
         "flv" => "flv",
         "avi" => "avi",
@@ -81,6 +84,12 @@ pub(crate) fn infer_output_extension(
                 "ac3" => "ac3",
                 "ogg" => "ogg",
                 "opus" => "opus",
+                "png" => "png",
+                "jpg" | "jpeg" => "jpg",
+                "bmp" => "bmp",
+                "tif" | "tiff" => "tiff",
+                "webp" => "webp",
+                "avif" => "avif",
                 // 传输流 / 直播
                 "mpegts" | "ts" => "ts",
                 "hls" => "m3u8",

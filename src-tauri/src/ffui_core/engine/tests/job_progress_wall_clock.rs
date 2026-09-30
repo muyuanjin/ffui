@@ -14,6 +14,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
+                execution: None,
                 id: job_id.clone(),
                 filename: "C:/videos/wall-clock.mp4".to_string(),
                 job_type: JobType::Video,
