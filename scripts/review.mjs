@@ -781,6 +781,11 @@ function reviewStateRefusals(commit, tree) {
     else if (entry.fingerprint !== laneFingerprint(lane, commit)) drifted.push(lane.id + "(输入已变)");
     else if ((proof.laneFingerprints || {})[lane.id] !== entry.fingerprint) drifted.push(lane.id + "(proof 指纹不符)");
     else if ((proof.laneHashes || {})[lane.id] !== entry.laneHash) drifted.push(lane.id + "(proof 车道哈希不符)");
+    else if (!entry.evidencePath || !fs.existsSync(entry.evidencePath)) drifted.push(lane.id + "(证据报告缺失)");
+    else if (sha256(fs.readFileSync(entry.evidencePath, "utf8")) !== entry.evidenceHash)
+      drifted.push(lane.id + "(证据报告被改写)");
+    else if ((proof.evidenceHashes || {})[lane.id] !== entry.evidenceHash)
+      drifted.push(lane.id + "(proof 证据哈希不符)");
   }
   if (drifted.length > 0) refusals.push("车道结论不成立：" + drifted.join(", "));
   return refusals;
@@ -837,7 +842,6 @@ function commandPrePush() {
 
 /** 门禁引擎自身的自检：确认纯函数的关键不变量成立。 */
 export function selftestProblems() {
-  const problems = [];
   const lane = {
     id: "l",
     paths: ["a.txt"],
@@ -847,47 +851,58 @@ export function selftestProblems() {
     counterexamples: ["x"],
     obligations: [],
   };
-  if (laneFingerprint(lane, "HEAD") === laneFingerprint({ ...lane, paths: ["b.txt"] }, "HEAD")) {
-    problems.push("车道指纹对路径变化不敏感");
-  }
-  if (laneHash(lane) === laneHash({ ...lane, scope: "s2" })) problems.push("车道哈希对定义变化不敏感");
-  if (stableStringify({ b: 1, a: 2 }) !== stableStringify({ a: 2, b: 1 })) problems.push("稳定序列化对键序敏感");
   const ledger = parseLedger(
     "---\nschema: " +
       FINDINGS_SCHEMA +
       "\nledgerStatus: open\nfindings:\n  - id: F001\n    severity: P1\n    status: unresolved\n    owner: o\n    condition: c\n    impact: i\n    requiredOutcome: r\n---\n",
   );
-  if (ledger.findings.length !== 1) problems.push("台账解析未读到 finding");
-  if (validateLedger(ledger).length !== 0) problems.push("台账结构校验误拒 open + unresolved");
-  if (unresolvedFindings(ledger).length !== 1) problems.push("未终结 finding 计数不正确");
-  if (validateLedger({ schema: FINDINGS_SCHEMA, ledgerStatus: "resolved", findings: [] }).length !== 0) {
-    problems.push("台账校验误拒空台账");
-  }
-  if (validateLedger({ schema: "wrong", ledgerStatus: "resolved", findings: [] }).length === 0) {
-    problems.push("台账校验未检查 schema");
-  }
-  if (validatePlanShape({ schema: PLAN_SCHEMA, obligations: [], lanes: [] }, null).length === 0) {
-    problems.push("计划校验未拒绝空计划");
-  }
-  return problems;
+  const checks = [
+    [
+      laneFingerprint(lane, "HEAD") !== laneFingerprint({ ...lane, paths: ["b.txt"] }, "HEAD"),
+      "车道指纹对路径变化不敏感",
+    ],
+    [laneHash(lane) !== laneHash({ ...lane, scope: "s2" }), "车道哈希对定义变化不敏感"],
+    [stableStringify({ b: 1, a: 2 }) === stableStringify({ a: 2, b: 1 }), "稳定序列化对键序敏感"],
+    [ledger.findings.length === 1, "台账解析未读到 finding"],
+    [validateLedger(ledger).length === 0, "台账结构校验误拒 open + unresolved"],
+    [unresolvedFindings(ledger).length === 1, "未终结 finding 计数不正确"],
+    [
+      validateLedger({ schema: FINDINGS_SCHEMA, ledgerStatus: "resolved", findings: [] }).length === 0,
+      "台账校验误拒空台账",
+    ],
+    [validateLedger({ schema: "wrong", ledgerStatus: "resolved", findings: [] }).length !== 0, "台账校验未检查 schema"],
+    [validatePlanShape({ schema: PLAN_SCHEMA, obligations: [], lanes: [] }, null).length !== 0, "计划校验未拒绝空计划"],
+  ];
+  return {
+    problems: checks
+      .filter(function (check) {
+        return !check[0];
+      })
+      .map(function (check) {
+        return check[1];
+      }),
+    checks: checks.length,
+  };
 }
 
 function runSelftest() {
-  const problems = selftestProblems();
-  if (problems.length > 0) {
-    fail("门禁引擎自检失败（先修 scripts/review.mjs）：\n  " + problems.join("\n  "));
+  const result = selftestProblems();
+  if (result.problems.length > 0) {
+    fail("门禁引擎自检失败（先修 scripts/review.mjs）：\n  " + result.problems.join("\n  "));
   }
 }
 
 function commandSelftest() {
-  const problems = selftestProblems();
+  const result = selftestProblems();
   note(
     "自检：检查 " +
-      7 +
+      result.checks +
       " 项不变量，" +
-      (problems.length === 0 ? "全部通过" : "失败 " + problems.length + " 项\n  " + problems.join("\n  ")),
+      (result.problems.length === 0
+        ? "全部通过"
+        : "失败 " + result.problems.length + " 项\n  " + result.problems.join("\n  ")),
   );
-  if (problems.length > 0) process.exit(1);
+  if (result.problems.length > 0) process.exit(1);
 }
 
 const COMMANDS = {
