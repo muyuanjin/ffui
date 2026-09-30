@@ -289,17 +289,21 @@ export function parseLedger(text) {
   let pendingKey = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const itemMatch = /^\s*-\s+(.*)$/.exec(line);
+    // 缩进决定层级：条目 ≤2、字段 =4、块标量正文 ≥6。这样正文里的 status: x 或 - x
+    // 不会被当成字段/新条目（正文覆盖顶层字段、或合法 bullet 台账被误拒）。
+    const trimmed = line.trimStart();
+    const indent = line.length - trimmed.length;
+    const itemMatch = indent <= 2 ? /^-\s+(.*)$/.exec(trimmed) : null;
     if (itemMatch) {
       // 列表项缺少 id 时也保留条目（id 为空），让校验器报「存在缺少 id 的 finding」，
       // 而不是把整条 finding 静默丢弃、让 unresolved 计数归零。
-      const idMatch = /^\s*-\s+id:\s*(.*)$/.exec(line);
+      const idMatch = /^id:\s*(.*)$/.exec(itemMatch[1]);
       current = { id: idMatch ? idMatch[1].trim() : "" };
       findings.push(current);
       pendingKey = null;
       continue;
     }
-    const fieldMatch = /^\s+([A-Za-z]+):\s*(.*)$/.exec(line);
+    const fieldMatch = indent <= 4 ? /^([A-Za-z]+):\s*(.*)$/.exec(trimmed) : null;
     if (fieldMatch && current && FINDING_FIELDS.indexOf(fieldMatch[1]) >= 0) {
       const key = fieldMatch[1];
       const raw = fieldMatch[2];
@@ -452,16 +456,25 @@ function commandFindingsNew(args) {
 }
 
 /** 计划 base 的约束：必须是 HEAD 的祖先，且不得晚于 merge-base(origin/main, HEAD)。 */
-function baseProblem(baseCommit) {
+function baseProblem(plan, baseCommit) {
   if (tryGit(["merge-base", "--is-ancestor", baseCommit, "HEAD"]) === null) {
     return "记录的 base 不是 HEAD 的祖先：" + short(baseCommit);
   }
-  const originMain = tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
-  if (!originMain) return null;
-  const mergeBase = git(["merge-base", originMain, "HEAD"]);
+  const reference = (plan && plan.compareRef) || tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
+  if (!reference) {
+    return "缺少审阅下界：仓库没有 origin/main，且 REVIEW_PLAN.json 未声明 compareRef";
+  }
+  const referenceCommit = tryGit(["rev-parse", "--verify", "--quiet", String(reference) + "^{commit}"]);
+  if (!referenceCommit) return "compareRef 无法解析：" + String(reference);
+  const mergeBase = tryGit(["merge-base", referenceCommit, "HEAD"]);
+  if (!mergeBase) return "compareRef 与 HEAD 没有共同祖先：" + String(reference);
   if (tryGit(["merge-base", "--is-ancestor", baseCommit, mergeBase]) === null) {
     return (
-      "base 不能晚于 merge-base(origin/main, HEAD)=" + short(mergeBase) + "：否则 base 会吞掉未审的改动，使覆盖校验空转"
+      "base 不能晚于 merge-base(" +
+      String(reference) +
+      ", HEAD)=" +
+      short(mergeBase) +
+      "：否则 base 会吞掉未审的改动，使覆盖校验空转"
     );
   }
   return null;
@@ -471,9 +484,10 @@ function commandPlan(args) {
   const baseIndex = args.indexOf("--base");
   const plan = loadPlan();
   const previous = loadRecordedPlan();
-  const baseRef = (baseIndex >= 0 ? args[baseIndex + 1] : null) || (previous && previous.baseCommit) || "HEAD~1";
+  const baseRef = (baseIndex >= 0 ? args[baseIndex + 1] : null) || (previous && previous.baseCommit) || null;
+  if (!baseRef) fail("首次记录必须显式给出 --base <commit>（不提供默认值，避免未审改动被并入 base）");
   const resolvedBase = git(["rev-parse", baseRef + "^{commit}"]);
-  const baseIssue = baseProblem(resolvedBase);
+  const baseIssue = baseProblem(plan, resolvedBase);
   if (baseIssue) fail(baseIssue);
   const problems = validatePlanShape(plan, resolvedBase);
   if (problems.length > 0) fail("计划无效：\n  " + problems.join("\n  "));
@@ -697,7 +711,7 @@ function commandFinalize() {
   const plan = loadPlan();
   const recorded = loadRecordedPlan();
   if (!recorded) fail("计划尚未记录");
-  const recordedBaseIssue = baseProblem(recorded.baseCommit);
+  const recordedBaseIssue = baseProblem(plan, recorded.baseCommit);
   if (recordedBaseIssue) fail(recordedBaseIssue);
   const planProblems = validatePlanShape(plan, recorded.baseCommit);
   if (planProblems.length > 0) fail("计划无效：\n  " + planProblems.join("\n  "));
@@ -780,7 +794,7 @@ function reviewStateRefusals(commit, tree) {
   if (refusals.length > 0) return refusals;
   if (recorded.planHash !== planHash(plan)) refusals.push("计划内容已改变，proof 失效");
   if (proof.planHash !== planHash(plan)) refusals.push("proof 绑定的计划哈希与当前计划不一致");
-  const recordedBaseIssue = baseProblem(recorded.baseCommit);
+  const recordedBaseIssue = baseProblem(plan, recorded.baseCommit);
   if (recordedBaseIssue) refusals.push(recordedBaseIssue);
   if (proof.tree !== tree) refusals.push("proof 绑定的树与被推送的树不一致");
   if (gate.tree !== tree) refusals.push("门禁记录的树与被推送的树不一致");
@@ -897,6 +911,22 @@ export function selftestProblems() {
     ],
     [validateLedger({ schema: "wrong", ledgerStatus: "resolved", findings: [] }).length !== 0, "台账校验未检查 schema"],
     [validatePlanShape({ schema: PLAN_SCHEMA, obligations: [], lanes: [] }, null).length !== 0, "计划校验未拒绝空计划"],
+    [
+      parseLedger(
+        "---\nschema: " +
+          FINDINGS_SCHEMA +
+          "\nledgerStatus: open\nfindings:\n  - id: F001\n    severity: P1\n    status: unresolved\n    owner: o\n    condition: >-\n      status: invalid\n    impact: i\n    requiredOutcome: r\n---\n",
+      ).findings[0].status === "unresolved",
+      "块标量正文覆盖了顶层 status",
+    ],
+    [
+      parseLedger(
+        "---\nschema: " +
+          FINDINGS_SCHEMA +
+          "\nledgerStatus: open\nfindings:\n  - id: F001\n    severity: P1\n    status: unresolved\n    owner: o\n    condition: >-\n      - looks like a bullet\n    impact: i\n    requiredOutcome: r\n---\n",
+      ).findings.length === 1,
+      "块标量正文被当成新的 finding",
+    ],
   ];
   return {
     problems: checks
