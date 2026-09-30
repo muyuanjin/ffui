@@ -555,7 +555,7 @@ const forceUiAppearance = async (page, options) => {
 };
 
 const waitForLocaleApplied = async (page, locale) => {
-  const expected = locale.value === "en" ? "Transcode Queue" : "任务队列";
+  const expected = locale.value === "en" ? "Transcode Tasks" : "转码任务";
   await page.waitForFunction(
     ({ testId, expectedText }) => {
       const el = document.querySelector(`[data-testid="${testId}"]`);

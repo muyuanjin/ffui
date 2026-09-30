@@ -207,8 +207,8 @@ const main = async () => {
       await waitFor(async () => (await title.count()) > 0);
       const titleText = (await title.first().innerText()).trim();
       const expectedTitleByLocale = {
-        "zh-CN": "任务队列",
-        en: "Transcode Queue",
+        "zh-CN": "转码任务",
+        en: "Transcode Tasks",
       };
       const expectedTitle = expectedTitleByLocale[args.locale];
       if (expectedTitle) assert(titleText === expectedTitle, `Expected title "${expectedTitle}", got "${titleText}"`);
