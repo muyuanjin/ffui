@@ -12,8 +12,7 @@ const DEFAULT_TTL: Duration = Duration::from_secs(30);
 fn configure_background_command(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
-    cmd.creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS);
+    cmd.creation_flags(CREATE_NO_WINDOW);
 }
 
 #[cfg(not(windows))]
