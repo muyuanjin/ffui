@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 
 const inspectMediaMock = vi.fn();
-const buildPreviewUrlMock = vi.fn(() => "asset://preview");
+const buildPreviewUrlMock = vi.fn((_path: string) => "asset://preview");
 
 vi.mock("@/lib/backend", () => ({
   hasTauri: () => true,

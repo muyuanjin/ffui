@@ -10,7 +10,7 @@ use tauri::State;
 
 use super::wait_for_queue_recovery;
 use crate::ffui_core::input_expand::{
-    expand_manual_job_inputs as expand_manual_job_inputs_impl, ExpandedManualJobInputs,
+    ExpandedManualJobInputs, expand_manual_job_inputs as expand_manual_job_inputs_impl,
 };
 use crate::ffui_core::{
     JobRequest, JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
@@ -147,6 +147,20 @@ mod tests {
     }
 }
 
+/// 手动入队只支持视频：音频/图片由 Batch Compress 负责，放行只会得到必然失败的任务。
+///
+/// 前端已经会拦下它们并给出原因，这里再兜一层——即使有别的调用方绕开 UI，
+/// 也不会在队列里造出一个注定失败的任务。
+fn reject_unsupported_manual_media(job_type: JobType, source: JobSource) -> Result<(), String> {
+    if matches!(source, JobSource::Manual) && !matches!(job_type, JobType::Video) {
+        return Err(
+            "manual queue only supports video jobs; use Batch Compress for audio and image files"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Enqueue a new transcoding job.
 #[tauri::command]
 pub async fn enqueue_transcode_job(
@@ -158,6 +172,7 @@ pub async fn enqueue_transcode_job(
     original_codec: Option<String>,
     preset_id: String,
 ) -> Result<TranscodeJob, String> {
+    reject_unsupported_manual_media(job_type, source)?;
     let engine = engine.inner().clone();
     let request = JobRequest {
         filename,
@@ -192,6 +207,7 @@ pub async fn enqueue_transcode_jobs(
     original_codec: Option<String>,
     preset_id: String,
 ) -> Result<Vec<TranscodeJob>, String> {
+    reject_unsupported_manual_media(job_type, source)?;
     let engine = engine.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         engine.enqueue_transcode_jobs(
@@ -352,29 +368,35 @@ pub async fn measure_job_vmaf(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn enqueue_ffmpeg_job(
-    engine: State<'_, TranscodingEngine>,
-    request: JobRequest,
-) -> Result<TranscodeJob, String> {
-    let engine = engine.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || engine.enqueue_ffmpeg_job(request))
-        .await
-        .map_err(|error| format!("failed to join enqueue_ffmpeg_job task: {error}"))?
-}
-
 #[cfg(test)]
-mod command_request_tests {
+mod manual_media_guard_tests {
     use super::*;
 
+    /// 手动入队只接受视频：音频与图片由 Batch Compress 负责，放行只会在队列里
+    /// 造出一个必然失败的任务。
     #[test]
-    fn ffmpeg_request_preserves_arguments_and_camel_case_working_directory() {
-        let request: JobRequest = serde_json::from_value(serde_json::json!({
-            "name": "analysis", "args": ["-metadata", "", "-map", "0", "-map", "1"],
-            "workingDirectory": "C:\\音乐"
-        }))
-        .expect("command request");
-        assert_eq!(request.args, ["-metadata", "", "-map", "0", "-map", "1"]);
-        assert_eq!(request.working_directory.as_deref(), Some("C:\\音乐"));
+    fn rejects_manual_non_video_jobs() {
+        for job_type in [JobType::Audio, JobType::Image] {
+            assert!(
+                reject_unsupported_manual_media(job_type, JobSource::Manual).is_err(),
+                "手动入队的非视频任务必须被拒绝"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_manual_video_jobs() {
+        assert!(reject_unsupported_manual_media(JobType::Video, JobSource::Manual).is_ok());
+    }
+
+    /// Batch Compress 的音频/图片子任务不以 Manual 入队，不能被这条限制波及。
+    #[test]
+    fn allows_batch_compress_media_jobs() {
+        for job_type in [JobType::Audio, JobType::Image, JobType::Video] {
+            assert!(
+                reject_unsupported_manual_media(job_type, JobSource::BatchCompress).is_ok(),
+                "Batch Compress 的子任务不应受手动入队限制影响"
+            );
+        }
     }
 }
