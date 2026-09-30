@@ -1,5 +1,6 @@
 {
   "schema": "ffui-review-plan/v1",
+  "compareRef": null,
   "obligations": [
     {
       "id": "owner-placement",

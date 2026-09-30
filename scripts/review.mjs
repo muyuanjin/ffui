@@ -210,6 +210,9 @@ function loadGate() {
 export function validatePlanShape(plan, recordedBase) {
   const problems = [];
   if (!plan || plan.schema !== PLAN_SCHEMA) problems.push("schema 必须是 " + PLAN_SCHEMA);
+  if (plan && plan.compareRef != null && !String(plan.compareRef).trim()) {
+    problems.push("compareRef 若存在必须是非空字符串（或省略）");
+  }
   const obligations = (plan && plan.obligations) || [];
   const lanes = (plan && plan.lanes) || [];
   if (obligations.length === 0) problems.push("obligations 不能为空");
@@ -460,14 +463,20 @@ function baseProblem(plan, baseCommit) {
   if (tryGit(["merge-base", "--is-ancestor", baseCommit, "HEAD"]) === null) {
     return "记录的 base 不是 HEAD 的祖先：" + short(baseCommit);
   }
-  const reference = (plan && plan.compareRef) || tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
+  // origin/main 可解析时优先于计划里的 compareRef：自声明的下界不能覆盖远端基线。
+  const originMain = tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
+  const declared = plan && plan.compareRef ? String(plan.compareRef) : null;
+  const reference = originMain || declared;
   if (!reference) {
     return "缺少审阅下界：仓库没有 origin/main，且 REVIEW_PLAN.json 未声明 compareRef";
   }
-  const referenceCommit = tryGit(["rev-parse", "--verify", "--quiet", String(reference) + "^{commit}"]);
-  if (!referenceCommit) return "compareRef 无法解析：" + String(reference);
+  const referenceCommit = tryGit(["rev-parse", "--verify", "--quiet", reference + "^{commit}"]);
+  if (!referenceCommit) return "审阅下界无法解析：" + reference;
   const mergeBase = tryGit(["merge-base", referenceCommit, "HEAD"]);
-  if (!mergeBase) return "compareRef 与 HEAD 没有共同祖先：" + String(reference);
+  if (!mergeBase) return "审阅下界与 HEAD 没有共同祖先：" + reference;
+  if (mergeBase === git(["rev-parse", "HEAD"])) {
+    return "审阅下界等于 HEAD，没有可审的差异：" + reference;
+  }
   if (tryGit(["merge-base", "--is-ancestor", baseCommit, mergeBase]) === null) {
     return (
       "base 不能晚于 merge-base(" +
@@ -486,7 +495,10 @@ function commandPlan(args) {
   const previous = loadRecordedPlan();
   const baseRef = (baseIndex >= 0 ? args[baseIndex + 1] : null) || (previous && previous.baseCommit) || null;
   if (!baseRef) fail("首次记录必须显式给出 --base <commit>（不提供默认值，避免未审改动被并入 base）");
-  const resolvedBase = git(["rev-parse", baseRef + "^{commit}"]);
+  const resolvedBase = tryGit(["rev-parse", "--verify", "--quiet", baseRef + "^{commit}"]);
+  if (!resolvedBase) {
+    fail("base 无法解析：" + baseRef + "（仓库没有 origin/main 时先 fetch，或在计划里声明 compareRef）");
+  }
   const baseIssue = baseProblem(plan, resolvedBase);
   if (baseIssue) fail(baseIssue);
   const problems = validatePlanShape(plan, resolvedBase);

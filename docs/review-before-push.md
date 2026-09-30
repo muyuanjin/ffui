@@ -66,6 +66,15 @@ VERDICT: NO FINDINGS
 `gate.json` 记录的命令不是该值时，`finalize` 与 `pre-push` 都会拒绝，避免用一个恒为 0 的命令伪造「门禁通过」。
 `gate` 与 `pre-push` 会先运行 `review:selftest`（门禁引擎自身的不变量，数量由实现打印）；自检失败直接拒绝。
 
+## 审阅下界（base）
+
+`review:plan -- --base <commit>` 记录的是「哪些改动属于本次审阅」。约束（`plan`/`finalize`/`pre-push` 三处校验）：
+
+- base 必须是 HEAD 的祖先，且**不得晚于** `merge-base(审阅下界, HEAD)`，否则 base 会吞掉未审改动、让覆盖校验空转。
+- 审阅下界默认取 `origin/main`；仓库没有该 ref 时，可在 `REVIEW_PLAN.json` 声明 `compareRef`（任何可解析为提交的 ref 或 sha）。
+  两者都在时 **origin/main 优先**：自声明的下界不能覆盖远端基线。
+- 下界等于 HEAD（没有可审差异）时拒绝记录；首次记录必须显式给出 `--base`，没有隐式默认值。
+
 ## 结论的失效粒度
 
 每条结论绑定「车道**定义**哈希 + 该车道 paths 的**内容**指纹」。重新记录计划时，定义未变的车道保留结论，
