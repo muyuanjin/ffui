@@ -202,7 +202,7 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
   else
     HDIR="$WORK/harness"
     mkdir -p "$HDIR"
-    curl -fsSL "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
+    curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
     # 预置阶段 1 已下载的 pinned lint 文件：fetch-deps.sh 只在缺失时才下载，
     # 因此阶段 4 的 worker.sh 用的也是钉住的 lint，而不是它自己会抓的 master 版。
     mkdir -p "$HDIR/deps"
@@ -227,7 +227,7 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
     # harness 自己会起 icewm（worker.sh:484），阶段 3 的 WM 必须清掉：它的窗口判据是
     # `xwininfo | grep -qE '0x.*": ('`，窗口管理器自己的 1x1 窗口就能满足，
     # 会出现『应用没映射窗口也算通过』的假通过（TaskBar 可见时连截图检查都兜不住）。
-    [ -n "$WM_PID" ] && kill "$WM_PID" 2>/dev/null
+    [ -n "$WM_PID" ] && kill "$WM_PID" 2>/dev/null || true
     WM_PID=""
     sleep 1
     ( cd "$HDIR" && DISPLAY="$XDISP" STRICT="$APP_STRICT" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout --kill-after=30 "$WORKER_TIMEOUT" bash -e code/worker.sh "$(readlink -f "$HDIR/data/$APP_NAME")" >worker.log 2>&1 ) || {
