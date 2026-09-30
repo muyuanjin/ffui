@@ -48,4 +48,15 @@ describe("MediaPanel media kind", () => {
     expect(wrapper.find('[data-testid="media-preview-video"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain("nativePlaybackFailed");
   });
+
+  it("keeps a visible outlet when the audio preview cannot be decoded natively", async () => {
+    const wrapper = mountPanel("audio", "asset://song.wma");
+
+    await wrapper.find('[data-testid="media-preview-audio"]').trigger("error");
+
+    const fallback = wrapper.find('[data-testid="media-preview-audio-fallback"]');
+    expect(fallback.exists()).toBe(true);
+    expect(fallback.text()).toContain("previewFallback.nativePlaybackFailed");
+    expect(fallback.find("button").exists()).toBe(true);
+  });
 });

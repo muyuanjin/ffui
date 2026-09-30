@@ -59,6 +59,16 @@ const humanType = computed(() => {
   return t(mediaTypeLabelKey(resolvedKind.value));
 });
 
+// 音频预览原生解码失败（例如 .wma）时必须保留可见出口：失败说明 + 用系统播放器打开，
+// 否则可播的音频不受影响，不可播的音频会彻底没有反馈。
+const audioPreviewFailed = ref(false);
+watch(
+  () => [props.previewUrl, props.inspectedPath],
+  () => {
+    audioPreviewFailed.value = false;
+  },
+);
+
 const summaryFields = computed(() => {
   return buildSummaryFields({
     analysis: props.analysis,
@@ -191,14 +201,27 @@ const openInspectedInSystemPlayer = async () => {
                 :alt="fileName || 'preview'"
                 class="w-full h-full object-contain"
               />
-              <audio
-                v-else-if="resolvedKind === 'audio'"
-                :key="previewUrl || inspectedPath || fileName"
-                :src="previewUrl"
-                controls
-                class="w-full"
-                data-testid="media-preview-audio"
-              />
+              <template v-else-if="resolvedKind === 'audio'">
+                <audio
+                  v-if="!audioPreviewFailed"
+                  :key="previewUrl || inspectedPath || fileName"
+                  :src="previewUrl"
+                  controls
+                  class="w-full"
+                  data-testid="media-preview-audio"
+                  @error="audioPreviewFailed = true"
+                />
+                <div
+                  v-else
+                  class="flex flex-col items-center gap-2 text-xs text-muted-foreground"
+                  data-testid="media-preview-audio-fallback"
+                >
+                  <span>{{ t("previewFallback.nativePlaybackFailed") }}</span>
+                  <Button size="sm" class="h-7 px-2 text-xs" type="button" @click="openInspectedInSystemPlayer">
+                    {{ t("previewFallback.openInSystemPlayer") }}
+                  </Button>
+                </div>
+              </template>
               <div v-else class="w-full h-full">
                 <FallbackMediaPreview
                   :native-url="previewUrl"
