@@ -4,49 +4,49 @@
 
 ## 1. 命令级/全局开关
 
-| 选项                            | 值域/格式                         | 依赖或互斥                    | 校验提示 / 备注                                |
+| 选项 | 值域/格式 | 依赖或互斥 | 校验提示 / 备注 |
 | ------------------------------- | --------------------------------- | ----------------------------- | ---------------------------------------------- | ----- | ------- | --------- | ------- | ----------------------- | -------------------------------------------------------------- | --- | -------------------------------------- |
-| `-y` / `-n`                     | flag                              | 互斥                          | 控制是否自动覆盖输出文件。                     |
-| `-loglevel`                     | `quiet                            | panic                         | fatal                                          | error | warning | info      | verbose | debug                   | trace`（可附 `repeat+level+`）                                 | —   | UI 用枚举；允许 `repeat+info` 等组合。 |
-| `-report`                       | flag                              | —                             | 会在执行目录生成日志文件，向导需提示写权限。   |
-| `-hide_banner`                  | flag                              | —                             | 适合蓝图“精简输出”开关。                       |
-| `-stats` / `-stats_period`      | flag / float(秒)                  | `-stats_period` 依赖 `-stats` | `period > 0`；驱动前端进度刷新。               |
-| `-progress`                     | 文件/管道 URL                     | —                             | 供 FlowCoder 监控面板读取（命名管道或 HTTP）。 |
-| `-benchmark` / `-benchmark_all` | flag                              | —                             | 仅调试场景，提示额外 CPU 消耗。                |
-| `-bitexact`                     | flag                              | 会启用 `-fflags +bitexact`    | 回归测试使用，禁止与随机化滤镜同用。           |
-| `-abort_on`                     | 逗号分隔：`empty`,`empty_output`… | —                             | 在 UI 中做多选；枚举取自 `ffmpeg-all`。        |
-| `-xerror` / `-max_error_rate`   | flag / float(0-1)                 | `-xerror` 影响整体退出策略    | `max_error_rate` 仅容器识别错误时有效。        |
-| `-target`                       | `vcd                              | svcd                          | dvd                                            | dv    | pal-dvd | ntsc-svcd | ...`    | 可与 `-bf`、`-g` 等叠加 | 使用示例：`-target vcd -bf 2`（来自 ffmpeg-all Target 章节）。 |
-| `-dumpgraph`                    | `0/1`                             | —                             | 结合蓝图调试滤镜图。                           |
+| `-y` / `-n` | flag | 互斥 | 控制是否自动覆盖输出文件。 |
+| `-loglevel` | `quiet                            | panic                         | fatal                                          | error | warning | info      | verbose | debug                   | trace`（可附 `repeat+level+`） | — | UI 用枚举；允许 `repeat+info` 等组合。 |
+| `-report` | flag | — | 会在执行目录生成日志文件，向导需提示写权限。 |
+| `-hide_banner` | flag | — | 适合蓝图“精简输出”开关。 |
+| `-stats` / `-stats_period` | flag / float(秒) | `-stats_period` 依赖 `-stats` | `period > 0`；驱动前端进度刷新。 |
+| `-progress` | 文件/管道 URL | — | 供 FlowCoder 监控面板读取（命名管道或 HTTP）。 |
+| `-benchmark` / `-benchmark_all` | flag | — | 仅调试场景，提示额外 CPU 消耗。 |
+| `-bitexact` | flag | 会启用 `-fflags +bitexact` | 回归测试使用，禁止与随机化滤镜同用。 |
+| `-abort_on` | 逗号分隔：`empty`,`empty_output`… | — | 在 UI 中做多选；枚举取自 `ffmpeg-all`。 |
+| `-xerror` / `-max_error_rate` | flag / float(0-1) | `-xerror` 影响整体退出策略 | `max_error_rate` 仅容器识别错误时有效。 |
+| `-target` | `vcd                              | svcd                          | dvd                                            | dv    | pal-dvd | ntsc-svcd | ...` | 可与 `-bf`、`-g` 等叠加 | 使用示例：`-target vcd -bf 2`（来自 ffmpeg-all Target 章节）。 |
+| `-dumpgraph` | `0/1` | — | 结合蓝图调试滤镜图。 |
 
 ## 2. 输入与时间轴
 
-| 选项                  | 值域                | 依赖/限制                                      | 说明                                                        |
+| 选项 | 值域 | 依赖/限制 | 说明 |
 | --------------------- | ------------------- | ---------------------------------------------- | ----------------------------------------------------------- | ----- | ----- | ------------------ | ---------- | -------------------------------------- |
-| `-i`                  | 路径/URL            | 每调用一次生成输入索引                         | Windows 需转换盘符；路径用 Windows 风格（见 AGENTS 指南）。 |
-| `-f`（输入）          | 格式名              | 必须出现在 `ffmpeg -formats` 列表              | 向导提供下拉。                                              |
-| `-ss` / `-to` / `-t`  | `[[hh:]mm:]ss[.ms]` | `-to` 与 `-t` 互斥；`-ss` 在 `-i` 前后含义不同 | 需在 UI 中提示“输入寻址 vs 输出裁剪”。                      |
-| `-accurate_seek`      | flag                | 与 `-ss` 配合                                  | 需提醒流媒体性能影响。                                      |
-| `-stream_loop N`      | 整数（-1 无限）     | 输入为可回放文件                               | 验证整型。                                                  |
-| `-itsoffset`          | 时间戳              | 与 `-copyts` 协同                              | 可为负；调整输入时间基。                                    |
-| `-copyts` / `-copytb` | flag                | 影响输出时间戳                                 | 须提示后果（PTS 不归零）。                                  |
-| `-analyzeduration`    | μs / 整数           | —                                              | 大型 TS 建议调大。                                          |
-| `-probesize`          | 字节数              | ≥ 32K                                          | 小于默认易探测失败。                                        |
-| `-readrate` / `-re`   | float / flag        | `-readrate` 仅部分协议支持                     | 控制读取速率。                                              |
-| `-thread_queue_size`  | int                 | 与输入源绑定                                   | 大值占内存，给范围提示。                                    |
-| `-discard`            | `none               | default                                        | noref                                                       | bidir | nokey | all`（可加流选择） | 仅解码有效 | 来源：Stream Discarding Options 示例。 |
-| `-seek_timestamp`     | flag                | 与 `-ss` 共同影响                              | 仅少数 demuxer 支持。                                       |
+| `-i` | 路径/URL | 每调用一次生成输入索引 | Windows 需转换盘符；路径用 Windows 风格（见 AGENTS 指南）。 |
+| `-f`（输入） | 格式名 | 必须出现在 `ffmpeg -formats` 列表 | 向导提供下拉。 |
+| `-ss` / `-to` / `-t` | `[[hh:]mm:]ss[.ms]` | `-to` 与 `-t` 互斥；`-ss` 在 `-i` 前后含义不同 | 需在 UI 中提示“输入寻址 vs 输出裁剪”。 |
+| `-accurate_seek` | flag | 与 `-ss` 配合 | 需提醒流媒体性能影响。 |
+| `-stream_loop N` | 整数（-1 无限） | 输入为可回放文件 | 验证整型。 |
+| `-itsoffset` | 时间戳 | 与 `-copyts` 协同 | 可为负；调整输入时间基。 |
+| `-copyts` / `-copytb` | flag | 影响输出时间戳 | 须提示后果（PTS 不归零）。 |
+| `-analyzeduration` | μs / 整数 | — | 大型 TS 建议调大。 |
+| `-probesize` | 字节数 | ≥ 32K | 小于默认易探测失败。 |
+| `-readrate` / `-re` | float / flag | `-readrate` 仅部分协议支持 | 控制读取速率。 |
+| `-thread_queue_size` | int | 与输入源绑定 | 大值占内存，给范围提示。 |
+| `-discard` | `none               | default                                        | noref                                                       | bidir | nokey | all`（可加流选择） | 仅解码有效 | 来源：Stream Discarding Options 示例。 |
+| `-seek_timestamp` | flag | 与 `-ss` 共同影响 | 仅少数 demuxer 支持。 |
 
 ## 3. 流映射与元数据
 
-| 类别                              | 语法                                                                | 校验重点                            |
+| 类别 | 语法 | 校验重点 |
 | --------------------------------- | ------------------------------------------------------------------- | ----------------------------------- | ----------- | -------- | ------ | ------- | ------ | ------------------ |
-| `-map`                            | `[input_index][:stream_spec]`（例如 `0:v:0`, `0:s:m:language:eng`） | 确保目标流存在；支持 `?` 可选映射。 |
-| `-map_channel`                    | `in.ch → out.ch`                                                    | 仅音频，需校验布局。                |
-| `-map_metadata` / `-map_chapters` | `out_spec[,in_spec]` / `input_index                                 | -1`                                 | `-1` 清空。 |
-| `-disposition`                    | `:stream flag`，flag 来自 `ffmpeg -disposition help`                | 多选（`default                      | dub         | original | lyrics | comment | forced | attached_pic`⋯）。 |
-| `-metadata[:scope]`               | `key=value`，scope 为 `g`、`s:#`、`c:#` 等                          | 建议键值校验，禁止空键。            |
-| `-attach` / `-dump_attachment`    | 文件路径 / codec 名                                                 | MKV/MP4 附件；需 Windows 路径提示。 |
+| `-map` | `[input_index][:stream_spec]`（例如 `0:v:0`, `0:s:m:language:eng`） | 确保目标流存在；支持 `?` 可选映射。 |
+| `-map_channel` | `in.ch → out.ch` | 仅音频，需校验布局。 |
+| `-map_metadata` / `-map_chapters` | `out_spec[,in_spec]` / `input_index                                 | -1` | `-1` 清空。 |
+| `-disposition` | `:stream flag`，flag 来自 `ffmpeg -disposition help` | 多选（`default                      | dub         | original | lyrics | comment | forced | attached_pic`⋯）。 |
+| `-metadata[:scope]` | `key=value`，scope 为 `g`、`s:#`、`c:#` 等 | 建议键值校验，禁止空键。 |
+| `-attach` / `-dump_attachment` | 文件路径 / codec 名 | MKV/MP4 附件；需 Windows 路径提示。 |
 
 ## 4. 编解码器参数
 
@@ -97,14 +97,14 @@
 
 ## 7. 比特流过滤器与硬件
 
-| 选项/模块        | 要点                                                                 |
+| 选项/模块 | 要点 |
 | ---------------- | -------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------- |
-| `-bsf[:stream]`  | List 取自 `ffmpeg -bsfs`；常见 `h264_mp4toannexb`、`aac_adtstoasc`。 |
-| `-dframes`       | 丢弃帧计数，用于测试。                                               |
-| 硬件解码         | `-hwaccel [cuda                                                      | qsv | vaapi…]`，`-hwaccel_device`, `-init_hw_device`, `-hwaccel_output_format`；`chromakey_cuda` 示例展示完整链路。 |
-| `-hwaccel_flags` | 例如 `allow_profile_mismatch`。                                      |
-| 旋转             | `-autorotate` / `-noautorotate`。                                    |
-| 关键帧复制       | `-copyinkf`。                                                        |
+| `-bsf[:stream]` | List 取自 `ffmpeg -bsfs`；常见 `h264_mp4toannexb`、`aac_adtstoasc`。 |
+| `-dframes` | 丢弃帧计数，用于测试。 |
+| 硬件解码 | `-hwaccel [cuda                                                      | qsv | vaapi…]`，`-hwaccel_device`, `-init_hw_device`, `-hwaccel_output_format`；`chromakey_cuda` 示例展示完整链路。 |
+| `-hwaccel_flags` | 例如 `allow_profile_mismatch`。 |
+| 旋转 | `-autorotate` / `-noautorotate`。 |
+| 关键帧复制 | `-copyinkf`。 |
 
 ## 8. 设备与虚拟源
 

@@ -140,11 +140,9 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
       : null;
 
   const videoStreamRaw = streamsRaw.find((s) => isRecord(s) && s.codec_type === "video") as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
   const audioStreamRaw = streamsRaw.find((s) => isRecord(s) && s.codec_type === "audio") as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 
   const durationSeconds = parseNumber(formatRaw?.duration) ?? parseNumber(videoStreamRaw?.duration) ?? undefined;
 

@@ -70,8 +70,7 @@ const showDetails = computed(() => {
           <pre
             v-if="props.result?.stderrSummary"
             class="whitespace-pre-wrap break-words rounded-md bg-background/80 border border-border/60 px-2 py-2 font-mono text-[10px]"
-            >{{ props.result.stderrSummary }}</pre
-          >
+            >{{ props.result.stderrSummary }}</pre>
         </div>
       </details>
     </div>

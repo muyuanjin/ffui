@@ -260,11 +260,9 @@ const pump = () => {
       const heightPx = Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : DEFAULT_HEIGHT_PX;
 
       const ensureJobPreview = (backend as any).ensureJobPreview as
-        | undefined
-        | ((id: string) => Promise<string | null>);
+        undefined | ((id: string) => Promise<string | null>);
       const ensureJobPreviewVariant = (backend as any).ensureJobPreviewVariant as
-        | undefined
-        | ((id: string, heightPx: number) => Promise<string | null>);
+        undefined | ((id: string, heightPx: number) => Promise<string | null>);
 
       if (heightPx === DEFAULT_HEIGHT_PX) {
         ensurePromise = typeof ensureJobPreview === "function" ? ensureJobPreview(jobId) : Promise.resolve(null);

@@ -135,18 +135,16 @@ describe("SettingsExternalToolsSection candidate loading", () => {
   });
 
   it("shows full path + file size on hover title and flips Use to Current after selecting a candidate", async () => {
-    const fetchToolCandidates = vi.fn(
-      async (_kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => [
-        {
-          kind: "ffprobe",
-          path: "C:/everything/ffprobe.exe",
-          source: "everything",
-          version: "ffprobe version 6.0",
-          fileSizeBytes: 1024,
-          isCurrent: false,
-        },
-      ],
-    );
+    const fetchToolCandidates = vi.fn(async (_kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => [
+      {
+        kind: "ffprobe",
+        path: "C:/everything/ffprobe.exe",
+        source: "everything",
+        version: "ffprobe version 6.0",
+        fileSizeBytes: 1024,
+        isCurrent: false,
+      },
+    ]);
 
     const wrapper = mount(SettingsExternalToolsSection, {
       global: {

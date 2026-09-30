@@ -4,7 +4,6 @@ import { nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import SmartPresetOnboardingWizard from "@/components/dialogs/SmartPresetOnboardingWizard.vue";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import type { FFmpegPreset } from "@/types";
 import en from "@/locales/en";
@@ -124,9 +123,11 @@ describe("SmartPresetOnboardingWizard", () => {
     expect(av1ConstqpCard).toBeTruthy();
     expect(amfCard).toBeTruthy();
 
-    const balancedCheckbox = balancedCard!.findComponent(Checkbox);
-    const av1Checkbox = av1ConstqpCard!.findComponent(Checkbox);
-    const amfCheckbox = amfCard!.findComponent(Checkbox);
+    // reka-ui 2.10 起 CheckboxRoot 以 Fragment 为根，组件级 attributes() 读不到根元素；
+    // 直接按 role 查元素，断言它对外暴露的勾选状态。
+    const balancedCheckbox = balancedCard!.find('[role="checkbox"]');
+    const av1Checkbox = av1ConstqpCard!.find('[role="checkbox"]');
+    const amfCheckbox = amfCard!.find('[role="checkbox"]');
 
     // 主流 NVENC 平衡预设应当默认勾选
     expect(balancedCheckbox.attributes("data-state")).toBe("checked");

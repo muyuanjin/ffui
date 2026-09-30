@@ -25,16 +25,7 @@ export type PresetScenario =
   | "experimental"; // 实验性 / 高阶玩法
 
 export type PresetEncoderFamily =
-  | "cpu-x264"
-  | "cpu-x265"
-  | "cpu-av1"
-  | "nvenc-h264"
-  | "nvenc-hevc"
-  | "nvenc-av1"
-  | "qsv"
-  | "amf"
-  | "copy"
-  | "other";
+  "cpu-x264" | "cpu-x265" | "cpu-av1" | "nvenc-h264" | "nvenc-hevc" | "nvenc-av1" | "qsv" | "amf" | "copy" | "other";
 
 export interface PresetInsights {
   /** 雷达图数值 */

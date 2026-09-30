@@ -15,8 +15,7 @@ let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
 let batchCompressProgressHandler: ((event: { payload: unknown }) => void) | null = null;
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 let closeRequestedHandler:
-  | ((event: { preventDefault: () => void; isPreventDefault: () => boolean }) => void | Promise<void>)
-  | null = null;
+  ((event: { preventDefault: () => void; isPreventDefault: () => boolean }) => void | Promise<void>) | null = null;
 let queueJobs: TranscodeJob[] = [];
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({

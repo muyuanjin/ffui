@@ -11,15 +11,7 @@ import type {
 } from "@/types";
 
 export type PresetEditorGroup =
-  | "command"
-  | "global"
-  | "input"
-  | "mapping"
-  | "video"
-  | "audio"
-  | "filters"
-  | "container"
-  | "hardware";
+  "command" | "global" | "input" | "mapping" | "video" | "audio" | "filters" | "container" | "hardware";
 
 export type PresetEditorIssueLevel = "error" | "warning";
 

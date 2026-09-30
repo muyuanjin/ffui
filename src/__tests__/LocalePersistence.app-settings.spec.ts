@@ -160,8 +160,7 @@ describe("Locale persistence via AppSettings", () => {
 
     expect(saveAppSettingsMock).toHaveBeenCalled();
     const lastCallArgs = saveAppSettingsMock.mock.calls[saveAppSettingsMock.mock.calls.length - 1]?.[0] as
-      | AppSettings
-      | undefined;
+      AppSettings | undefined;
     expect(lastCallArgs?.locale).toBe("en");
   });
 });

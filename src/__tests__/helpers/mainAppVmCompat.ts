@@ -52,7 +52,7 @@ export function withMainAppVmCompat<T extends VueWrapper<any>>(wrapper: T) {
   const resolvedVm: AnyRecord =
     rawVm && typeof rawVm === "object" && "setup" in rawVm
       ? rawVm
-      : ((wrapper.findComponent(MainAppImpl as any).vm as any) ?? rawVm);
+      : ((wrapper.findComponent(MainAppImpl as never) as VueWrapper<any>).vm ?? rawVm);
 
   return new Proxy(resolvedVm, {
     get(target, prop, receiver) {

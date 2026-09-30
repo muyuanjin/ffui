@@ -1,9 +1,5 @@
 export type PresetTemplateValidationOutcome =
-  | "ok"
-  | "failed"
-  | "timedOut"
-  | "skippedToolUnavailable"
-  | "templateInvalid";
+  "ok" | "failed" | "timedOut" | "skippedToolUnavailable" | "templateInvalid";
 
 export interface PresetTemplateValidationResult {
   outcome: PresetTemplateValidationOutcome;

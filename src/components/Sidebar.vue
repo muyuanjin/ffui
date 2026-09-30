@@ -66,7 +66,9 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
             :aria-pressed="screenFxOpen ? 'true' : 'false'"
             @click="emit('toggleScreenFx')"
           >
-            <img src="/ffui.svg" alt="FFUI" class="h-10 w-10" />
+            <!-- public/ 资源用动态绑定：静态 src 会被 SFC 资源转换改写成 file:// URL，
+                 在 vitest 收集阶段传给 fs 时报 "argument 'filename' must be ..."。 -->
+            <img :src="'/ffui.svg'" alt="FFUI" class="h-10 w-10" />
           </button>
           <div class="min-w-0 flex-1">
             <div

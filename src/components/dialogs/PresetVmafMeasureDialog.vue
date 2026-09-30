@@ -403,8 +403,7 @@ const run = async () => {
             >
               <pre
                 class="overflow-hidden text-[10px] text-muted-foreground whitespace-pre-wrap break-words select-text"
-                >{{ runErrorUi.details }}</pre
-              >
+                >{{ runErrorUi.details }}</pre>
             </div>
           </div>
         </div>

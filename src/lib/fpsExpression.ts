@@ -17,8 +17,7 @@ export interface FpsExpressionParseError {
 }
 
 export type FpsExpressionParseResult =
-  | { ok: true; expression: ParsedFpsExpression }
-  | { ok: false; error: FpsExpressionParseError };
+  { ok: true; expression: ParsedFpsExpression } | { ok: false; error: FpsExpressionParseError };
 
 const ALIAS_CANONICAL_VALUES: Record<FpsAlias, string> = {
   film: "film",

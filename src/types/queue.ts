@@ -48,14 +48,7 @@ export interface EnqueueTranscodeJobsRequest extends Omit<EnqueueTranscodeJobReq
  * enum stable for persisted preferences.
  */
 export type QueueViewMode =
-  | "mini"
-  | "compact"
-  | "detail"
-  | "icon-small"
-  | "icon-medium"
-  | "icon-large"
-  | "dynamic-card"
-  | "carousel-3d";
+  "mini" | "compact" | "detail" | "icon-small" | "icon-medium" | "icon-large" | "dynamic-card" | "carousel-3d";
 
 /**
  * Queue interaction modes:
