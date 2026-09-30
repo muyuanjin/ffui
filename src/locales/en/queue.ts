@@ -35,11 +35,11 @@ const queue = {
     display: "View-only sort",
     queue: "Execution queue",
     displayLabelShort: "View-only sort",
-    queueLabelShort: "Transcode tasks",
+    queueLabelShort: "Execution order queue",
     displayHint:
       "View-only sort: changes only the on-screen order and never affects the actual execution order. Drag-and-drop and priority-changing actions are disabled in this mode.",
     queueHint:
-      "Transcode tasks: the order of jobs in the Waiting group reflects the real execution priority. Drag-and-drop and 'move to top/bottom' control which jobs run first. Sorting controls are disabled in this mode.",
+      "Execution order queue: the order of jobs in the Waiting group reflects the real execution priority. Drag-and-drop and 'move to top/bottom' control which jobs run first. Sorting controls are disabled in this mode.",
   },
   progressStyleLabel: "Progress style",
   progressStyles: {

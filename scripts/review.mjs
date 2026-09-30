@@ -4,10 +4,12 @@
 // 契约：
 // - REVIEW_PLAN.json（checkout-local，永不提交）是唯一有效的计划来源：按语义职责划分车道，
 //   每个车道声明 scope/paths/obligations/owners/consumers/counterexamples。
-// - REVIEW_FINDINGS.md（checkout-local，永不提交）是 findings 台账。
-// - 车道结论绑定「该车道 paths 在候选提交上的内容指纹」与计划哈希；输入变化即失效。
-// - proof 只在 finalize 生成，绑定计划哈希、候选提交/树、车道指纹、证据哈希与门禁结果。
-// - pre-push 钩子拒绝没有有效 proof 的推送，并拒绝推送本地专用分支。
+// - REVIEW_FINDINGS.md（checkout-local，永不提交）是 findings 台账，schema 受本脚本校验。
+// - 车道结论绑定「车道定义哈希 + 该车道 paths 在候选提交上的内容指纹」；两者任一变化即失效。
+// - proof 只在 finalize 生成，绑定计划哈希、车道定义/内容哈希、证据哈希与门禁结果。
+// - pre-push 钩子重新校验计划、结论、台账、门禁与 proof，而不是只信 proof 文件本身。
+// - 局限（不声称已解决）：本地钩子可被 git push --no-verify / HUSKY=0 有意绕过；
+//   钩子只能保证「按流程推送」时未审内容被拒。
 import { execFileSync, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -25,9 +27,11 @@ const LOCK_DIR = path.join(STATE_DIR, "state.lock");
 const PLAN_SCHEMA = "ffui-review-plan/v1";
 const FINDINGS_SCHEMA = "ffui-review-findings/v1";
 const DEFAULT_GATE = ["pnpm", "run", "check:all"];
+const GATE_COMMAND_LABEL = DEFAULT_GATE.join(" ");
 // 本地专用分支：只存在于本机，永远不推送。
 export const PROTECTED_LOCAL_BRANCHES = ["caption-collage"];
 const VERDICT_CLEAN = "NO FINDINGS";
+const VERDICT_VALUES = [VERDICT_CLEAN, "FINDINGS", "INCOMPLETE"];
 
 function git(args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
@@ -46,6 +50,10 @@ function fail(message) {
   process.exit(1);
 }
 
+function note(message) {
+  process.stdout.write(message + "\n");
+}
+
 function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
@@ -54,14 +62,14 @@ function short(hash) {
   return String(hash).slice(0, 16);
 }
 
-/** 递归按键排序后序列化，使计划哈希只反映语义内容。 */
+/** 递归按键排序后序列化，使哈希只反映语义内容。 */
 export function stableStringify(value) {
   if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
   if (value && typeof value === "object") {
-    const keys = Object.keys(value).sort();
     return (
       "{" +
-      keys
+      Object.keys(value)
+        .sort()
         .map(function (key) {
           return JSON.stringify(key) + ":" + stableStringify(value[key]);
         })
@@ -74,6 +82,11 @@ export function stableStringify(value) {
 
 export function planHash(plan) {
   return sha256(stableStringify(plan));
+}
+
+/** 单条车道的定义哈希：车道定义变化只作废该车道（及其依赖闭包）的结论。 */
+export function laneHash(lane) {
+  return sha256(stableStringify(lane));
 }
 
 function readJson(file) {
@@ -104,9 +117,13 @@ function withLock(body) {
   }
 }
 
+function trackedChanges() {
+  return git(["status", "--porcelain", "--untracked-files=no"]).split("\n").filter(Boolean);
+}
+
 function ensureCleanWorktree(action) {
-  // 只检查已跟踪文件的未提交变更：proof 与车道指纹都绑定提交树，未跟踪的本地产物不会进入推送。
-  const dirty = git(["status", "--porcelain", "--untracked-files=no"]).split("\n").filter(Boolean);
+  // 只看已跟踪文件：proof 与车道指纹都绑定提交树，未跟踪的本地产物不会进入推送。
+  const dirty = trackedChanges();
   if (dirty.length > 0) {
     fail(
       action + " 要求已跟踪文件无未提交变更，当前有 " + dirty.length + " 处：\n  " + dirty.slice(0, 10).join("\n  "),
@@ -118,7 +135,7 @@ function candidate() {
   return {
     head: git(["rev-parse", "HEAD"]),
     tree: git(["rev-parse", "HEAD^{tree}"]),
-    dirty: git(["status", "--porcelain"]).split("\n").filter(Boolean).length,
+    dirty: trackedChanges().length,
   };
 }
 
@@ -203,10 +220,7 @@ export function validatePlanShape(plan, recordedBase) {
     if (!lane.id || lane.id === "replace-me") problems.push("lane 缺少 id（或仍是占位符）");
     if (laneIds.has(lane.id)) problems.push("lane id 重复：" + lane.id);
     laneIds.add(lane.id);
-    const textual = ["scope"];
-    for (let k = 0; k < textual.length; k += 1) {
-      if (!String(lane[textual[k]] || "").trim()) problems.push("lane " + label + " 缺少 " + textual[k]);
-    }
+    if (!String(lane.scope || "").trim()) problems.push("lane " + label + " 缺少 scope");
     const listed = ["paths", "owners", "consumers", "counterexamples"];
     for (let k = 0; k < listed.length; k += 1) {
       const value = lane[listed[k]];
@@ -242,11 +256,8 @@ export function validatePlanShape(plan, recordedBase) {
       const file = changed[i];
       const covered = lanes.some(function (lane) {
         return (lane.paths || []).some(function (input) {
-          return (
-            input === "." ||
-            file === input ||
-            file.indexOf(input.charAt(input.length - 1) === "/" ? input : input + "/") === 0
-          );
+          const prefix = input.charAt(input.length - 1) === "/" ? input : input + "/";
+          return input === "." || file === input || file.indexOf(prefix) === 0;
         });
       });
       if (!covered) problems.push("变更路径未被任何车道覆盖：" + file);
@@ -255,10 +266,10 @@ export function validatePlanShape(plan, recordedBase) {
   return problems;
 }
 
-/** 解析台账 front matter：ledgerStatus 与 findings 结构。 */
+/** 解析台账 front matter：schema、ledgerStatus 与 findings 结构。 */
 export function parseLedger(text) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
-  if (!match) return { ledgerStatus: null, findings: [], error: "缺少 YAML front matter" };
+  if (!match) return { schema: null, ledgerStatus: null, findings: [], error: "缺少 YAML front matter" };
   const lines = match[1].split(/\r?\n/);
   const findings = [];
   let current = null;
@@ -289,12 +300,18 @@ export function parseLedger(text) {
       current[pendingKey] = (current[pendingKey] + " " + line.trim()).trim();
     }
   }
+  const schema = /^schema:\s*(.*)$/m.exec(match[1]);
   const ledgerStatus = /^ledgerStatus:\s*(.*)$/m.exec(match[1]);
-  return { ledgerStatus: ledgerStatus ? ledgerStatus[1].trim() : null, findings: findings };
+  return {
+    schema: schema ? schema[1].trim() : null,
+    ledgerStatus: ledgerStatus ? ledgerStatus[1].trim() : null,
+    findings: findings,
+  };
 }
 
 export function validateLedger(ledger) {
   const problems = [];
+  if (ledger.schema !== FINDINGS_SCHEMA) problems.push("台账 schema 必须是 " + FINDINGS_SCHEMA);
   if (!ledger.ledgerStatus) problems.push("台账缺少 ledgerStatus");
   const terminal = new Set(["resolved", "invalid", "accepted"]);
   for (let i = 0; i < ledger.findings.length; i += 1) {
@@ -333,6 +350,13 @@ export function validateLedger(ledger) {
   return problems;
 }
 
+/** 门禁相关：未终结的 findings（结构是否合法由 validateLedger 判断）。 */
+export function unresolvedFindings(ledger) {
+  return ledger.findings.filter(function (finding) {
+    return finding.status === "unresolved";
+  });
+}
+
 function readLedger() {
   if (!fs.existsSync(FINDINGS_PATH)) {
     fail("缺少 REVIEW_FINDINGS.md。先运行 pnpm run review:findings:new。");
@@ -340,8 +364,8 @@ function readLedger() {
   return parseLedger(fs.readFileSync(FINDINGS_PATH, "utf8"));
 }
 
-/** 车道有效性：自身 clean 且指纹未变，且依赖闭包内全部有效。 */
-function effectiveLanes(plan, verdicts, revision) {
+/** 车道有效性：车道定义未变、输入指纹未变、结论 clean，且依赖闭包内全部有效。 */
+export function effectiveLanes(plan, verdicts, revision) {
   const byId = new Map(
     (plan.lanes || []).map(function (lane) {
       return [lane.id, lane];
@@ -360,6 +384,7 @@ function effectiveLanes(plan, verdicts, revision) {
       return cache.get(id);
     }
     const fingerprint = laneFingerprint(lane, revision);
+    const definitionHash = laneHash(lane);
     const entry = verdicts.lanes[id];
     let result = { effective: false, reason: "没有结论", fingerprint: fingerprint, verdict: "missing" };
     if (entry) {
@@ -367,20 +392,18 @@ function effectiveLanes(plan, verdicts, revision) {
       result.evidencePath = entry.evidencePath;
       if (entry.verdict !== VERDICT_CLEAN) {
         result.reason = "结论为 " + entry.verdict;
-      } else if (entry.planHash !== planHash(plan)) {
-        result.reason = "计划已改变";
+      } else if (entry.laneHash !== definitionHash) {
+        result.reason = "车道定义已改变";
       } else if (entry.fingerprint !== fingerprint) {
         result.reason = "输入内容已变化";
       } else {
         const deps = lane.dependsOn || [];
         let blockedBy = null;
         for (let i = 0; i < deps.length; i += 1) {
-          const upstream = visit(deps[i], stack.concat([id]));
-          if (!upstream.effective) blockedBy = deps[i];
+          if (!visit(deps[i], stack.concat([id])).effective) blockedBy = deps[i];
         }
-        if (blockedBy) {
-          result.reason = "上游车道无效：" + blockedBy;
-        } else {
+        if (blockedBy) result.reason = "上游车道无效：" + blockedBy;
+        else {
           result = {
             effective: true,
             reason: "有效",
@@ -402,14 +425,14 @@ function effectiveLanes(plan, verdicts, revision) {
 function commandPlanNew(args) {
   if (fs.existsSync(PLAN_PATH) && args.indexOf("--force") < 0) fail("REVIEW_PLAN.json 已存在（要覆盖加 --force）");
   fs.copyFileSync(path.join(TEMPLATE_DIR, "REVIEW_PLAN.json"), PLAN_PATH);
-  process.stdout.write("已创建 " + PLAN_PATH + "\n");
+  note("已创建 " + PLAN_PATH);
 }
 
 function commandFindingsNew(args) {
   if (fs.existsSync(FINDINGS_PATH) && args.indexOf("--force") < 0)
     fail("REVIEW_FINDINGS.md 已存在（要覆盖加 --force）");
   fs.copyFileSync(path.join(TEMPLATE_DIR, "REVIEW_FINDINGS.md"), FINDINGS_PATH);
-  process.stdout.write("已创建 " + FINDINGS_PATH + "\n");
+  note("已创建 " + FINDINGS_PATH);
 }
 
 function commandPlan(args) {
@@ -421,6 +444,14 @@ function commandPlan(args) {
   const problems = validatePlanShape(plan, resolvedBase);
   if (problems.length > 0) fail("计划无效：\n  " + problems.join("\n  "));
   return withLock(function () {
+    const previousVerdicts = loadVerdicts();
+    const kept = {};
+    const lanes = plan.lanes || [];
+    for (let i = 0; i < lanes.length; i += 1) {
+      const entry = previousVerdicts.lanes[lanes[i].id];
+      // 定义未变的车道保留结论；定义变化的车道按新哈希失效。
+      if (entry && entry.laneHash === laneHash(lanes[i])) kept[lanes[i].id] = entry;
+    }
     writeJson(stateFile("plan.json"), {
       baseCommit: resolvedBase,
       baseTree: git(["rev-parse", resolvedBase + "^{tree}"]),
@@ -428,10 +459,23 @@ function commandPlan(args) {
       normalizedPlan: stableStringify(plan),
       recordedAt: new Date().toISOString(),
     });
-    saveVerdicts({ planHash: planHash(plan), lanes: {} });
+    saveVerdicts({ planHash: planHash(plan), lanes: kept });
     fs.rmSync(stateFile("proof.json"), { force: true });
-    process.stdout.write(
-      "已记录计划：base=" + short(resolvedBase) + " planHash=" + short(planHash(plan)) + "（旧结论已失效）\n",
+    const dropped = Object.keys(previousVerdicts.lanes).filter(function (id) {
+      return !kept[id];
+    });
+    note(
+      "已记录计划：base=" +
+        short(resolvedBase) +
+        " planHash=" +
+        short(planHash(plan)) +
+        "（保留结论 " +
+        Object.keys(kept).length +
+        " 条，失效 " +
+        dropped.length +
+        " 条：" +
+        dropped.join(", ") +
+        "）",
     );
   });
 }
@@ -445,7 +489,7 @@ function commandStatus() {
   const lanes = plan.lanes || [];
   const effective = effectiveLanes(plan, verdicts, "HEAD");
   const lines = [];
-  lines.push("候选：HEAD=" + short(current.head) + " tree=" + short(current.tree) + " 未提交=" + current.dirty);
+  lines.push("候选：HEAD=" + short(current.head) + " tree=" + short(current.tree) + " 已跟踪未提交=" + current.dirty);
   lines.push(
     "计划：schema=" +
       String(plan.schema) +
@@ -454,7 +498,7 @@ function commandStatus() {
       (recorded ? " base=" + short(recorded.baseCommit) + " planHash=" + short(recorded.planHash) : " 未记录"),
   );
   if (!recorded) lines.push("  先用 pnpm run review:plan -- --base <commit> 记录计划");
-  else if (recorded.planHash !== currentHash) lines.push("  计划内容已改变：旧结论全部失效，需重新 review:plan");
+  else if (recorded.planHash !== currentHash) lines.push("  计划内容已改变：先重新 review:plan");
   for (let i = 0; i < lanes.length; i += 1) {
     const state = effective.get(lanes[i].id);
     lines.push(
@@ -480,7 +524,7 @@ function commandStatus() {
         ledger.findings.length +
         " unresolved=" +
         unresolved +
-        (problems.length ? " 结构问题=" + problems.length : ""),
+        (problems.length ? " 结构问题=" + problems.length + "（" + problems[0] + "）" : ""),
     );
   } else {
     lines.push("台账：缺失（先 review:findings:new）");
@@ -504,7 +548,7 @@ function commandStatus() {
           Object.keys(proof.laneFingerprints || {}).length
         : "未生成"),
   );
-  process.stdout.write(lines.join("\n") + "\n");
+  note(lines.join("\n"));
 }
 
 function commandLane(args) {
@@ -533,19 +577,14 @@ function commandLane(args) {
   const verdictMatch = /^VERDICT:\s*(.+)$/.exec(tail || "");
   if (!verdictMatch) fail("证据报告最后一行必须是 VERDICT: ...");
   const verdict = verdictMatch[1].trim();
+  if (VERDICT_VALUES.indexOf(verdict) < 0) fail("VERDICT 取值必须是 " + VERDICT_VALUES.join(" / "));
   const head = git(["rev-parse", "HEAD"]);
   const fingerprint = laneFingerprint(lane);
-  const declaredHead = /^HEAD:\s*(.+)$/m.exec(report);
-  const reviewedHead = declaredHead ? declaredHead[1].trim() : null;
-  // HEAD 只作来源记录：结论的权威绑定是车道输入指纹（下方校验）与计划哈希。
-  // 不相关的提交不应作废某条车道的结论，否则每次提交都要重跑全部门禁。
-  if (reviewedHead && reviewedHead !== head) {
-    process.stdout.write(
-      "提示：报告完成于 " + short(reviewedHead) + "，当前候选 " + short(head) + "；车道指纹一致时结论仍然有效。\n",
-    );
-  }
   const declaredFingerprint = /^FINGERPRINT:\s*(.+)$/m.exec(report);
-  if (declaredFingerprint && declaredFingerprint[1].trim() !== fingerprint) {
+  if (!declaredFingerprint) {
+    fail("证据报告必须包含 FINGERPRINT: <该车道的 fingerprint> 行（先运行 pnpm run review:status 取值）");
+  }
+  if (declaredFingerprint[1].trim() !== fingerprint) {
     fail(
       "报告声明的 FINGERPRINT 与当前不一致（报告 " +
         declaredFingerprint[1].trim() +
@@ -554,12 +593,26 @@ function commandLane(args) {
         "）：车道输入已变化",
     );
   }
+  const declaredLane = /^LANE:\s*(.+)$/m.exec(report);
+  if (!declaredLane) fail("证据报告必须包含 LANE: <车道 id> 行");
+  if (declaredLane[1].trim() !== laneId) {
+    fail("报告声明的 LANE（" + declaredLane[1].trim() + "）与记录的车道（" + laneId + "）不一致");
+  }
+  const declaredHead = /^HEAD:\s*(.+)$/m.exec(report);
+  const reviewedHead = declaredHead ? declaredHead[1].trim() : null;
+  // HEAD 只作来源记录：结论的权威绑定是车道定义哈希与输入指纹。不相关的提交不作废结论。
+  if (reviewedHead && reviewedHead !== head) {
+    note(
+      "提示：报告完成于 " + short(reviewedHead) + "，当前候选 " + short(head) + "；车道定义与指纹一致时结论仍然有效。",
+    );
+  }
   return withLock(function () {
     const verdicts = loadVerdicts();
     verdicts.planHash = recorded.planHash;
     verdicts.lanes[laneId] = {
       verdict: verdict,
       fingerprint: fingerprint,
+      laneHash: laneHash(lane),
       head: head,
       reviewedHead: reviewedHead,
       planHash: recorded.planHash,
@@ -569,24 +622,23 @@ function commandLane(args) {
     };
     saveVerdicts(verdicts);
     fs.rmSync(stateFile("proof.json"), { force: true });
-    process.stdout.write(
+    note(
       "已记录车道 " +
         laneId +
         "：" +
         verdict +
         " fingerprint=" +
         fingerprint +
-        (verdict === VERDICT_CLEAN ? "" : "（非 clean，会阻断 finalize）") +
-        "\n",
+        (verdict === VERDICT_CLEAN ? "" : "（非 clean，会阻断 finalize）"),
     );
   });
 }
 
-function commandGate(args) {
-  const command = args.length > 0 ? args : DEFAULT_GATE;
+function commandGate() {
   ensureCleanWorktree("门禁");
+  runSelftest();
   const started = Date.now();
-  const result = spawnSync(command[0], command.slice(1), {
+  const result = spawnSync(DEFAULT_GATE[0], DEFAULT_GATE.slice(1), {
     cwd: ROOT,
     stdio: "inherit",
     shell: process.platform === "win32",
@@ -594,7 +646,7 @@ function commandGate(args) {
   const exitCode = typeof result.status === "number" ? result.status : 1;
   return withLock(function () {
     writeJson(stateFile("gate.json"), {
-      command: command.join(" "),
+      command: GATE_COMMAND_LABEL,
       exitCode: exitCode,
       head: git(["rev-parse", "HEAD"]),
       tree: git(["rev-parse", "HEAD^{tree}"]),
@@ -602,7 +654,7 @@ function commandGate(args) {
       recordedAt: new Date().toISOString(),
     });
     fs.rmSync(stateFile("proof.json"), { force: true });
-    process.stdout.write("门禁：" + command.join(" ") + " exit=" + exitCode + "\n");
+    note("门禁：" + GATE_COMMAND_LABEL + " exit=" + exitCode);
   });
 }
 
@@ -620,18 +672,34 @@ function commandFinalize() {
   const effective = effectiveLanes(plan, verdicts, "HEAD");
   const ineffective = [];
   const laneFingerprints = {};
+  const laneHashes = {};
   for (let i = 0; i < (plan.lanes || []).length; i += 1) {
     const lane = plan.lanes[i];
     const state = effective.get(lane.id);
     laneFingerprints[lane.id] = laneFingerprint(lane, "HEAD");
+    laneHashes[lane.id] = laneHash(lane);
     if (!state.effective) ineffective.push(lane.id + "(" + state.reason + ")");
   }
   if (ineffective.length > 0) fail("以下车道没有针对当前内容的有效 clean 结论：\n  " + ineffective.join("\n  "));
   const ledger = readLedger();
   const ledgerProblems = validateLedger(ledger);
   if (ledgerProblems.length > 0) fail("台账无效：\n  " + ledgerProblems.join("\n  "));
+  const unresolved = unresolvedFindings(ledger);
+  if (unresolved.length > 0) {
+    fail(
+      "仍有 " +
+        unresolved.length +
+        " 条 unresolved finding： " +
+        unresolved
+          .map(function (item) {
+            return item.id;
+          })
+          .join(", "),
+    );
+  }
   const gate = loadGate();
   if (!gate) fail("尚未运行门禁：先 pnpm run review:gate");
+  if (gate.command !== GATE_COMMAND_LABEL) fail("门禁记录的命令不是 " + GATE_COMMAND_LABEL);
   if (gate.exitCode !== 0) fail("门禁未通过（exit=" + gate.exitCode + "）");
   if (gate.tree !== current.tree) fail("门禁是针对另一棵树记录的，重新运行 pnpm run review:gate");
   const evidenceHashes = {};
@@ -644,24 +712,69 @@ function commandFinalize() {
       head: current.head,
       tree: current.tree,
       laneFingerprints: laneFingerprints,
+      laneHashes: laneHashes,
       evidenceHashes: evidenceHashes,
       gate: { command: gate.command, exitCode: gate.exitCode, tree: gate.tree },
       ledgerStatus: ledger.ledgerStatus,
       finalizedAt: new Date().toISOString(),
     });
-    process.stdout.write(
+    note(
       "已生成 proof：head=" +
         short(current.head) +
         " tree=" +
         short(current.tree) +
         " 车道=" +
-        Object.keys(laneFingerprints).length +
-        "\n",
+        Object.keys(laneFingerprints).length,
     );
   });
 }
 
+/** pre-push 的独立复核：计划、车道结论、台账、门禁与 proof 必须互相自洽。 */
+function reviewStateRefusals(commit, tree) {
+  const refusals = [];
+  const plan = loadPlan();
+  const proof = loadProof();
+  const gate = loadGate();
+  const verdicts = loadVerdicts();
+  const recorded = loadRecordedPlan();
+  if (!recorded) refusals.push("计划尚未记录");
+  if (!proof) refusals.push("没有 review proof");
+  if (!gate) refusals.push("没有门禁记录");
+  if (!fs.existsSync(FINDINGS_PATH)) refusals.push("没有 findings 台账");
+  if (refusals.length > 0) return refusals;
+  if (recorded.planHash !== planHash(plan)) refusals.push("计划内容已改变，proof 失效");
+  if (proof.planHash !== planHash(plan)) refusals.push("proof 绑定的计划哈希与当前计划不一致");
+  if (proof.tree !== tree) refusals.push("proof 绑定的树与被推送的树不一致");
+  if (gate.tree !== tree) refusals.push("门禁记录的树与被推送的树不一致");
+  if (gate.command !== GATE_COMMAND_LABEL) refusals.push("门禁记录的命令不是 " + GATE_COMMAND_LABEL);
+  if (gate.exitCode !== 0) refusals.push("门禁未通过（exit=" + gate.exitCode + "）");
+  const ledger = readLedger();
+  const ledgerProblems = validateLedger(ledger);
+  if (ledgerProblems.length > 0) refusals.push("台账无效：" + ledgerProblems[0]);
+  const unresolvedIds = unresolvedFindings(ledger).map(function (item) {
+    return item.id;
+  });
+  if (unresolvedIds.length > 0) refusals.push("仍有未终结 finding：" + unresolvedIds.join(", "));
+  const drifted = [];
+  for (let i = 0; i < (plan.lanes || []).length; i += 1) {
+    const lane = plan.lanes[i];
+    const entry = verdicts.lanes[lane.id];
+    if (!entry) {
+      drifted.push(lane.id + "(缺结论)");
+      continue;
+    }
+    if (entry.verdict !== VERDICT_CLEAN) drifted.push(lane.id + "(" + entry.verdict + ")");
+    else if (entry.laneHash !== laneHash(lane)) drifted.push(lane.id + "(车道定义已变)");
+    else if (entry.fingerprint !== laneFingerprint(lane, commit)) drifted.push(lane.id + "(输入已变)");
+    else if ((proof.laneFingerprints || {})[lane.id] !== entry.fingerprint) drifted.push(lane.id + "(proof 指纹不符)");
+    else if ((proof.laneHashes || {})[lane.id] !== entry.laneHash) drifted.push(lane.id + "(proof 车道哈希不符)");
+  }
+  if (drifted.length > 0) refusals.push("车道结论不成立：" + drifted.join(", "));
+  return refusals;
+}
+
 function commandPrePush() {
+  runSelftest();
   const input = fs.readFileSync(0, "utf8");
   const updates = input
     .split(/\r?\n/)
@@ -689,27 +802,8 @@ function commandPrePush() {
       continue;
     }
     const tree = git(["rev-parse", commit + "^{tree}"]);
-    const proof = loadProof();
-    if (!proof) {
-      refusals.push(localRef + " 没有 review proof");
-      continue;
-    }
-    if (proof.tree !== tree) {
-      refusals.push(localRef + " 的树 " + short(tree) + " 与 proof 绑定的树 " + short(proof.tree) + " 不一致");
-      continue;
-    }
-    const plan = loadPlan();
-    if (planHash(plan) !== proof.planHash) {
-      refusals.push("计划内容已改变，proof 失效");
-      continue;
-    }
-    const drifted = [];
-    for (let k = 0; k < (plan.lanes || []).length; k += 1) {
-      const lane = plan.lanes[k];
-      const expected = (proof.laneFingerprints || {})[lane.id];
-      if (laneFingerprint(lane, commit) !== expected) drifted.push(lane.id);
-    }
-    if (drifted.length > 0) refusals.push("以下车道的输入在被推送的提交上已变化：" + drifted.join(", "));
+    const problems = reviewStateRefusals(commit, tree);
+    for (let k = 0; k < problems.length; k += 1) refusals.push(localRef + "：" + problems[k]);
   }
   if (refusals.length > 0) {
     const guidance = [
@@ -720,11 +814,67 @@ function commandPrePush() {
       "处理：确认 REVIEW_PLAN.json 的车道覆盖全部改动 → pnpm run review:plan -- --base origin/main",
       "      → 每条车道跑独立 review 并 pnpm run review:lane -- --lane <id> --evidence <报告>",
       "      → pnpm run review:gate → pnpm run review:finalize，然后重试推送。",
+      "注意：本钩子是可绕过的本地流程门禁（git push --no-verify / HUSKY=0 会跳过）；绕过即表示未审内容被推送。",
     ];
     process.stderr.write(guidance.join("\n") + "\n");
     process.exit(1);
   }
-  process.stdout.write("review: 推送前检查通过（proof 与计划、车道指纹、门禁一致）。\n");
+  note("review: 推送前检查通过（计划、车道结论、台账、门禁与 proof 自洽）。");
+}
+
+/** 门禁引擎自身的自检：确认纯函数的关键不变量成立。 */
+export function selftestProblems() {
+  const problems = [];
+  const lane = {
+    id: "l",
+    paths: ["a.txt"],
+    scope: "s",
+    owners: ["o"],
+    consumers: ["c"],
+    counterexamples: ["x"],
+    obligations: [],
+  };
+  if (laneFingerprint(lane, "HEAD") === laneFingerprint({ ...lane, paths: ["b.txt"] }, "HEAD")) {
+    problems.push("车道指纹对路径变化不敏感");
+  }
+  if (laneHash(lane) === laneHash({ ...lane, scope: "s2" })) problems.push("车道哈希对定义变化不敏感");
+  if (stableStringify({ b: 1, a: 2 }) !== stableStringify({ a: 2, b: 1 })) problems.push("稳定序列化对键序敏感");
+  const ledger = parseLedger(
+    "---\nschema: " +
+      FINDINGS_SCHEMA +
+      "\nledgerStatus: open\nfindings:\n  - id: F001\n    severity: P1\n    status: unresolved\n    owner: o\n    condition: c\n    impact: i\n    requiredOutcome: r\n---\n",
+  );
+  if (ledger.findings.length !== 1) problems.push("台账解析未读到 finding");
+  if (validateLedger(ledger).length !== 0) problems.push("台账结构校验误拒 open + unresolved");
+  if (unresolvedFindings(ledger).length !== 1) problems.push("未终结 finding 计数不正确");
+  if (validateLedger({ schema: FINDINGS_SCHEMA, ledgerStatus: "resolved", findings: [] }).length !== 0) {
+    problems.push("台账校验误拒空台账");
+  }
+  if (validateLedger({ schema: "wrong", ledgerStatus: "resolved", findings: [] }).length === 0) {
+    problems.push("台账校验未检查 schema");
+  }
+  if (validatePlanShape({ schema: PLAN_SCHEMA, obligations: [], lanes: [] }, null).length === 0) {
+    problems.push("计划校验未拒绝空计划");
+  }
+  return problems;
+}
+
+function runSelftest() {
+  const problems = selftestProblems();
+  if (problems.length > 0) {
+    fail("门禁引擎自检失败（先修 scripts/review.mjs）：\n  " + problems.join("\n  "));
+  }
+}
+
+function commandSelftest() {
+  const problems = selftestProblems();
+  note(
+    "自检：检查 " +
+      7 +
+      " 项不变量，" +
+      (problems.length === 0 ? "全部通过" : "失败 " + problems.length + " 项\n  " + problems.join("\n  ")),
+  );
+  if (problems.length > 0) process.exit(1);
 }
 
 const COMMANDS = {
@@ -735,22 +885,24 @@ const COMMANDS = {
   lane: commandLane,
   gate: commandGate,
   finalize: commandFinalize,
+  selftest: commandSelftest,
   "pre-push": commandPrePush,
 };
 
 function usage() {
-  process.stdout.write(
+  note(
     [
       "用法：node scripts/review.mjs <command>",
       "  plan:new [--force]                    从模板创建 REVIEW_PLAN.json",
       "  findings:new [--force]                从模板创建 REVIEW_FINDINGS.md",
-      "  plan --base <commit>                  记录计划并让旧结论失效",
+      "  plan --base <commit>                  记录计划；仅作废定义变化的车道结论",
       "  status                                打印候选、车道结论、台账、门禁与 proof 状态",
       "  lane --lane <id> --evidence <file>    记录一条车道的独立 review 结论",
-      "  gate [<cmd> ...]                      对干净工作树运行门禁并记录（默认 pnpm run check:all）",
-      "  finalize                              绑定计划、车道指纹、台账与门禁，生成 proof",
-      "  pre-push                              pre-push 钩子入口",
-    ].join("\n") + "\n",
+      "  gate                                  对已跟踪文件干净的工作树运行 " + GATE_COMMAND_LABEL + " 并记录",
+      "  finalize                              绑定计划、车道哈希/指纹、台账与门禁，生成 proof",
+      "  selftest                              检查门禁引擎自身的不变量",
+      "  pre-push                              pre-push 钩子入口（先自检，再复核全部状态）",
+    ].join("\n"),
   );
 }
 

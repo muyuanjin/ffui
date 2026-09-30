@@ -35,11 +35,11 @@ const queue = {
     display: "默认视图",
     queue: "执行队列",
     displayLabelShort: "默认视图",
-    queueLabelShort: "转码任务",
+    queueLabelShort: "执行队列",
     displayHint:
       "仅改显示顺序：只改变界面上任务的展示顺序，不会影响后台实际执行顺序。拖拽、移到队首或队尾等调整优先级的操作在该模式下会被禁用。",
     queueHint:
-      "按转码任务：Waiting 区域中任务的顺序就是后台实际执行顺序。拖拽、移到队首或队尾等操作会直接改变任务的执行优先级。排序功能在该模式下会被禁用。",
+      "按执行队列：Waiting 区域中任务的顺序就是后台实际执行顺序。拖拽、移到队首或队尾等操作会直接改变任务的执行优先级。排序功能在该模式下会被禁用。",
   },
   progressStyleLabel: "进度样式",
   progressStyles: {
