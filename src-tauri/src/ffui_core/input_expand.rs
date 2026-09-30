@@ -151,11 +151,12 @@ pub(crate) fn expand_manual_job_inputs(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::fs;
 
     use tempfile::tempdir;
 
-    use super::expand_manual_job_inputs;
+    use super::{expand_dir, expand_manual_job_inputs};
 
     #[test]
     fn expands_directories_in_stable_name_order_and_filters_unsupported() {
@@ -239,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn counts_symlinks_missing_paths_and_unreadable_directories_as_skipped() {
+    fn counts_symlinks_and_missing_paths_as_skipped() {
         let dir = tempdir().expect("tempdir");
         let root = dir.path();
 
@@ -268,6 +269,23 @@ mod tests {
             expanded.skipped, expected_skipped,
             "失效路径与符号链接都要记账"
         );
+    }
+
+    #[test]
+    fn counts_a_path_that_cannot_be_listed_as_a_skipped_directory() {
+        // expand_dir 只接受目录；传普通文件时 read_dir 必然失败，走 list_dir_sorted 的 None 分支。
+        // 用 chmod 000 造不可读目录在 root 下无效，所以直接测这条分支。
+        let dir = tempdir().expect("tempdir");
+        let file = dir.path().join("not-a-directory.mp4");
+        fs::write(&file, b"yes").expect("write file");
+
+        let mut out: Vec<String> = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut skipped: usize = 0;
+        expand_dir(&file, true, &mut out, &mut seen, &mut skipped);
+
+        assert!(out.is_empty());
+        assert_eq!(skipped, 1, "读不到的目录必须记账，不能静默");
     }
 
     #[test]
