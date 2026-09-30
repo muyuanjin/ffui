@@ -61,6 +61,8 @@ fi
 [ -f "$IMG" ] || { echo "verify-appimage: 找不到 $IMG" >&2; exit 2; }
 IMG="$(readlink -f "$IMG")"
 BASENAME="$(basename "$IMG")"
+# 发布时 .sig 与 latest.json 与被测产物同目录；下面用副本做启动测试，断言必须回到原始目录取它们。
+SRC_DIR="$(dirname "$IMG")"
 
 WORK="$(mktemp -d)"
 # 以副本执行，避免调用方给的文件没有可执行位（下载来的 release 资产通常就是 644）
@@ -81,6 +83,14 @@ cleanup() {
   fusermount -u -z "$WORK/rootrun/squashfs-root" 2>/dev/null
   if [ "$RC" -ne 0 ] ; then
     echo "--- 失败现场：$WORK （已保留，便于排查）" >&2
+    # CI 的 runner 会连同 /tmp 一起消失，因此把关键现场复制到调用方指定的目录（未设置则跳过）。
+    if [ -n "${KEEP_DIR:-}" ] ; then
+      mkdir -p "$KEEP_DIR" 2>/dev/null || true
+      for artifact in "app.log" "window.png" "harness/worker.log" "minisign.log" ; do
+        [ -f "$WORK/$artifact" ] && cp -f "$WORK/$artifact" "$KEEP_DIR/" 2>/dev/null
+      done
+      true
+    fi
     return "$RC"
   fi
   # 阶段 3 的运行树归 root 所有，普通 rm 删不掉（会留下 ~200MB 与 Permission denied）。
@@ -107,7 +117,7 @@ done
 # 与 harness 同理：本作业持写权限，lint 脚本也钉到具体提交（改提交需显式覆盖并重审）。
 # 阶段 4 会把这两份文件预置进 harness 的 deps/，使它内部的 fetch-deps.sh 不再去抓 master 版；
 # 该 harness 的其它依赖仍来自它自己的 release 资产与 alpine 稳定分支（有意原样跑目录站脚本）。
-( cd "$WORK" && curl -fsSL -o appdir-lint.sh "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/appdir-lint.sh" \
+( cd "$WORK" && curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --max-time 300 -o appdir-lint.sh "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/appdir-lint.sh" \
             && curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --max-time 300 -o excludelist "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/excludelist" )
 if ! command -v desktop-file-validate >/dev/null 2>&1 || ! command -v mimetype >/dev/null 2>&1 ; then
   sudo -n apt-get update -qq >/dev/null 2>&1 || true
@@ -129,6 +139,48 @@ if [ -n "$OFFENDERS" ] ; then
   fail "AppDir 里存在非属主无法读取/执行/进入的条目（firejail、root 挂载或别的 uid 下无法启动）"
 fi
 ok "权限面（镜像内存储模式）：全部条目对 other 可读/可执行/可进入"
+
+# 目录站会提示「AppImage contains no update information」：Tauri 打包器把 runtime 预留的
+# .upd_info 段留空，AppImageUpdate/AppImageLauncher 等因此拒绝就地更新。发布流程会用
+# scripts/embed-appimage-update-info.sh 就地填入，这里断言它确实生效——缺失即让门禁变红，
+# 因为这个段只在打包后填充，回归不会有别的信号。
+UPDATE_INFO="$("$IMG" --appimage-updateinfo 2>/dev/null || "$IMG" --appimage-updateinformation 2>/dev/null || true)"
+case "$UPDATE_INFO" in
+  gh-releases-zsync\|*) ok "更新信息：$UPDATE_INFO" ;;
+  "") fail "AppImage 未内嵌更新信息（.upd_info 为空，目录站会给出提示）" ;;
+  *) fail "更新信息格式不认识：$UPDATE_INFO" ;;
+esac
+
+# 更新签名必须与**改写后**的字节相符：就地填充 .upd_info 发生在 tauri-action 签名之后，
+# 不重签会让应用内更新在 minisign 校验处静默失效；latest.json 里的 signature 也要同步，
+# 否则客户端拿到的是「签名对得上旧字节」的清单。这两点门禁不查就没有别的信号。
+SIG="$SRC_DIR/$BASENAME.sig"
+LATEST="$SRC_DIR/latest.json"
+[ -f "$SIG" ] || fail "缺少 $(basename "$SIG")：更新签名必须与产物一起发布"
+[ -f "$LATEST" ] || fail "缺少 latest.json：更新清单必须与产物一起发布"
+PUBKEY="$(node -e 'const c = require("./src-tauri/tauri.conf.json"); process.stdout.write((((c.plugins || {}).updater || {}).pubkey || "").trim())' 2>/dev/null || true)"
+[ -n "$PUBKEY" ] || fail "无法从 src-tauri/tauri.conf.json 读取 plugins.updater.pubkey"
+# 用 Node 的 Ed25519 直接验签：Tauri 的 .sig 是 base64(minisign 签名文件)，公钥同理，
+# 这样不依赖构建镜像是否打包了 minisign 命令行工具（例如 22.04 就没有这个包）。
+if ! node scripts/verify-tauri-appimage-signature.mjs "$IMG" "$SIG" "$PUBKEY" >"$WORK/updater.log" 2>&1 ; then
+  cat "$WORK/updater.log" >&2 || true
+  fail "AppImage 的更新签名与其字节不符（应用内更新会失败）"
+fi
+node -e '
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const [latestPath, imagePath, sigPath] = process.argv.slice(1);
+  const latest = JSON.parse(fs.readFileSync(latestPath, "utf8"));
+  const signature = fs.readFileSync(sigPath, "utf8").trim();
+  const name = path.basename(imagePath);
+  const entries = Object.entries(latest.platforms || {}).filter(
+    ([, entry]) => entry && typeof entry.url === "string" && path.basename(entry.url.split("?")[0]) === name,
+  );
+  if (entries.length === 0) { console.error("latest.json 里没有指向 " + name + " 的条目"); process.exit(1); }
+  const stale = entries.filter(([, entry]) => (entry.signature || "").trim() !== signature).map(([target]) => target);
+  if (stale.length > 0) { console.error("latest.json 的 AppImage 签名未同步：" + stale.join(", ")); process.exit(1); }
+' "$LATEST" "$IMG" "$SIG" || fail "latest.json 的 AppImage 签名与 .sig 不一致"
+ok "更新签名：与产物字节相符，且 latest.json 已同步"
 
 # ---------- 阶段 3：非属主启动（root 解包 + 普通用户运行）----------
 STAGE="[3/4] 非属主启动"
@@ -204,7 +256,7 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
   else
     HDIR="$WORK/harness"
     mkdir -p "$HDIR"
-    curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --max-time 900 --speed-limit 1024 --speed-time 60 "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
+    curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --retry-max-time 900 --max-time 900 --speed-limit 1024 --speed-time 60 "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
     # 预置阶段 1 已下载的 pinned lint 文件：fetch-deps.sh 只在缺失时才下载，
     # 因此阶段 4 的 worker.sh 用的也是钉住的 lint，而不是它自己会抓的 master 版。
     mkdir -p "$HDIR/deps"

@@ -130,6 +130,7 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
+            zsync \
             ffmpeg
 
       - name: Install FFmpeg (macOS only)
@@ -179,6 +180,14 @@ jobs:
         run: |
           tauri_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version)")"
           npm_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('package.json','utf8')).version)")"
+          # Rust 侧也必须是同一个版本：tag、装配版本与 crate 版本漂移会让产物的自述版本对不上。
+          cargo_version="$(node -e "const fs = require('node:fs'); const m = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
+          lock_version="$(node -e "const fs = require('node:fs'); const rest = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').split('name = \"ffui\"')[1] || ''; const m = rest.match(/version = \"([^\"]+)\"/); console.log(m ? m[1] : '')")"
+
+          if [ "$cargo_version" != "$tauri_version" ] || [ "$lock_version" != "$tauri_version" ] ; then
+            echo "Cargo version mismatch: Cargo.toml=$cargo_version, Cargo.lock=$lock_version, tauri.conf.json=$tauri_version" >&2
+            exit 1
+          fi
 
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
@@ -253,6 +262,31 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
+
+      # 就地填入 AppImage 的更新信息（见 scripts/embed-appimage-update-info.sh）、重签、并同步 latest.json。
+      # Tauri 打包器把 runtime 的 .upd_info 段留空，AppImageUpdate 等工具因此拒绝就地更新，目录站也会提示；
+      # 而就地改写发生在 tauri-action 签名之后，所以 .sig 与 latest.json 里的 signature 必须一起重建，
+      # 否则应用内更新会在 minisign 校验处静默失败。上传必须在门禁之前——门禁会核对三者相互一致。
+      - name: Embed AppImage update information and refresh its signatures
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          image="$(node -e 'const a = JSON.parse(process.env.ARTIFACT_PATHS || "[]"); const m = a.filter((p) => p.endsWith(".AppImage")); if (m.length !== 1) { console.error("expected exactly one AppImage in artifactPaths, found " + m.length); process.exit(1); } process.stdout.write(m[0]);')"
+          bash scripts/embed-appimage-update-info.sh "$image"
+          rm -f "$image.sig"
+          pnpm exec tauri signer sign "$image"
+          mkdir -p dist-updater
+          gh release download "$TAG" --repo "$REPO" --pattern 'latest.json' --dir dist-updater --clobber
+          node scripts/refresh-appimage-signature-in-latest-json.mjs dist-updater/latest.json "$image" "$image.sig"
+          gh release upload "$TAG" "$image" "$image.sig" "$image.zsync" dist-updater/latest.json --clobber --repo "$REPO"
 
       - name: Prepare Windows portable exe asset
         if: matrix.platform == 'windows-latest'
@@ -337,11 +371,30 @@ jobs:
           gh release download "${GITHUB_REF_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
             --pattern '*.AppImage' \
+            --pattern '*.AppImage.sig' \
+            --pattern '*.AppImage.zsync' \
+            --pattern 'latest.json' \
             --dir dist
           # 只接受恰好一个 AppImage：脚本只判 $1，多个产物时静默只测第一个是假通过。
           count="$(find dist -maxdepth 1 -name '*.AppImage' | wc -l)"
           if [ "$count" -ne 1 ] ; then
             echo "expected exactly one AppImage in the draft release, found $count" >&2
+            exit 1
+          fi
+          # 配套的 .zsync 是增量更新所需；缺了说明 embed 步骤没跑或没上传成功。
+          zsync_count="$(find dist -maxdepth 1 -name '*.AppImage.zsync' | wc -l)"
+          if [ "$zsync_count" -ne 1 ] ; then
+            echo "expected exactly one AppImage.zsync in the draft release, found $zsync_count" >&2
+            exit 1
+          fi
+          # 更新签名与更新清单同样必须存在：改写后不重签会让应用内更新静默失效。
+          sig_count="$(find dist -maxdepth 1 -name '*.AppImage.sig' | wc -l)"
+          if [ "$sig_count" -ne 1 ] ; then
+            echo "expected exactly one AppImage.sig in the draft release, found $sig_count" >&2
+            exit 1
+          fi
+          if [ ! -f dist/latest.json ] ; then
+            echo "latest.json is missing from the draft release" >&2
             exit 1
           fi
           ls -la dist
@@ -359,14 +412,44 @@ jobs:
           # 目录站里的条目名（data/<条目名>）与命名严格度：条目由 PR 新增时，目录站按 STRICT=true 校验。
           APP_NAME: "FFUI"
           APP_STRICT: "true"
+          # 失败时把 worker.log/app.log/截图复制到这里，再由下面的步骤上传成 artifact：
+          # runner 一结束 /tmp 就没了，没有它就只能靠猜。
+          KEEP_DIR: gate-artifacts
         run: |
           set -euo pipefail
           bash scripts/verify-appimage.sh dist/*.AppImage
 
-  # 门禁通过后才把草稿转为正式发布（AppImageHub 只认非草稿、非预发布的 release）
+      - name: Upload gate diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: appimage-gate-diagnostics
+          path: gate-artifacts/
+          if-no-files-found: ignore
+
+  # 发布 SHA256SUMS：未签名二进制至少要能核验来源（也回应 issue #1 的误报质疑）。
+  publish-checksums:
+    name: publish-checksums
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish SHA256SUMS for the draft assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --dir assets --clobber
+          # 只覆盖随发布提供的安装包与更新清单（.sig/.zsync 是派生文件，不列入）。
+          ( cd assets && find . -maxdepth 1 -type f ! -name '*.sig' ! -name '*.zsync' ! -name 'SHA256SUMS' -printf '%P\n' | LC_ALL=C sort | xargs -r sha256sum ) > SHA256SUMS
+          gh release upload "${GITHUB_REF_NAME}" SHA256SUMS --clobber --repo "${GITHUB_REPOSITORY}"
+
+  # 门禁通过、校验和就绪后才把草稿转为正式发布（AppImageHub 只认非草稿、非预发布的 release）
   publish-release:
     name: publish-release
-    needs: verify-appimage
+    needs: [verify-appimage, publish-checksums]
     permissions:
       contents: write
     runs-on: ubuntu-latest
