@@ -10,6 +10,7 @@ use crate::ffui_core::settings::AppSettings;
 
 mod legacy;
 mod managed;
+mod preset_files;
 
 fn ffmpeg_program() -> &'static str {
     if cfg!(target_os = "linux") {

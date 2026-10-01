@@ -4,6 +4,7 @@ const queue = {
   typeAudio: "AUDIO",
   typeOther: "FFMPEG",
   command: {
+    entry: "FFmpeg",
     add: "Add FFmpeg command",
     title: "FFmpeg command",
     description:

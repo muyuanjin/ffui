@@ -5,6 +5,7 @@ import type { TranscodeJob } from "@/types";
 import { computed, type Component } from "vue";
 import { Activity, Film, ListTodo, Settings2, SlidersHorizontal } from "lucide-vue-next";
 import QueueFfmpegCommandEntry from "@/components/panels/queue/QueueFfmpegCommandEntry.vue";
+import { hasTauri } from "@/lib/backend";
 
 const { activeTab, jobs } = defineProps<{
   /** Current active tab */
@@ -26,6 +27,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const canAddCommand = hasTauri();
 
 type ActiveTab = "queue" | "presets" | "media" | "monitor" | "settings";
 type TabMeta = {
@@ -198,31 +200,45 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
           data-testid="ffui-action-add-job-files"
           variant="default"
           size="lg"
-          class="justify-center rounded-none font-semibold text-white"
+          class="min-w-0 justify-center rounded-none px-2 font-semibold text-white"
           @click="emit('addJobFiles')"
         >
-          <span>{{ t("app.actions.addJobFiles") }}</span>
+          <span class="min-w-0 truncate">{{ t("app.actions.addJobFiles") }}</span>
         </Button>
         <Button
           data-testid="ffui-action-add-job-folder"
           variant="manualFolder"
           size="lg"
-          class="justify-center rounded-none font-semibold text-white"
+          class="min-w-0 justify-center rounded-none px-2 font-semibold text-white"
           @click="emit('addJobFolder')"
         >
-          <span class="whitespace-nowrap">{{ t("app.actions.addJobFolder") }}</span>
+          <span class="min-w-0 truncate">{{ t("app.actions.addJobFolder") }}</span>
         </Button>
       </div>
-      <Button
-        data-testid="ffui-action-batch-compress"
-        variant="batchCompress"
-        size="lg"
-        class="w-full justify-center font-semibold text-white"
-        @click="emit('batchCompress')"
+      <div
+        class="relative grid w-full overflow-hidden rounded-md"
+        :class="
+          canAddCommand
+            ? 'grid-cols-2 after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35'
+            : 'grid-cols-1'
+        "
+        data-testid="ffui-action-add-advanced-split"
       >
-        <span>{{ t("app.actions.batchCompress") }}</span>
-      </Button>
-      <QueueFfmpegCommandEntry />
+        <Button
+          data-testid="ffui-action-batch-compress"
+          variant="batchCompress"
+          size="lg"
+          class="min-w-0 justify-center rounded-none px-2 font-semibold text-white"
+          :aria-label="t('app.actions.batchCompress')"
+          :title="t('app.actions.batchCompress')"
+          @click="emit('batchCompress')"
+        >
+          <span class="min-w-0 truncate">{{
+            t(canAddCommand ? "app.actions.batchCompressEntry" : "app.actions.batchCompress")
+          }}</span>
+        </Button>
+        <QueueFfmpegCommandEntry />
+      </div>
     </div>
   </aside>
 </template>

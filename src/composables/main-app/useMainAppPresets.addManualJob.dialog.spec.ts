@@ -146,4 +146,16 @@ describe("useMainAppPresets addManualJob dialog (Tauri v2 internals)", () => {
     expect(enqueueTranscodeJobsMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith("queue.error.unsupportedMedia", { duration: 6000 });
   });
+
+  it("shows backend enqueue diagnostics instead of silently failing", async () => {
+    openDialogMock.mockResolvedValueOnce(["C:/music/b.mp3"]);
+    expandManualJobInputsMock.mockResolvedValueOnce({ accepted: ["C:/music/b.mp3"], skipped: 0 });
+    enqueueTranscodeJobMock.mockRejectedValueOnce(new Error("Invalid audio preset"));
+    const api = mountPresets();
+    await api.addManualJob("files");
+    expect(toastErrorMock).toHaveBeenCalledWith("queue.error.enqueueFailed", {
+      description: "Invalid audio preset",
+      duration: 6000,
+    });
+  });
 });

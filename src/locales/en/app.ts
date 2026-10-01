@@ -352,6 +352,7 @@ const app = {
     addJobFiles: "Add files",
     addJobFolder: "Add folder",
     batchCompress: "Add compression task",
+    batchCompressEntry: "Compress",
     deletePreset: "Delete",
     confirmDelete: "Confirm delete",
     deletePresetConfirmTitle: "Delete preset",

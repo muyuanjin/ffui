@@ -1,0 +1,55 @@
+{
+  "cases": [
+    {
+      "id": "aac-copy-video",
+      "inputName": "音乐 track.wav",
+      "outputExtension": "mp4",
+      "executionMode": "managedFile",
+      "preset": {
+        "id": "aac-copy-video",
+        "name": "AAC audio",
+        "description": "AAC conversion with independent video Copy",
+        "video": { "encoder": "copy", "rateControl": "cbr", "qualityValue": 0, "preset": "" },
+        "audio": { "codec": "aac", "bitrate": 128 },
+        "filters": {},
+        "container": { "format": "mp4" },
+        "advancedEnabled": false,
+        "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
+      }
+    },
+    {
+      "id": "pcm-unknown-input",
+      "inputName": "音乐 track.unknown",
+      "outputExtension": "wav",
+      "executionMode": "transparent",
+      "preset": {
+        "id": "pcm-unknown-input",
+        "name": "PCM audio",
+        "description": "PCM conversion for files without a recognized extension",
+        "video": { "encoder": "copy", "rateControl": "cbr", "qualityValue": 0, "preset": "" },
+        "audio": { "codec": "copy" },
+        "filters": {},
+        "advancedEnabled": true,
+        "ffmpegTemplate": "ffmpeg -i INPUT -vn -c:a pcm_s16le -ar 22050 -f wav OUTPUT",
+        "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
+      }
+    },
+    {
+      "id": "png-resize",
+      "inputName": "图片 cover.png",
+      "outputExtension": "png",
+      "executionMode": "transparent",
+      "preset": {
+        "id": "png-resize",
+        "name": "PNG resize",
+        "description": "Resize PNG files using a saved template",
+        "video": { "encoder": "copy", "rateControl": "cbr", "qualityValue": 0, "preset": "" },
+        "audio": { "codec": "copy" },
+        "filters": {},
+        "advancedEnabled": true,
+        "ffmpegTemplate": "ffmpeg -i INPUT -vf scale=8:8 -frames:v 1 -c:v png -f image2 OUTPUT",
+        "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
+      }
+    }
+  ]
+}

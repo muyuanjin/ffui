@@ -11,7 +11,6 @@ import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 const props = defineProps<{
   audio: AudioConfig;
   subtitles: SubtitlesConfig;
-  isCopyEncoder: boolean;
 }>();
 
 const audio: DeepWritable<AudioConfig> = props.audio;
@@ -62,10 +61,9 @@ const subtitlesStrategyLabel = computed(() => {
             </span>
           </Button>
           <Button
+            data-testid="preset-audio-aac"
             :variant="audio.codec === 'aac' ? 'default' : 'outline'"
             class="flex-1 flex flex-col items-start gap-1 h-auto"
-            :disabled="props.isCopyEncoder"
-            :aria-disabled="props.isCopyEncoder"
             @click="
               () => {
                 audio.codec = 'aac';

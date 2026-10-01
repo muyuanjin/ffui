@@ -5,6 +5,8 @@ import { createI18n } from "vue-i18n";
 import { nextTick, reactive } from "vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import PresetContainerTab from "@/components/preset-editor/PresetContainerTab.vue";
+import PresetAudioTab from "@/components/preset-editor/PresetAudioTab.vue";
+import mediaContract from "../../../src-tauri/tests/manual-preset-media-contract.json";
 import { Select } from "@/components/ui/select";
 import en from "@/locales/en";
 import type { ContainerConfig, FFmpegPreset } from "@/types";
@@ -51,6 +53,31 @@ const makeBasePreset = (): FFmpegPreset => ({
 });
 
 describe("UltimateParameterPanel", () => {
+  it("saves AAC audio independently of video Copy", async () => {
+    const preset = structuredClone(mediaContract.cases[0].preset) as FFmpegPreset;
+    preset.audio = { codec: "copy" };
+    const wrapper = mount(UltimateParameterPanel, { props: { initialPreset: preset }, global: { plugins: [i18n] } });
+    const audioTab = wrapper
+      .findAll('[role="tab"]')
+      .find((tab) => tab.text().includes(t("presetEditor.panel.audioTab")))!;
+    await audioTab.trigger("mousedown", { button: 0 });
+    await nextTick();
+    const audioEditor = wrapper.getComponent(PresetAudioTab);
+    const aac = audioEditor.get('[data-testid="preset-audio-aac"]');
+    expect(aac.attributes("disabled")).toBeUndefined();
+    await aac.trigger("click");
+    expect(wrapper.text()).toContain("-c:v copy");
+    expect(wrapper.text()).toContain("-c:a aac");
+    const save = wrapper.findAll("button").find((button) => button.text() === t("presetEditor.actions.update"))!;
+    await save.trigger("click");
+    expect(wrapper.emitted("save")?.[0]?.[0]).toMatchObject({
+      video: { encoder: "copy" },
+      audio: { codec: "aac" },
+      container: { format: "mp4" },
+    });
+    wrapper.unmount();
+  });
+
   it("opens custom command presets on the command tab and disables structured tabs", () => {
     const preset: FFmpegPreset = {
       ...makeBasePreset(),

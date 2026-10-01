@@ -252,7 +252,7 @@ const presetEditor = {
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "Command preview",
     templateHint:
-      "INPUT / OUTPUT placeholders are replaced with concrete paths at runtime; changes in the parameter panel are reflected here immediately.",
+      "Save this preset and select it in the task queue, then drop files or use Add files / Add folder. INPUT / OUTPUT are replaced with file paths for each task. Specify the output muxer with -f when changing formats, for example: -i INPUT -vn -c:a libmp3lame -f mp3 OUTPUT.",
     parseButton: "Parse full command into INPUT/OUTPUT",
     parseEmpty: "Enter a full ffmpeg command above, then click Parse.",
     parseOk: "Detected input/output paths and replaced them with INPUT / OUTPUT placeholders.",

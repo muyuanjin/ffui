@@ -4,6 +4,7 @@ const queue = {
   typeAudio: "音频",
   typeOther: "FFmpeg",
   command: {
+    entry: "FFmpeg",
     add: "添加 FFmpeg 命令",
     title: "FFmpeg 命令",
     description: "粘贴完整的 ffmpeg 命令即可添加自定义任务。预览只解析命令，不会执行。",

@@ -12,12 +12,15 @@ const { t } = useI18n();
   <Button
     v-if="hasTauri()"
     type="button"
-    variant="outline"
+    variant="batchCompress"
     size="lg"
-    class="w-full justify-center font-semibold"
+    class="min-w-0 justify-center rounded-none px-2 font-semibold text-white"
+    :aria-label="t('queue.command.add')"
+    :title="t('queue.command.add')"
     data-testid="add-ffmpeg-command"
     @click="open = true"
-    >{{ t("queue.command.add") }}</Button
   >
+    <span class="min-w-0 truncate">{{ t("queue.command.entry") }}</span>
+  </Button>
   <FfmpegCommandDialog v-if="open" v-model:open="open" />
 </template>

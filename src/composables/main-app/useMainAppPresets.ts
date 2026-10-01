@@ -335,6 +335,10 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       });
     } catch (e) {
       console.error("Failed to add manual job:", e);
+      toast.error(t("queue.error.enqueueFailed"), {
+        description: e instanceof Error ? e.message : String(e),
+        duration: 6000,
+      });
     }
   };
 

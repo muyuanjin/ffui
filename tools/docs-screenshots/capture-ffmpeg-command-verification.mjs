@@ -37,18 +37,50 @@ await withViteDevServer(
       assert.equal(await actions.getByTestId("add-ffmpeg-command").count(), 1);
       const entryBox = await entry.boundingBox();
       const compressionBox = await actions.getByTestId("ffui-action-batch-compress").boundingBox();
-      assert.ok(entryBox && compressionBox && entryBox.y >= compressionBox.y + compressionBox.height);
+      assert.ok(entryBox && compressionBox);
+      assert.equal(entryBox.y, compressionBox.y);
+      assert.equal(entryBox.height, compressionBox.height);
+      assert.ok(Math.abs(entryBox.width - compressionBox.width) <= 1);
+      assert.ok(entryBox.x >= compressionBox.x + compressionBox.width);
       await page.screenshot({ path: path.join(outDir, "sidebar-zh-CN.png") });
 
       for (const locale of ["zh-CN", "en"]) {
         if (locale === "en") {
           await page.getByTestId("ffui-locale-trigger").click();
           await page.getByTestId("ffui-locale-en").click();
-          await page.waitForFunction(() =>
-            document.querySelector('[data-testid="add-ffmpeg-command"]')?.textContent?.includes("Add FFmpeg command"),
+          await page.waitForFunction(
+            () =>
+              document.querySelector('[data-testid="add-ffmpeg-command"]')?.getAttribute("aria-label") ===
+              "Add FFmpeg command",
           );
         }
-        assert.equal((await entry.textContent()).trim(), locale === "en" ? "Add FFmpeg command" : "添加 FFmpeg 命令");
+        assert.equal((await entry.textContent()).trim(), "FFmpeg");
+        assert.equal(
+          await entry.getAttribute("aria-label"),
+          locale === "en" ? "Add FFmpeg command" : "添加 FFmpeg 命令",
+        );
+        const textFits = await actions.evaluate((element) =>
+          Array.from(element.querySelectorAll("button")).every((button) => button.scrollWidth <= button.clientWidth),
+        );
+        assert.equal(textFits, true);
+        await page.screenshot({ path: path.join(outDir, `sidebar-${locale}.png`) });
+        await page.evaluate(() => document.documentElement.style.setProperty("--ffui-ui-font-size-scale", "2"));
+        assert.equal(
+          await actions.evaluate((element) =>
+            Array.from(element.querySelectorAll("button")).every((button) => button.scrollWidth <= button.clientWidth),
+          ),
+          true,
+        );
+        assert.equal(
+          await actions.evaluate((element) =>
+            Array.from(element.querySelectorAll("button > span")).every(
+              (label) => getComputedStyle(label).textOverflow === "ellipsis",
+            ),
+          ),
+          true,
+        );
+        await page.screenshot({ path: path.join(outDir, `sidebar-large-text-${locale}.png`) });
+        await page.evaluate(() => document.documentElement.style.setProperty("--ffui-ui-font-size-scale", "1.13"));
         await entry.click();
         const dialog = page.getByTestId("ffmpeg-command-dialog");
         await dialog.waitFor();
@@ -95,7 +127,8 @@ await withViteDevServer(
             mode: "mock UI; no real FFmpeg execution",
             locales: ["zh-CN", "en"],
             checks: [
-              "single sidebar entry below creation actions",
+              "compression and command share an equal-width creation row without text overflow",
+              "large text keeps creation labels within each button with ellipsis",
               "collapsed optional settings",
               "command preview",
               "diagnostic blocks enqueue",

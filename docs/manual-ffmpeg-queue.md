@@ -4,9 +4,17 @@
 
 Add files or folders to use a preset. Regular files are accepted without an extension whitelist; inaccessible paths, symbolic links and non-regular files are reported as skipped. Use a preset whose codecs and container match your intended output. Invalid presets and FFmpeg failures produce explicit diagnostics instead of silently selecting another preset.
 
+### Preset-based file conversion
+
+1. Configure and save a preset in **Parameter presets**. For AAC audio, use the audio tab to select AAC and the container tab to select MP4/M4A. Audio encoding is independent of the video encoder, including video Copy.
+2. For other codecs or media recipes, save a custom **command template** in the preset editor, for example `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`. Specify the output muxer with `-f` when changing formats. Under the default output policy it also determines the planned `OUTPUT` extension; output policy overrides can change the planned address, but not the template's parameters.
+3. Select the saved preset in the task queue's preset selector, then drop files/folders or click **Add files** / **Add folder**. Each expanded file creates a task using that preset. A folder may contain unrelated files; each file is attempted and incompatible inputs fail with diagnostics.
+
+You do not need the **FFmpeg** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
+
 Structured video jobs retain two-pass encoding, segment-based resume and existing replacement behavior. Other structured jobs use a managed single-file output: FFUI reserves a temporary file alongside the output, publishes a non-empty result only after FFmpeg exits successfully, and never overwrites a file that appeared at the destination. Failed, cancelled and waited executions remove only their owned temporary output. Relative managed file addresses are bound to absolute paths at enqueue time. Multi-file muxers and image sequences require transparent mode; the effective output policy, not just the preset container, determines this restriction. Manual jobs do not use Batch Compress's minimum-saving gate. Their preset and output policy are captured at enqueue time, including across a restart.
 
-Use **Add FFmpeg command** in the lower-left sidebar, alongside Add files, Add folder and Batch Compress. Paste a complete command starting with `ffmpeg` or `ffmpeg.exe`; a quoted executable path is also accepted. FFUI uses its configured FFmpeg, not the pasted executable path. A task name is supplied automatically. The optional name and working directory are under **Advanced settings**. With no working directory specified, FFmpeg inherits the application's working directory. For example:
+Use **FFmpeg** in the lower-left sidebar, in the same row as the compression action. Its tooltip and accessible name are **Add FFmpeg command**. Paste a complete command starting with `ffmpeg` or `ffmpeg.exe`; a quoted executable path is also accepted. FFUI uses its configured FFmpeg, not the pasted executable path. A task name is supplied automatically. The optional name and working directory are under **Advanced settings**. With no working directory specified, FFmpeg inherits the application's working directory. For example:
 
 ```text
 ffmpeg -f lavfi -i "sine=frequency=440:duration=1" -c:a pcm_s16le "C:\media\tone.wav"
@@ -30,9 +38,17 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 
 添加文件或文件夹后使用预设执行。普通文件不受扩展名白名单限制；无法访问的路径、符号链接和非普通文件会提示已跳过。请选择编码器、容器与目标输出匹配的预设；无效预设和 FFmpeg 执行失败会给出诊断，不会静默换用其他预设。
 
+### 按预设转码文件
+
+1. 在 **参数预设** 中配置并保存预设。转为 AAC 音频时，在音频页选择 AAC，在封装页选择 MP4/M4A。音频编码独立于视频编码器，视频选直拷贝也可转码音频。
+2. 其他编码器或媒体处理方案可在预设编辑器中保存自定义 **命令模板**，例如 `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`。转换格式时用 `-f` 指定输出封装；默认输出策略下，它也决定规划的 `OUTPUT` 扩展名。输出策略覆盖可改变规划地址，但不改写模板参数。
+3. 在转码任务页面的预设选择器中选中已保存的预设，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。文件夹展开后，每个文件按该预设创建任务；文件夹可能含无关文件，每个文件都会尝试执行，不兼容输入会给出失败诊断。
+
+这条路径不需要点击 **FFmpeg** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
+
 结构化视频任务保留双遍编码、分段续跑和现有输出替换行为。其他结构化任务托管单文件输出：在目标目录预留临时文件，仅在 FFmpeg 成功退出且文件非空后发布；目标被其他程序占用时失败，不覆盖。失败、取消和等待仅清理本任务拥有的临时输出。托管任务的相对文件地址在入队时绑定为绝对路径。多文件 muxer 和图片序列必须使用透明模式；限制按生效的输出策略判定，而不只是看预设容器。手动任务不使用 Batch Compress 的节省门槛。预设和输出策略在入队时形成快照，重启后仍使用该快照。
 
-点击左下角侧栏的 **添加 FFmpeg 命令**，它与添加文件、添加文件夹和添加压缩任务位于同一区域。粘贴以 `ffmpeg` 或 `ffmpeg.exe` 开头的完整命令即可，也接受带引号的程序路径。实际使用 FFUI 配置的 FFmpeg，不使用粘贴的程序路径。任务名称自动提供；可选名称和工作目录位于折叠的 **高级设置** 中。不指定工作目录时继承应用工作目录。上方命令示例生成一秒正弦波音频。
+点击左下角侧栏的 **FFmpeg** 按钮，它与添加压缩任务位于同一行，提示文字和可访问名称为 **添加 FFmpeg 命令**。粘贴以 `ffmpeg` 或 `ffmpeg.exe` 开头的完整命令即可，也接受带引号的程序路径。实际使用 FFUI 配置的 FFmpeg，不使用粘贴的程序路径。任务名称自动提供；可选名称和工作目录位于折叠的 **高级设置** 中。不指定工作目录时继承应用工作目录。上方命令示例生成一秒正弦波音频。
 
 参数预览只解析命令，不执行、不探测输入。单、双引号用于参数分组，也可表示空参数；双引号内的 `\"` 表示字面双引号。其他反斜杠保留，包括 Windows 路径分隔符。参数按顺序直接传给 FFmpeg，保留重复项、Unicode 和过滤表达式。不进行 shell 展开：变量、通配符和 shell 转义规则不会被解释。引号外的 shell 运算符、命令串联和重定向会被拒绝；含这些字符的字面值请加引号。语法错误显示诊断并禁止入队。
 

@@ -412,7 +412,7 @@ const handleQuickValidate = async () => {
             </TabsContent>
 
             <TabsContent value="audio" class="mt-0 space-y-4">
-              <PresetAudioTab :audio="audio" :subtitles="subtitles" :is-copy-encoder="isCopyEncoder" />
+              <PresetAudioTab :audio="audio" :subtitles="subtitles" />
             </TabsContent>
 
             <TabsContent value="filters" class="mt-0 space-y-4">

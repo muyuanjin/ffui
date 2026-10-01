@@ -34,12 +34,27 @@ describe("Sidebar", () => {
       "ffui-action-batch-compress",
       "add-ffmpeg-command",
     ]);
+    const split = actions.get('[data-testid="ffui-action-add-advanced-split"]');
+    expect(split.classes()).toContain("grid-cols-2");
+    const compress = split.get('[data-testid="ffui-action-batch-compress"]');
+    const command = split.get('[data-testid="add-ffmpeg-command"]');
+    expect(command.classes()).toEqual(compress.classes());
+    expect(command.attributes("aria-label")).toBe(en.queue.command.add);
+    expect(compress.attributes("aria-label")).toBe(en.app.actions.batchCompress);
+    expect(compress.text()).toBe(en.app.actions.batchCompressEntry);
+    for (const button of actions.findAll("button")) {
+      expect(button.get("span").classes()).toContain("truncate");
+      expect(button.get("span").classes()).toContain("min-w-0");
+    }
+    await compress.trigger("click");
+    expect(wrapper.emitted("batchCompress")).toHaveLength(1);
     await actions.get('[data-testid="add-ffmpeg-command"]').trigger("click");
     await flushPromises();
     expect(wrapper.find('[data-testid="command-dialog-stub"]').exists()).toBe(true);
     i18n.global.locale.value = "zh-CN";
     await flushPromises();
-    expect(actions.get('[data-testid="add-ffmpeg-command"]').text()).toBe(zhCN.queue.command.add);
+    expect(actions.get('[data-testid="add-ffmpeg-command"]').text()).toBe(zhCN.queue.command.entry);
+    expect(actions.get('[data-testid="add-ffmpeg-command"]').attributes("aria-label")).toBe(zhCN.queue.command.add);
     wrapper.unmount();
     i18n.global.locale.value = "en";
   });
@@ -48,6 +63,8 @@ describe("Sidebar", () => {
     desktop.enabled = false;
     const wrapper = mount(Sidebar, { props: { activeTab: "queue", jobs: [] }, global: { plugins: [i18n] } });
     expect(wrapper.find('[data-testid="add-ffmpeg-command"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="ffui-action-add-advanced-split"]').classes()).toContain("grid-cols-1");
+    expect(wrapper.get('[data-testid="ffui-action-batch-compress"]').text()).toBe(en.app.actions.batchCompress);
     wrapper.unmount();
     desktop.enabled = true;
   });
