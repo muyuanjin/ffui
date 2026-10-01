@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import QueueIndeterminateProgress from "./QueueIndeterminateProgress.vue";
+import QueueAudioPlaceholder from "./QueueAudioPlaceholder.vue";
+import QueueAudioInfo from "./QueueAudioInfo.vue";
 import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 import type { CompositeBatchCompressTask, TranscodeJob } from "@/types";
 import type { QueueListItem } from "@/composables";
@@ -48,7 +50,14 @@ const statusKey = computed(() => {
 const displayProgress = computed(() => {
   if (props.item.kind !== "job") return 0;
   const raw = Number.isFinite(props.item.job.progress) ? props.item.job.progress : 0;
-  return Math.max(0, Math.min(100, raw));
+  const ceiling = props.item.job.executionMode === "managed" && props.item.job.status === "processing" ? 99.9 : 100;
+  return Math.max(0, Math.min(ceiling, raw));
+});
+
+const progressText = computed(() => {
+  const runningManaged =
+    props.item.kind === "job" && props.item.job.executionMode === "managed" && props.item.job.status === "processing";
+  return runningManaged ? Math.min(99, Math.floor(displayProgress.value)) : Math.round(displayProgress.value);
 });
 
 const phaseText = computed(() => {
@@ -68,8 +77,10 @@ const phaseText = computed(() => {
       @error="jobIdForPreview ? emit('previewError', jobIdForPreview) : undefined"
     />
     <div v-else class="w-full h-full flex items-center justify-center">
+      <QueueAudioPlaceholder v-if="item.kind === 'job' && item.job.type === 'audio'" />
       <component
         :is="item.kind === 'batch' ? Folder : getTypeIcon(item.kind === 'job' ? item.job.type : 'video')"
+        v-else
         class="h-16 w-16 text-muted-foreground/30"
       />
     </div>
@@ -104,6 +115,7 @@ const phaseText = computed(() => {
 
   <!-- 底部信息区：紧凑布局 -->
   <div class="px-2.5 py-1.5 space-y-1">
+    <QueueAudioInfo v-if="item.kind === 'job'" :job="item.job" />
     <div class="flex items-center gap-2">
       <p class="flex-1 text-sm font-medium text-foreground truncate" :title="displayFilename">{{ displayFilename }}</p>
       <QueueJobWarnings v-if="item.kind === 'job'" :warnings="item.job.warnings" />
@@ -127,7 +139,7 @@ const phaseText = computed(() => {
       <span
         v-else-if="!indeterminate && displayProgress > 0 && displayProgress < 100"
         class="text-[10px] text-muted-foreground font-mono shrink-0"
-        >{{ Math.round(displayProgress) }}%</span
+        >{{ progressText }}%</span
       >
     </div>
     <div v-else class="flex items-center gap-2">

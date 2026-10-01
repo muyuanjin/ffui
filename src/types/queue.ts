@@ -79,6 +79,14 @@ export interface MediaInfo {
   frameRate?: number;
   videoCodec?: string;
   audioCodec?: string;
+  audio?: {
+    sampleRateHz?: number | null;
+    channels?: number | null;
+    bitRateKbps?: number | null;
+    title?: string | null;
+    artist?: string | null;
+    album?: string | null;
+  };
   sizeMB?: number;
 }
 
@@ -329,6 +337,7 @@ export interface QueueStateUiLite {
 export type QueueStateLite = QueueStateUiLite;
 
 export interface TranscodeJobLiteTelemetryDelta {
+  lastProgressPercent?: number;
   progressEpoch?: number;
   lastProgressOutTimeSeconds?: number;
   lastProgressSpeed?: number;

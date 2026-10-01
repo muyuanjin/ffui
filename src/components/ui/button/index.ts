@@ -16,6 +16,7 @@ export const buttonVariants = cva(
         secondary: "bg-secondary/90 text-secondary-foreground shadow-sm hover:bg-[#f9a825]/80",
         success: "bg-emerald-600/90 text-white shadow-sm hover:bg-emerald-600/80",
         batchCompress: "bg-chart-2/90 text-slate-950 shadow hover:bg-[#f9a825]/90",
+        commandTask: "bg-violet-600/90 text-white shadow hover:bg-[#f9a825]/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },

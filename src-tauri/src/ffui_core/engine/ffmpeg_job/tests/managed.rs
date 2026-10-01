@@ -33,6 +33,7 @@ fn managed_job(engine: &TranscodingEngine, output: &Path, realtime: bool) -> Str
         invocation: FfmpegInvocation {
             args,
             working_directory: None,
+            progress: None,
             output: FfmpegOutput::ManagedFile {
                 path: output.to_string_lossy().into_owned(),
                 argument_index,

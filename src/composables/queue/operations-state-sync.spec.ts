@@ -3,6 +3,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ref, type Ref } from "vue";
 import type { TranscodeJob, QueueStateLite } from "@/types";
+import type { WireQueueStateLiteDelta } from "@/lib/backend/generated/queue-contracts";
+import { queueStateLiteDeltaFromWire } from "@/lib/backend/queueContract";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
+import { QueueDeltaLatestWinsMailbox } from "@/composables/main-app/useMainAppQueue.events.delta";
+import publicationContract from "../../../src-tauri/tests/queue-delta-publication-contract.json";
 
 const loadQueueStateMock = vi.fn<() => Promise<QueueStateLite>>();
 
@@ -39,6 +44,42 @@ function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { job
 describe("queue operations state sync", () => {
   beforeEach(() => {
     loadQueueStateMock.mockReset();
+  });
+
+  it.each([false, true])("retains both tasks' measured capability with coalescing=%s", (coalesce) => {
+    const deps = makeDeps();
+    const jobs: TranscodeJob[] = ["A", "B"].map((id) => ({
+      id,
+      filename: `${id}.mp3`,
+      type: "audio",
+      source: "manual",
+      presetId: "audio",
+      originalSizeMB: 1,
+      status: "processing",
+      progress: 0,
+      executionMode: "managed",
+      logs: [],
+    }));
+    applyQueueStateFromBackend({ snapshotRevision: 3, latestDeltaRevision: 0, jobs }, deps);
+    const mailbox = new QueueDeltaLatestWinsMailbox();
+    const flush = () => {
+      const { deltaRevision, patches } = mailbox.drain(getAcceptedDeltaRevisionForJobs(deps.jobs, 3) ?? -1);
+      if (deltaRevision == null) return;
+      applyQueueStateLiteDeltaFromBackend({ baseSnapshotRevision: 3, deltaRevision, patches }, deps);
+    };
+    for (const wire of publicationContract) {
+      const delta = queueStateLiteDeltaFromWire(wire as WireQueueStateLiteDelta);
+      mailbox.push(
+        delta.baseSnapshotRevision,
+        delta.deltaRevision,
+        delta.patches,
+        getAcceptedDeltaRevisionForJobs(deps.jobs, 3) ?? -1,
+      );
+      if (!coalesce) flush();
+    }
+    flush();
+    expect(deps.jobs.value.map((job) => job.waitMetadata?.lastProgressPercent)).toEqual([0, 50]);
+    expect(deps.jobs.value.map(hasIndeterminateQueueProgress)).toEqual([false, false]);
   });
 
   it("applyQueueStateFromBackend applies backend jobs snapshot and updates timestamp", () => {

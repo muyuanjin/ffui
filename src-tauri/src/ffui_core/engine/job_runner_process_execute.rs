@@ -159,6 +159,7 @@ fn execute_transcode_job(
                         frame_rate: None,
                         video_codec: None,
                         audio_codec: None,
+                        audio: None,
                         size_mb: None,
                     });
                 }
@@ -201,6 +202,7 @@ fn execute_transcode_job(
                                 frame_rate: None,
                                 video_codec: None,
                                 audio_codec: None,
+                                audio: None,
                                 size_mb: None,
                             });
                         }

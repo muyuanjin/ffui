@@ -455,16 +455,6 @@ if (isQueuePerfEnabled) {
       v-on="rowListeners"
     />
 
-    <Progress
-      v-if="!isMini && showBarProgress && !indeterminateProgress"
-      :model-value="displayedClampedProgress"
-      :variant="progressVariant"
-      :transition-ms="progressTransitionMs"
-      :segments="progressSegments"
-      class="mt-2 relative z-10"
-      data-testid="queue-item-progress-bar"
-    />
-    <QueueIndeterminateProgress v-if="indeterminateProgress" />
     <div v-if="!isCompact && !isMini && (rawCommand || mediaSummary)">
       <QueueItemCommandPreview
         :raw-command="rawCommand"
@@ -477,6 +467,22 @@ if (isQueuePerfEnabled) {
         @copy="handleCopyCommand"
         @toggle="toggleCommandView"
       />
+    </div>
+    <Progress
+      v-if="!isMini && showBarProgress && !indeterminateProgress"
+      :model-value="displayedClampedProgress"
+      :variant="progressVariant"
+      :transition-ms="progressTransitionMs"
+      :segments="progressSegments"
+      class="mt-2 relative z-10"
+      data-testid="queue-item-progress-bar"
+    />
+    <div
+      v-if="!isMini && indeterminateProgress"
+      class="absolute inset-x-0 bottom-0 z-10"
+      data-testid="queue-item-activity-slot"
+    >
+      <QueueIndeterminateProgress class="rounded-none" />
     </div>
   </Card>
 </template>

@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::ffui_core::domain::{
-    FFmpegPreset, FfmpegInvocation, FfmpegOutput, JobExecution, JobType, OutputPolicy,
+    FFmpegPreset, FfmpegInvocation, FfmpegOutput, FfmpegProgress, JobExecution, JobType,
+    OutputPolicy,
 };
 
 use super::batch_compress::{is_audio_file, is_image_file, is_video_file};
@@ -42,6 +43,7 @@ pub(crate) fn parse_ffmpeg_command(command: &str) -> Result<Vec<String>, String>
     validate_invocation(&FfmpegInvocation {
         args: args.clone(),
         working_directory: None,
+        progress: None,
         output: FfmpegOutput::Transparent,
     })?;
     Ok(args)
@@ -88,6 +90,9 @@ fn split_command_args(template: &str, reject_shell_syntax: bool) -> Result<Vec<S
 }
 
 pub(super) fn validate_invocation(invocation: &FfmpegInvocation) -> Result<(), String> {
+    if invocation.progress.is_some() && matches!(invocation.output, FfmpegOutput::Transparent) {
+        return Err("Input-duration progress requires a managed recipe".to_string());
+    }
     if invocation.args.is_empty() {
         return Err("FFmpeg arguments must not be empty".to_string());
     }
@@ -226,6 +231,7 @@ pub(super) fn plan_manual_execution(
         let invocation = FfmpegInvocation {
             args,
             working_directory: None,
+            progress: None,
             output: FfmpegOutput::Transparent,
         };
         validate_invocation(&invocation)?;
@@ -279,6 +285,7 @@ pub(super) fn plan_manual_execution(
     let invocation = FfmpegInvocation {
         args,
         working_directory: Some(working_directory.to_string_lossy().into_owned()),
+        progress: preserves_input_duration(preset).then_some(FfmpegProgress::InputDuration),
         output: FfmpegOutput::ManagedFile {
             path: output.to_string_lossy().into_owned(),
             argument_index,
@@ -286,6 +293,19 @@ pub(super) fn plan_manual_execution(
     };
     validate_invocation(&invocation)?;
     Ok(JobExecution::Ffmpeg { invocation })
+}
+
+fn preserves_input_duration(preset: &FFmpegPreset) -> bool {
+    let no_expression =
+        |value: &Option<String>| value.as_ref().is_none_or(|value| value.trim().is_empty());
+    preset.input.as_ref().is_none_or(|input| {
+        no_expression(&input.seek_position)
+            && input.stream_loop.is_none_or(|count| count == 0)
+            && no_expression(&input.input_time_offset)
+            && no_expression(&input.duration)
+    }) && no_expression(&preset.filters.af_chain)
+        && no_expression(&preset.filters.vf_chain)
+        && no_expression(&preset.filters.filter_complex)
 }
 
 pub(super) fn hydrate_legacy_manual_job(inner: &super::state::Inner, job_id: &str) {

@@ -144,6 +144,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         frame_rate: None,
         video_codec: None,
         audio_codec: None,
+        audio: None,
         size_mb: if original_size_bytes > 0 {
             Some(original_size_bytes as f64 / (1024.0 * 1024.0))
         } else {

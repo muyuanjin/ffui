@@ -32,11 +32,10 @@ fn update_windows_taskbar_progress_bar(
     use tauri::{Manager, UserAttentionType};
 
     if let Some(window) = app.get_webview_window("main") {
-        if let TaskbarProgressValue::Determinate(progress) = progress {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
+        if let TaskbarProgressValue::Determinate(value) = progress {
+            let pct = progress.windows_percent().expect("determinate progress");
 
-            let is_completed_bar = completed_queue && (progress - 1.0).abs() < f64::EPSILON;
+            let is_completed_bar = completed_queue && (value - 1.0).abs() < f64::EPSILON;
 
             if is_completed_bar {
                 let is_focused = window.is_focused().unwrap_or(false);
@@ -97,6 +96,7 @@ fn update_windows_taskbar_progress_bar(
 
 pub trait JobProgressModel {
     fn execution_mode(&self) -> Option<JobExecutionMode>;
+    fn known_progress_percent(&self) -> Option<f64>;
     fn status(&self) -> &JobStatus;
     fn progress_percent(&self) -> f64;
     fn start_time_ms(&self) -> Option<u64>;
@@ -106,6 +106,11 @@ pub trait JobProgressModel {
 }
 
 impl JobProgressModel for TranscodeJob {
+    fn known_progress_percent(&self) -> Option<f64> {
+        self.wait_metadata
+            .as_ref()
+            .and_then(|meta| meta.last_progress_percent)
+    }
     fn execution_mode(&self) -> Option<JobExecutionMode> {
         self.execution
             .as_ref()
@@ -219,7 +224,11 @@ pub(super) fn compute_taskbar_progress_value_generic<J: JobProgressModel>(
     let mut total_weight = 0.0f64;
 
     for job in eligible_jobs_for_scope_generic(jobs, scope) {
-        if is_indeterminate_job_progress(*job.status(), job.execution_mode()) {
+        if is_indeterminate_job_progress(
+            *job.status(),
+            job.execution_mode(),
+            job.known_progress_percent(),
+        ) {
             return TaskbarProgressValue::Indeterminate;
         }
         let w = job_weight_generic(job, mode);

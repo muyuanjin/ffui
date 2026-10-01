@@ -112,8 +112,18 @@ const { pendingPreviewEnsures, getPreviewUrl, ensurePreviewForItem, handlePrevie
   });
 
 watch(
-  activeIndex,
-  (newIndex) => {
+  [
+    activeIndex,
+    () =>
+      displayedItems.value
+        .slice(Math.max(0, activeIndex.value - 2), activeIndex.value + 3)
+        .map((item) => {
+          const job = getItemJob(item);
+          return job ? JSON.stringify([job.id, job.type, job.inputPath, job.previewPath, job.previewRevision]) : "";
+        })
+        .join("\n"),
+  ],
+  ([newIndex]) => {
     const items = displayedItems.value;
     const keep = new Set<string>();
     for (let i = Math.max(0, newIndex - 2); i <= Math.min(items.length - 1, newIndex + 2); i++) {

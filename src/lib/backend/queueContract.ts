@@ -195,6 +195,7 @@ const telemetryDeltaFromWire = (
 ): TranscodeJobLiteTelemetryDelta | undefined => {
   if (!wire) return undefined;
   return {
+    lastProgressPercent: optional(wire.lastProgressPercent),
     progressEpoch: optional(wire.progressEpoch),
     lastProgressOutTimeSeconds: optional(wire.lastProgressOutTimeSeconds),
     lastProgressSpeed: optional(wire.lastProgressSpeed),

@@ -14,6 +14,31 @@ describe("queue execution capabilities", () => {
     expect(hasIndeterminateQueueProgress({ status: "processing", executionMode: "transparent" })).toBe(true);
     expect(hasIndeterminateQueueProgress({ status: "processing", executionMode: "video" })).toBe(false);
   });
+  it("uses measured percentages only for managed recipes, including zero", () => {
+    for (const percent of [0, 42, 99.9]) {
+      expect(
+        hasIndeterminateQueueProgress({
+          status: "processing",
+          executionMode: "managed",
+          waitMetadata: { lastProgressPercent: percent },
+        }),
+      ).toBe(false);
+      expect(
+        hasIndeterminateQueueProgress({
+          status: "processing",
+          executionMode: "transparent",
+          waitMetadata: { lastProgressPercent: percent },
+        }),
+      ).toBe(true);
+    }
+    expect(
+      hasIndeterminateQueueProgress({
+        status: "processing",
+        executionMode: "managed",
+        waitMetadata: { lastProgressPercent: NaN },
+      }),
+    ).toBe(true);
+  });
   it("disables wait/resume in the context menu while allowing restart", () => {
     const props = reactive({
       mode: "single" as const,

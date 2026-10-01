@@ -1,0 +1,12 @@
+[
+  {
+    "baseSnapshotRevision": 3,
+    "deltaRevision": 1,
+    "patches": [{ "id": "A", "progress": 0.0, "telemetry": { "lastProgressPercent": 0.0, "progressEpoch": 1 } }]
+  },
+  {
+    "baseSnapshotRevision": 3,
+    "deltaRevision": 2,
+    "patches": [{ "id": "B", "progress": 50.0, "telemetry": { "lastProgressPercent": 50.0, "progressEpoch": 1 } }]
+  }
+]

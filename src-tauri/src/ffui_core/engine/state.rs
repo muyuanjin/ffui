@@ -20,6 +20,7 @@ use crate::sync_ext::MutexExt;
 
 #[cfg(feature = "bench")]
 pub mod bench;
+mod delta_publication;
 mod deltas;
 mod preset_processing_activity;
 mod restore;
@@ -33,6 +34,7 @@ mod ui_lite;
 use super::worker_utils::active_input_key;
 use snapshots::snapshot_queue_state_lite_from_locked_state;
 
+pub(super) use delta_publication::notify_queue_lite_delta_listeners;
 pub(super) use deltas::notify_queue_lite_delta_for_job_terminal_state;
 pub(super) use restore::restore_jobs_from_persisted_queue;
 pub(super) use types::{
@@ -56,7 +58,9 @@ pub(crate) struct EngineState {
     /// Structural revision for queue-lite snapshots (add/remove/reorder/status transitions).
     pub(crate) queue_snapshot_revision: u64,
     /// Monotonic revision for queue-lite delta events.
-    pub(crate) queue_delta_revision: u64,
+    queue_delta_revision: u64,
+    pending_queue_deltas: VecDeque<QueueStateLiteDelta>,
+    queue_delta_dispatching: bool,
     pub(crate) progress_phase_by_job: HashMap<String, ProgressPhaseTelemetry>,
     /// Rate limiter timestamp (ms) for persistence snapshot builds during processing.
     pub(crate) last_queue_persist_snapshot_at_ms: u64,
@@ -106,6 +110,8 @@ impl EngineState {
             active_jobs: HashSet::new(),
             queue_snapshot_revision: 0,
             queue_delta_revision: 0,
+            pending_queue_deltas: VecDeque::new(),
+            queue_delta_dispatching: false,
             progress_phase_by_job: HashMap::new(),
             last_queue_persist_snapshot_at_ms: 0,
             spawned_workers: 0,
@@ -304,13 +310,6 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
 pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
     let mut state = inner.state.lock_unpoisoned();
     snapshot_queue_state_lite_from_locked_state(&mut state)
-}
-
-pub(super) fn notify_queue_lite_delta_listeners(inner: &Inner, delta: QueueStateLiteDelta) {
-    let delta_listeners = inner.queue_lite_delta_listeners.lock_unpoisoned().clone();
-    for listener in &delta_listeners {
-        listener(delta.clone());
-    }
 }
 
 pub(super) fn persist_queue_state_lite_best_effort(inner: &Inner) {

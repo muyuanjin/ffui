@@ -78,6 +78,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
                 frame_rate: None,
                 video_codec: None,
                 audio_codec: None,
+                audio: None,
                 size_mb: None,
             });
         }
@@ -547,6 +548,7 @@ fn cancelled_wait_requeues_job_after_cooperative_pause() {
                 frame_rate: None,
                 video_codec: None,
                 audio_codec: None,
+                audio: None,
                 size_mb: None,
             });
         }

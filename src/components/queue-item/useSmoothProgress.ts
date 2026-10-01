@@ -11,6 +11,9 @@ interface UseSmoothProgressOptions {
 
 export function useSmoothProgress(options: UseSmoothProgressOptions) {
   const isSkipped = computed(() => options.job.value.status === "skipped");
+  const usesBackendProgress = computed(
+    () => options.job.value.executionMode === "managed" || options.job.value.executionMode === "transparent",
+  );
 
   const effectiveProgressStyle = computed<QueueProgressStyle>(() => options.progressStyle.value ?? "bar");
 
@@ -295,13 +298,19 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   onScopeDispose(() => stopSmoothing());
 
   watch(
-    () => options.job.value.status,
-    (next, prev) => {
+    () => [options.job.value.status, options.job.value.executionMode] as const,
+    ([next], previous) => {
+      const prev = previous?.[0];
       stopSmoothing();
       smoothStartToken += 1;
       const token = smoothStartToken;
 
       if (next === "processing") {
+        if (usesBackendProgress.value) {
+          runSmoothTick = null;
+          displayedProgress.value = clampedProgress.value;
+          return;
+        }
         const meta = options.job.value.waitMetadata;
         const hasResumeEvidence =
           meta != null &&
@@ -400,7 +409,11 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
 
   return {
     isSkipped,
-    displayedClampedProgress: computed(() => Math.max(0, Math.min(100, displayedProgress.value))),
+    displayedClampedProgress: computed(() => {
+      const progress = usesBackendProgress.value ? clampedProgress.value : displayedProgress.value;
+      const ceiling = usesBackendProgress.value && options.job.value.status === "processing" ? 99.9 : 100;
+      return Math.max(0, Math.min(ceiling, progress));
+    }),
     progressTransitionMs,
     showBarProgress,
     showCardFillProgress,

@@ -49,6 +49,7 @@ mod execute_success_finalize_tests {
                 frame_rate: None,
                 video_codec: None,
                 audio_codec: None,
+                audio: None,
                 size_mb: None,
             }),
             estimated_seconds: None,

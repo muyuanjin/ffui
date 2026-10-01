@@ -583,6 +583,7 @@ fn multi_worker_wait_resume_respects_queue_order() {
                 frame_rate: None,
                 video_codec: None,
                 audio_codec: None,
+                audio: None,
                 size_mb: None,
             });
         }
@@ -714,6 +715,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                     frame_rate: None,
                     video_codec: None,
                     audio_codec: None,
+                    audio: None,
                     size_mb: None,
                 }),
                 estimated_seconds: None,

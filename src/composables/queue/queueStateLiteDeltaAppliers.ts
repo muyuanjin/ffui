@@ -14,6 +14,7 @@ const phaseTelemetryKeys = [
 ] as const;
 
 const waitMetadataTelemetryKeys = [
+  "lastProgressPercent",
   "progressEpoch",
   "lastProgressOutTimeSeconds",
   "lastProgressSpeed",

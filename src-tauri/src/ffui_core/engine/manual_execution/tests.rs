@@ -91,6 +91,7 @@ fn pipe_rejection_does_not_reject_the_progress_channel() {
             "NUL".into(),
         ],
         working_directory: None,
+        progress: None,
         output: FfmpegOutput::Transparent,
     };
     assert!(validate_invocation(&invocation).is_ok());
@@ -140,6 +141,7 @@ fn invalid_configuration_does_not_fall_back_to_a_default_recipe() {
     let invocation = FfmpegInvocation {
         args: vec!["-i".into(), "pipe:0".into()],
         working_directory: None,
+        progress: None,
         output: FfmpegOutput::Transparent,
     };
     assert!(validate_invocation(&invocation).is_err());

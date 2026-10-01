@@ -1,8 +1,43 @@
 import { describe, it, expect } from "vitest";
 import type { TranscodeJob, TranscodeJobLiteDeltaPatch } from "@/types";
 import { applyDeltaPatchToJob } from "./queueStateLiteDeltaAppliers";
+import { deltaPatchFromWire } from "@/lib/backend/queueContract";
+import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 
 describe("queue state lite delta appliers", () => {
+  it("changes managed progress capability when measured telemetry arrives through IPC", () => {
+    const job: TranscodeJob = {
+      id: "audio",
+      filename: "audio.mp3",
+      type: "audio",
+      source: "manual",
+      originalSizeMB: 1,
+      presetId: "aac",
+      status: "processing",
+      progress: 0,
+      executionMode: "managed",
+    };
+    expect(hasIndeterminateQueueProgress(job)).toBe(true);
+    const patch = deltaPatchFromWire({
+      id: "audio",
+      progress: 0,
+      telemetry: { lastProgressPercent: 0, progressEpoch: 1 },
+    });
+    applyDeltaPatchToJob(job, patch, { trackVolatileDirtyIds: false });
+    expect(hasIndeterminateQueueProgress(job)).toBe(false);
+    expect(job.waitMetadata?.lastProgressPercent).toBe(0);
+    applyDeltaPatchToJob(
+      job,
+      deltaPatchFromWire({
+        id: "audio",
+        progress: 50,
+        telemetry: { lastProgressPercent: 50, lastProgressOutTimeSeconds: 60, progressEpoch: 1 },
+      }),
+      { trackVolatileDirtyIds: false },
+    );
+    expect(job.progress).toBe(50);
+    expect(job.waitMetadata?.lastProgressPercent).toBe(50);
+  });
   it("applyDeltaPatchToJob applies grouped telemetry and preview patches", () => {
     const job: TranscodeJob = {
       id: "job-1",

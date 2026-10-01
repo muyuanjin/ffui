@@ -6,7 +6,7 @@ use super::transcode_activity;
 use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
 use super::worker_utils::{active_input_key, append_job_log_line, should_record_job_log_line};
 use crate::ffui_core::{
-    ProgressPhaseTelemetry, QueueStateLiteDelta, TranscodeJobLiteDeltaPatch,
+    ProgressPhaseTelemetry, TranscodeJobLiteDeltaPatch,
     TranscodeJobLiteTelemetryDelta,
 };
 
@@ -62,7 +62,7 @@ pub(super) fn set_job_progress_phase(
 }
 
 fn emit_job_progress_phase(inner: &Inner, job_id: &str, telemetry: ProgressPhaseTelemetry) {
-    let delta = {
+    {
         let mut state = inner.state.lock_unpoisoned();
         let (progress, processing_started_ms, elapsed_ms) = {
             let Some(job) = state.jobs.get_mut(job_id) else {
@@ -99,17 +99,14 @@ fn emit_job_progress_phase(inner: &Inner, job_id: &str, telemetry: ProgressPhase
         state
             .progress_phase_by_job
             .insert(job_id.to_string(), telemetry.clone());
-        state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-        QueueStateLiteDelta {
-            base_snapshot_revision: state.queue_snapshot_revision,
-            delta_revision: state.queue_delta_revision,
-            patches: vec![TranscodeJobLiteDeltaPatch {
+        state.stage_queue_lite_delta(vec![TranscodeJobLiteDeltaPatch {
                 id: job_id.to_string(),
                 status: None,
                 processing_started_ms,
                 progress,
                 skip_reason: None,
                 telemetry: Some(TranscodeJobLiteTelemetryDelta {
+                    last_progress_percent: None,
                     progress_epoch: None,
                     last_progress_out_time_seconds: None,
                     last_progress_speed: None,
@@ -119,10 +116,9 @@ fn emit_job_progress_phase(inner: &Inner, job_id: &str, telemetry: ProgressPhase
                 }),
                 elapsed_ms,
                 preview: None,
-            }],
-        }
-    };
-    notify_queue_lite_delta_listeners(inner, delta);
+            }]);
+    }
+    notify_queue_lite_delta_listeners(inner);
 }
 
 fn update_job_progress_phase_sample(
@@ -135,7 +131,7 @@ fn update_job_progress_phase_sample(
         return;
     }
     let now_ms = current_time_millis();
-    let delta = {
+    {
         let mut state = inner.state.lock_unpoisoned();
         let Some(job) = state.jobs.get(job_id) else {
             return;
@@ -171,17 +167,14 @@ fn update_job_progress_phase_sample(
         );
         let phase = phase.clone();
 
-        state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-        QueueStateLiteDelta {
-            base_snapshot_revision: state.queue_snapshot_revision,
-            delta_revision: state.queue_delta_revision,
-            patches: vec![TranscodeJobLiteDeltaPatch {
+        state.stage_queue_lite_delta(vec![TranscodeJobLiteDeltaPatch {
                 id: job_id.to_string(),
                 status: None,
                 processing_started_ms,
                 progress: None,
                 skip_reason: None,
                 telemetry: Some(TranscodeJobLiteTelemetryDelta {
+                    last_progress_percent: None,
                     progress_epoch: None,
                     last_progress_out_time_seconds: None,
                     last_progress_speed: None,
@@ -191,10 +184,9 @@ fn update_job_progress_phase_sample(
                 }),
                 elapsed_ms,
                 preview: None,
-            }],
-        }
-    };
-    notify_queue_lite_delta_listeners(inner, delta);
+            }]);
+    }
+    notify_queue_lite_delta_listeners(inner);
 }
 
 pub(super) fn update_job_progress(
@@ -209,9 +201,12 @@ pub(super) fn update_job_progress(
     update_job_progress_guarded(inner, (job_id, None), percent, progress_out_time_seconds, progress_frame, log_line, speed);
 }
 
-pub(super) fn update_ffmpeg_job_progress(inner: &Inner, job_id: &str, attempt: usize, line: &str) {
+pub(super) fn update_ffmpeg_job_progress(inner: &Inner, job_id: &str, attempt: usize, total_duration: Option<f64>, line: &str) {
     let sample = parse_ffmpeg_progress_sample(line);
-    update_job_progress_guarded(inner, (job_id, Some(attempt)), None, sample.elapsed_seconds, sample.frame, Some(line), sample.speed);
+    let percent = total_duration.filter(|duration| duration.is_finite() && *duration > 0.0)
+        .zip(sample.elapsed_seconds.filter(|elapsed| elapsed.is_finite() && *elapsed >= 0.0))
+        .map(|(total, elapsed)| (elapsed / total * 100.0).clamp(0.0, 99.9));
+    update_job_progress_guarded(inner, (job_id, Some(attempt)), percent, sample.elapsed_seconds, sample.frame, Some(line), sample.speed);
 }
 
 fn update_job_progress_guarded(
@@ -229,7 +224,7 @@ fn update_job_progress_guarded(
     let mut telemetry_changed = false;
     let mut should_record_activity = false;
     let now_ms = current_time_millis();
-    let mut delta_to_emit: Option<QueueStateLiteDelta> = None;
+    let mut should_emit_delta = false;
     let mut should_persist_snapshot = false;
 
     {
@@ -239,7 +234,6 @@ fn update_job_progress_guarded(
         {
             return;
         }
-        let base_snapshot_revision = state.queue_snapshot_revision;
         let last_persist_snapshot_at_ms = state.last_queue_persist_snapshot_at_ms;
         let mut next_persist_snapshot_at_ms: Option<u64> = None;
         let mut pending_patch: Option<TranscodeJobLiteDeltaPatch> = None;
@@ -343,6 +337,12 @@ fn update_job_progress_guarded(
                 // advancing" due to stray/stale percent updates.
                 if job.status == JobStatus::Processing {
                     let clamped = p.clamp(0.0, 100.0);
+                    if let Some(meta) = job.wait_metadata.as_mut()
+                        && meta.last_progress_percent.is_none()
+                    {
+                        meta.last_progress_percent = Some(job.progress.max(clamped));
+                        telemetry_changed = true;
+                    }
                     if clamped > job.progress {
                         job.progress = clamped;
                         progress_changed = true;
@@ -384,6 +384,7 @@ fn update_job_progress_guarded(
             if should_notify {
                 let telemetry = job.wait_metadata.as_ref().and_then(|m| {
                     let delta = TranscodeJobLiteTelemetryDelta {
+                        last_progress_percent: m.last_progress_percent,
                         progress_epoch: m.progress_epoch,
                         last_progress_out_time_seconds: m.last_progress_out_time_seconds,
                         last_progress_speed: m.last_progress_speed,
@@ -391,7 +392,8 @@ fn update_job_progress_guarded(
                         last_progress_frame: m.last_progress_frame,
                         phase: ProgressPhaseTelemetry::default(),
                     };
-                    if delta.progress_epoch.is_none()
+                    if delta.last_progress_percent.is_none()
+                        && delta.progress_epoch.is_none()
                         && delta.last_progress_out_time_seconds.is_none()
                         && delta.last_progress_speed.is_none()
                         && delta.last_progress_updated_at_ms.is_none()
@@ -430,13 +432,8 @@ fn update_job_progress_guarded(
         }
 
         if let Some(patch) = pending_patch {
-            state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-            let delta_revision = state.queue_delta_revision;
-            delta_to_emit = Some(QueueStateLiteDelta {
-                base_snapshot_revision,
-                delta_revision,
-                patches: vec![patch],
-            });
+            state.stage_queue_lite_delta(vec![patch]);
+            should_emit_delta = true;
         }
     }
 
@@ -444,8 +441,8 @@ fn update_job_progress_guarded(
         transcode_activity::record_processing_activity(inner);
     }
 
-    if let Some(delta) = delta_to_emit {
-        notify_queue_lite_delta_listeners(inner, delta);
+    if should_emit_delta {
+        notify_queue_lite_delta_listeners(inner);
     }
 
     if expected_attempt.is_none() {

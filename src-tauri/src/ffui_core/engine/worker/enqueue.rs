@@ -233,6 +233,7 @@ fn enqueue_transcode_job_no_notify(
                 frame_rate: None,
                 video_codec: original_codec,
                 audio_codec: None,
+                audio: None,
                 size_mb: Some(computed_original_size_mb),
             }),
             estimated_seconds,
@@ -328,6 +329,7 @@ pub(in crate::ffui_core::engine) fn enqueue_ffmpeg_job(
     let invocation = FfmpegInvocation {
         args: request.args,
         working_directory: request.working_directory,
+        progress: None,
         output: FfmpegOutput::Transparent,
     };
     super::super::manual_execution::validate_invocation(&invocation)?;

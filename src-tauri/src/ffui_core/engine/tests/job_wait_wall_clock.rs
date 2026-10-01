@@ -90,6 +90,7 @@ fn mark_job_waiting_prefers_processed_seconds_override_over_progress_estimate() 
             frame_rate: None,
             video_codec: None,
             audio_codec: None,
+            audio: None,
             size_mb: None,
         });
     }

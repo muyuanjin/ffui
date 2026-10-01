@@ -12,7 +12,7 @@ const { t } = useI18n();
   <Button
     v-if="hasTauri()"
     type="button"
-    variant="batchCompress"
+    variant="commandTask"
     size="lg"
     class="min-w-0 justify-center rounded-none px-2 font-semibold text-white"
     :aria-label="t('queue.command.add')"

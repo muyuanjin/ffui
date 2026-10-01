@@ -4,7 +4,7 @@ const queue = {
   typeAudio: "音频",
   typeOther: "FFmpeg",
   command: {
-    entry: "FFmpeg",
+    entry: "添加命令任务",
     add: "添加 FFmpeg 命令",
     title: "FFmpeg 命令",
     description: "粘贴完整的 ffmpeg 命令即可添加自定义任务。预览只解析命令，不会执行。",
@@ -107,6 +107,8 @@ const queue = {
   },
   media: {
     duration: "时长 {time}",
+    channels: "{count} 声道",
+    noAudioCover: "音频无内嵌封面",
   },
   warnings: {
     ariaLabel: "警告",

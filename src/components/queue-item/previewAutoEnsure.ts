@@ -1,4 +1,9 @@
 import * as backend from "@/lib/backend";
+import type { TranscodeJob } from "@/types";
+
+export const jobPreviewSourceKey = (
+  job: Pick<TranscodeJob, "id" | "type" | "inputPath" | "previewPath" | "previewRevision">,
+): string => JSON.stringify([job.id, job.type, job.inputPath ?? "", job.previewPath ?? "", job.previewRevision ?? 0]);
 
 const MAX_TOTAL_CONCURRENCY = 2;
 const MAX_NORMAL_CONCURRENCY_WITH_QUEUED_HIGH = 1;

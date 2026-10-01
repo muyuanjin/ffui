@@ -3,6 +3,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { computed, ref, nextTick, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
 import type { TranscodeJob } from "@/types";
+import type { WireQueueStateLite } from "@/lib/backend/generated/queue-contracts";
+import { queueStateLiteFromWire, queueStateLiteDeltaFromWire } from "@/lib/backend/queueContract";
+import {
+  applyQueueStateFromBackend,
+  applyQueueStateLiteDeltaFromBackend,
+} from "@/composables/queue/operations-state-sync";
 import { useSmoothProgress } from "./useSmoothProgress";
 
 const makeJob = (overrides: Partial<TranscodeJob> = {}): TranscodeJob =>
@@ -47,6 +53,87 @@ describe("useSmoothProgress", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+
+  it.each(["managed", "video"] as const)(
+    "applies snapshot recovery and the first zero sample for %s",
+    (executionMode) => {
+      const initial = makeJob({
+        status: "paused",
+        executionMode,
+        progress: 50,
+        mediaInfo: { durationSeconds: 120 },
+        waitMetadata: {
+          progressEpoch: 3,
+          lastProgressPercent: 50,
+          lastProgressOutTimeSeconds: 60,
+          lastProgressSpeed: 1,
+          lastProgressUpdatedAtMs: 0,
+          processedWallMillis: 1000,
+          tmpOutputPath: "C:/tmp/owned.mka",
+        },
+      });
+      const deps = {
+        jobs: ref([initial]),
+        queueError: ref<string | null>(null),
+        lastQueueSnapshotAtMs: ref<number | null>(null),
+        lastQueueSnapshotRevision: ref<number | null>(null),
+      };
+      const job = computed(() => deps.jobs.value[0]);
+      const wrapper = mount({
+        setup: () => useSmoothProgress({ job, progressStyle: computed(() => "bar") }),
+        template: "<div />",
+      });
+      const displayed = () => wrapper.vm.displayedClampedProgress;
+      const snapshot = (
+        status: TranscodeJob["status"],
+        revision: number,
+        progress: number,
+        waitMetadata = initial.waitMetadata,
+      ) =>
+        applyQueueStateFromBackend(
+          queueStateLiteFromWire({
+            snapshotRevision: revision,
+            latestDeltaRevision: 0,
+            jobs: [{ ...initial, status, progress, waitMetadata }],
+          } as unknown as WireQueueStateLite),
+          deps,
+        );
+      snapshot("paused", 1, 50);
+      snapshot("queued", 2, 50);
+      const replay = executionMode === "managed";
+      snapshot("processing", 3, replay ? 0 : 50, {
+        progressEpoch: 4,
+        processedWallMillis: 1000,
+        tmpOutputPath: "C:/tmp/owned.mka",
+        ...(replay ? {} : { lastProgressPercent: 50, lastProgressOutTimeSeconds: 60, lastProgressUpdatedAtMs: 0 }),
+      });
+      expect(displayed()).toBeCloseTo(replay ? 0 : 50, 1);
+      if (replay) {
+        applyQueueStateLiteDeltaFromBackend(
+          queueStateLiteDeltaFromWire({
+            baseSnapshotRevision: 3,
+            deltaRevision: 1,
+            patches: [
+              {
+                id: initial.id,
+                progress: 0,
+                telemetry: {
+                  progressEpoch: 4,
+                  lastProgressPercent: 0,
+                  lastProgressOutTimeSeconds: 0,
+                  lastProgressUpdatedAtMs: 0,
+                },
+              },
+            ],
+          }),
+          deps,
+        );
+        expect(displayed()).toBe(0);
+        expect(deps.jobs.value[0].waitMetadata?.lastProgressPercent).toBe(0);
+      }
+      wrapper.unmount();
+    },
+  );
 
   it("initializes displayedClampedProgress from clamped job progress", async () => {
     const job = ref(makeJob({ progress: 42 }));

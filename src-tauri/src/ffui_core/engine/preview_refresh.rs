@@ -3,9 +3,7 @@ use super::{TranscodingEngine, job_runner};
 use crate::ffui_core::domain::{JobType, MediaInfo};
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-use crate::ffui_core::{
-    QueueStateLiteDelta, TranscodeJobLiteDeltaPatch, TranscodeJobLitePreviewDelta,
-};
+use crate::ffui_core::{TranscodeJobLiteDeltaPatch, TranscodeJobLitePreviewDelta};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
@@ -71,6 +69,7 @@ impl TranscodingEngine {
                             frame_rate: None,
                             video_codec: None,
                             audio_codec: None,
+                            audio: None,
                             size_mb: None,
                         });
                     }
@@ -91,7 +90,7 @@ impl TranscodingEngine {
     pub fn ensure_job_preview(&self, job_id: &str) -> Option<String> {
         use std::path::Path;
 
-        let (job_type, input_path, duration_seconds) = {
+        let (job_type, input_path, duration_seconds, preview_revision) = {
             let state = self.inner.state.lock_unpoisoned();
             let job = state.jobs.get(job_id)?;
             (
@@ -100,9 +99,38 @@ impl TranscodingEngine {
                 job.media_info
                     .as_ref()
                     .and_then(|info| info.duration_seconds),
+                job.preview_revision,
             )
         };
 
+        if job_type == JobType::Audio {
+            let tools = self.settings().tools;
+            let media = super::media_probe::probe_audio(Path::new(&input_path), &tools)?;
+            let (program, _) =
+                crate::ffui_core::tools::resolve_tool_path(ExternalToolKind::Ffmpeg, &tools)
+                    .ok()?;
+            let preview = media.cover_stream.and_then(|stream| {
+                super::media_probe::audio_cover(Path::new(&input_path), &program, stream)
+            });
+            let preview = preview.map(|path| path.to_string_lossy().into_owned());
+            {
+                let mut state = self.inner.state.lock_unpoisoned();
+                let job = state.jobs.get_mut(job_id)?;
+                if job.input_path.as_deref() != Some(&input_path)
+                    || job.job_type != JobType::Audio
+                    || job.preview_revision != preview_revision
+                {
+                    return None;
+                }
+                job.media_info = Some(media.info);
+                if job.preview_path != preview {
+                    job.preview_revision = job.preview_revision.saturating_add(1);
+                }
+                job.preview_path.clone_from(&preview);
+            }
+            super::state::notify_queue_listeners(&self.inner);
+            return preview;
+        }
         if job_type != JobType::Video {
             return None;
         }
@@ -128,9 +156,8 @@ impl TranscodingEngine {
 
         let preview_str = preview_path.to_string_lossy().into_owned();
 
-        let delta_to_emit = {
+        let should_emit_delta = {
             let mut state = self.inner.state.lock_unpoisoned();
-            let base_snapshot_revision = state.queue_snapshot_revision;
             let patch = if let Some(job) = state.jobs.get_mut(job_id) {
                 job.preview_path = Some(preview_str.clone());
                 job.preview_revision = job.preview_revision.saturating_add(1);
@@ -152,20 +179,15 @@ impl TranscodingEngine {
             };
 
             if let Some(patch) = patch {
-                state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-                let delta_revision = state.queue_delta_revision;
-                Some(QueueStateLiteDelta {
-                    base_snapshot_revision,
-                    delta_revision,
-                    patches: vec![patch],
-                })
+                state.stage_queue_lite_delta(vec![patch]);
+                true
             } else {
-                None
+                false
             }
         };
 
-        if let Some(delta) = delta_to_emit {
-            notify_queue_lite_delta_listeners(&self.inner, delta);
+        if should_emit_delta {
+            notify_queue_lite_delta_listeners(&self.inner);
         }
         Some(preview_str)
     }
@@ -336,6 +358,7 @@ impl TranscodingEngine {
                                 frame_rate: None,
                                 video_codec: None,
                                 audio_codec: None,
+                                audio: None,
                                 size_mb: None,
                             });
                         }
@@ -438,29 +461,17 @@ impl TranscodingEngine {
         }
 
         const MAX_PATCHES_PER_DELTA: usize = 256;
-        let deltas: Vec<QueueStateLiteDelta> = {
+        {
             let mut state = self.inner.state.lock_unpoisoned();
             if state.preview_refresh_token != refresh_token {
                 return;
             }
 
-            let base_snapshot_revision = state.queue_snapshot_revision;
-            let mut out = Vec::new();
             for chunk in preview_patches.chunks(MAX_PATCHES_PER_DELTA) {
-                state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-                let delta_revision = state.queue_delta_revision;
-                out.push(QueueStateLiteDelta {
-                    base_snapshot_revision,
-                    delta_revision,
-                    patches: chunk.to_vec(),
-                });
+                state.stage_queue_lite_delta(chunk.to_vec());
             }
-            out
-        };
-
-        for delta in deltas {
-            notify_queue_lite_delta_listeners(&self.inner, delta);
         }
+        notify_queue_lite_delta_listeners(&self.inner);
     }
 }
 

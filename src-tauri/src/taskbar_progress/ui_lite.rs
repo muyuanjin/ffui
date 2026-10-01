@@ -4,6 +4,11 @@ use crate::ffui_core::{
 
 // jscpd:ignore-start
 impl super::JobProgressModel for TranscodeJobUiLite {
+    fn known_progress_percent(&self) -> Option<f64> {
+        self.wait_metadata
+            .as_ref()
+            .and_then(|meta| meta.last_progress_percent)
+    }
     fn execution_mode(&self) -> Option<crate::ffui_core::JobExecutionMode> {
         self.execution_mode
     }

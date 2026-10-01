@@ -11,8 +11,8 @@ pub use preset_validation::*;
 // Job and queue types
 mod job;
 pub use job::{
-    JobRequest, JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo, QueueState,
-    TranscodeJob, WaitMetadata,
+    AudioMediaInfo, JobRequest, JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo,
+    QueueState, TranscodeJob, WaitMetadata,
 };
 
 mod job_record;

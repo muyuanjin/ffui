@@ -50,8 +50,37 @@ fn compute_preview_seek_seconds_handles_very_short_clips() {
 
 #[test]
 fn parse_ffmpeg_time_to_seconds_handles_hms_with_fraction() {
-    let v = parse_ffmpeg_time_to_seconds("00:01:29.95");
-    assert!((v - 89.95).abs() < 0.001);
+    let seconds = parse_ffmpeg_time_to_seconds("00:01:29.95").expect("valid timestamp");
+    assert!((seconds - 89.95).abs() < 0.001);
+}
+
+#[test]
+fn unavailable_negative_and_malformed_timestamps_do_not_produce_samples() {
+    for value in [
+        "N/A",
+        "-00:00:00.02",
+        "-1",
+        "NaN",
+        "inf",
+        "00:bad:01",
+        "00:60:00",
+        "00:00:60",
+        "1:2:3:4",
+    ] {
+        assert_eq!(parse_ffmpeg_time_to_seconds(value), None, "{value}");
+        for key in ["time", "out_time", "out_time_us", "out_time_ms"] {
+            let line = format!("{key}={value}");
+            assert!(parse_ffmpeg_progress_line(&line).is_none(), "{line}");
+        }
+    }
+    assert_eq!(
+        parse_ffmpeg_progress_line("out_time=00:00:00.000000"),
+        Some((0.0, None))
+    );
+    assert_eq!(
+        parse_ffmpeg_progress_line("out_time_us=1000000 out_time=N/A"),
+        Some((1.0, None))
+    );
 }
 
 #[test]

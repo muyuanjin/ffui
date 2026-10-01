@@ -27,8 +27,9 @@ vi.mock("@/lib/backend", () => {
   };
 });
 
-vi.mock("@/components/queue-item/previewAutoEnsure", () => {
+vi.mock("@/components/queue-item/previewAutoEnsure", async (importOriginal) => {
   return {
+    ...(await importOriginal<typeof import("@/components/queue-item/previewAutoEnsure")>()),
     ensureJobPreviewAuto: (jobId: string) => ensureJobPreviewAutoMock(jobId),
     requestJobPreviewAutoEnsure: (jobId: string) => ({
       promise: ensureJobPreviewAutoMock(jobId),

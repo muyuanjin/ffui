@@ -1,5 +1,5 @@
 use crate::ffui_core::domain::{
-    JobStatus, QueueStateLiteDelta, TranscodeJobLiteDeltaPatch, TranscodeJobLiteTelemetryDelta,
+    JobStatus, TranscodeJobLiteDeltaPatch, TranscodeJobLiteTelemetryDelta,
 };
 use crate::sync_ext::MutexExt;
 
@@ -9,7 +9,7 @@ pub(in crate::ffui_core::engine) fn notify_queue_lite_delta_for_job_terminal_sta
     inner: &Inner,
     job_id: &str,
 ) {
-    let delta = {
+    {
         let mut state = inner.state.lock_unpoisoned();
         let Some(job) = state.jobs.get(job_id) else {
             return;
@@ -21,12 +21,12 @@ pub(in crate::ffui_core::engine) fn notify_queue_lite_delta_for_job_terminal_sta
             return;
         }
 
-        let base_snapshot_revision = state.queue_snapshot_revision;
         let telemetry = state
             .progress_phase_by_job
             .get(job_id)
             .cloned()
             .map(|phase| TranscodeJobLiteTelemetryDelta {
+                last_progress_percent: None,
                 progress_epoch: None,
                 last_progress_out_time_seconds: None,
                 last_progress_speed: None,
@@ -45,13 +45,8 @@ pub(in crate::ffui_core::engine) fn notify_queue_lite_delta_for_job_terminal_sta
             preview: None,
         };
 
-        state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
-        QueueStateLiteDelta {
-            base_snapshot_revision,
-            delta_revision: state.queue_delta_revision,
-            patches: vec![patch],
-        }
-    };
+        state.stage_queue_lite_delta(vec![patch]);
+    }
 
-    notify_queue_lite_delta_listeners(inner, delta);
+    notify_queue_lite_delta_listeners(inner);
 }

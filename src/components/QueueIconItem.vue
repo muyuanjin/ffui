@@ -11,6 +11,8 @@ import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDispl
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
 import QueueIndeterminateProgress from "@/components/queue-item/QueueIndeterminateProgress.vue";
+import QueueAudioPlaceholder from "@/components/queue-item/QueueAudioPlaceholder.vue";
+import QueueAudioInfo from "@/components/queue-item/QueueAudioInfo.vue";
 import { progressColorClassForPhase } from "@/components/queue-item/queueProgressPhaseStyle";
 import {
   compactTimeDisplayParts,
@@ -201,7 +203,7 @@ const rootSizeClass = computed(() => {
 const thumbnailAspectClass = computed(() => {
   // 图标视图的缩略图统一保持相同纵横比，只通过网格列数控制宽度，
   // 避免不同尺寸之间“比例变形”的错觉。
-  return "pt-[75%]";
+  return props.job.type === "audio" ? "pt-[100%]" : "pt-[75%]";
 });
 
 const captionPaddingClass = computed(() => {
@@ -356,6 +358,9 @@ if (isQueuePerfEnabled) {
         @click="onPreview"
         @error="handlePreviewError"
       />
+      <div v-else-if="job.type === 'audio'" class="absolute inset-0 flex items-center justify-center">
+        <QueueAudioPlaceholder />
+      </div>
       <div
         v-else
         class="absolute inset-0 flex items-center justify-center px-2 text-center text-[10px] text-muted-foreground"
@@ -390,6 +395,7 @@ if (isQueuePerfEnabled) {
     </div>
 
     <div class="relative border-t border-border/40 bg-card/80" :class="captionPaddingClass">
+      <QueueAudioInfo :job="job" />
       <div class="flex items-center gap-1">
         <p class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground" :title="job.filename">
           {{ displayFilename }}

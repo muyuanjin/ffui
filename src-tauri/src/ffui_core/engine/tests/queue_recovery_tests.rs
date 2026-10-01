@@ -283,6 +283,7 @@ fn crash_recovery_preserves_wait_target_seconds() {
             frame_rate: None,
             video_codec: None,
             audio_codec: None,
+            audio: None,
             size_mb: None,
         });
         stored.wait_metadata = Some(WaitMetadata {

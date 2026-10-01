@@ -136,6 +136,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         progress: Some(1.0),
         skip_reason: Some("Old reason".to_string()),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
+            last_progress_percent: None,
             progress_epoch: Some(1),
             last_progress_out_time_seconds: Some(2.0),
             last_progress_speed: Some(1.0),
@@ -157,6 +158,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         progress: Some(9.0),
         skip_reason: Some("Low savings (4.0%)".to_string()),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
+            last_progress_percent: None,
             progress_epoch: Some(5),
             last_progress_out_time_seconds: Some(8.0),
             last_progress_speed: Some(3.5),
@@ -201,6 +203,38 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     assert_eq!(
         into.preview.as_ref().and_then(|p| p.preview_revision),
         Some(42)
+    );
+}
+
+#[test]
+fn pending_queue_lite_delta_keeps_new_base_measurement_when_an_old_base_arrives() {
+    let mut pending = PendingQueueLiteDelta::default();
+    let mut measured = make_lite_delta(3, 2, "A", 0.0);
+    measured.patches[0].telemetry = Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
+        last_progress_percent: Some(0.0),
+        progress_epoch: Some(1),
+        last_progress_out_time_seconds: Some(0.0),
+        last_progress_speed: None,
+        last_progress_updated_at_ms: None,
+        last_progress_frame: None,
+        phase: Default::default(),
+    });
+    pending.push(measured);
+    pending.push(make_lite_delta(2, 1, "B", 50.0));
+    let coalesced = pending
+        .take_coalesced()
+        .expect("current measurement retained");
+    assert_eq!(coalesced.base_snapshot_revision, 3);
+    assert_eq!(coalesced.delta_revision, 2);
+    assert_eq!(coalesced.patches.len(), 1);
+    assert_eq!(coalesced.patches[0].id, "A");
+    assert_eq!(
+        coalesced.patches[0]
+            .telemetry
+            .as_ref()
+            .expect("measurement")
+            .last_progress_percent,
+        Some(0.0)
     );
 }
 

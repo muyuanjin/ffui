@@ -5,18 +5,47 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-#[cfg(windows)]
-use crate::ffui_core::TaskbarProgressDeltaTracker;
 use crate::ffui_core::{QueueStateLiteDelta, QueueStateUiLite, TranscodingEngine};
+#[cfg(any(windows, test))]
+mod taskbar_stream;
 #[cfg(windows)]
 use tauri::UserAttentionType;
 #[cfg(windows)]
 use tauri::window::{ProgressBarState, ProgressBarStatus};
 
+#[derive(Default)]
+struct PendingQueueUiLiteSnapshot {
+    latest_identity: Option<(u64, u64)>,
+    pending: Option<QueueStateUiLite>,
+}
+
+impl PendingQueueUiLiteSnapshot {
+    fn push(&mut self, snapshot: QueueStateUiLite) -> bool {
+        let identity = (snapshot.snapshot_revision, snapshot.latest_delta_revision);
+        if self
+            .latest_identity
+            .is_some_and(|latest| latest >= identity)
+        {
+            return false;
+        }
+        self.latest_identity = Some(identity);
+        self.pending = Some(snapshot);
+        true
+    }
+
+    fn take(&mut self) -> Option<QueueStateUiLite> {
+        self.pending.take()
+    }
+
+    fn has_pending(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 #[cfg(windows)]
 #[derive(Debug)]
 struct TaskbarDeltaUiState {
-    tracker: TaskbarProgressDeltaTracker,
+    stream: taskbar_stream::TaskbarProgressStream,
     last_emit_at: Option<std::time::Instant>,
     last_pct: Option<u64>,
     last_status_kind: Option<u8>,
@@ -27,7 +56,7 @@ struct TaskbarDeltaUiState {
 impl TaskbarDeltaUiState {
     fn new() -> Self {
         Self {
-            tracker: TaskbarProgressDeltaTracker::default(),
+            stream: taskbar_stream::TaskbarProgressStream::default(),
             last_emit_at: None,
             last_pct: None,
             last_status_kind: None,
@@ -41,7 +70,9 @@ impl TaskbarDeltaUiState {
         mode: crate::ffui_core::TaskbarProgressMode,
         scope: crate::ffui_core::TaskbarProgressScope,
     ) {
-        self.tracker.reset_from_ui_lite(snapshot, mode, scope);
+        if !self.stream.snapshot(snapshot, mode, scope) {
+            return;
+        }
         self.last_pct = None;
         self.last_status_kind = None;
         self.last_emit_at = None;
@@ -54,50 +85,25 @@ impl TaskbarDeltaUiState {
         mode: crate::ffui_core::TaskbarProgressMode,
         scope: crate::ffui_core::TaskbarProgressScope,
     ) {
-        self.tracker.apply_delta(delta, mode, scope);
-    }
-
-    fn ensure_base_from_latest(
-        &mut self,
-        latest: Option<&QueueStateUiLite>,
-        base_snapshot_revision: u64,
-        mode: crate::ffui_core::TaskbarProgressMode,
-        scope: crate::ffui_core::TaskbarProgressScope,
-    ) {
-        if self.tracker.base_snapshot_revision() == Some(base_snapshot_revision) {
-            return;
-        }
-        let Some(snapshot) = latest else {
-            return;
-        };
-        if snapshot.snapshot_revision != base_snapshot_revision {
-            return;
-        }
-        self.reset_from_snapshot(snapshot, mode, scope);
+        self.stream.delta(delta, mode, scope);
     }
 
     fn maybe_emit(&mut self, app: &AppHandle) {
         const MIN_EMIT_INTERVAL_MS: u64 = 250;
         let now = std::time::Instant::now();
-        if let Some(prev) = self.last_emit_at
-            && now.duration_since(prev) < std::time::Duration::from_millis(MIN_EMIT_INTERVAL_MS)
-        {
-            return;
-        }
 
         let Some(window) = app.get_webview_window("main") else {
             return;
         };
 
-        let completed_queue = self.tracker.completed_queue();
-        let progress = self.tracker.display_progress();
+        let completed_queue = self.stream.tracker.completed_queue();
+        let progress = self.stream.tracker.display_progress();
 
         let mut desired_status: ProgressBarStatus = ProgressBarStatus::None;
         let mut desired_pct: Option<u64> = None;
 
         if let crate::ffui_core::TaskbarProgressValue::Determinate(p) = progress {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let pct = (p * 100.0).round().clamp(0.0, 100.0) as u64;
+            let pct = progress.windows_percent().expect("determinate progress");
             desired_pct = Some(pct);
 
             let is_completed_bar = completed_queue && (p - 1.0).abs() < f64::EPSILON;
@@ -132,6 +138,14 @@ impl TaskbarDeltaUiState {
             ProgressBarStatus::Paused => 3,
             ProgressBarStatus::Error => 4,
         };
+
+        if self.last_status_kind == Some(desired_kind)
+            && self.last_emit_at.is_some_and(|previous| {
+                now.duration_since(previous) < Duration::from_millis(MIN_EMIT_INTERVAL_MS)
+            })
+        {
+            return;
+        }
 
         if self.last_status_kind == Some(desired_kind) && self.last_pct == desired_pct {
             self.last_emit_at = Some(now);
@@ -223,7 +237,10 @@ fn merge_queue_state_lite_delta_patch(
 impl PendingQueueLiteDelta {
     fn push(&mut self, delta: QueueStateLiteDelta) {
         let base = delta.base_snapshot_revision;
-        if self.base_snapshot_revision.is_some_and(|prev| prev != base) {
+        if self.base_snapshot_revision.is_some_and(|prev| prev > base) {
+            return;
+        }
+        if self.base_snapshot_revision.is_some_and(|prev| prev < base) {
             self.base_snapshot_revision = None;
             self.max_delta_revision = None;
             self.patches_by_id.clear();
@@ -293,9 +310,7 @@ pub fn register_queue_stream(handle: &AppHandle) {
     let taskbar_handle = handle.clone();
     let engine = handle.state::<TranscodingEngine>();
     let emit_full_events = full_queue_state_events_enabled();
-    let pending_lite: Arc<Mutex<Option<QueueStateUiLite>>> = Arc::new(Mutex::new(None));
-    let latest_ui_lite_for_taskbar: Arc<Mutex<Option<QueueStateUiLite>>> =
-        Arc::new(Mutex::new(None));
+    let pending_lite = Arc::new(Mutex::new(PendingQueueUiLiteSnapshot::default()));
     #[cfg(windows)]
     let taskbar_delta_ui_state: Arc<Mutex<TaskbarDeltaUiState>> =
         Arc::new(Mutex::new(TaskbarDeltaUiState::new()));
@@ -307,13 +322,14 @@ pub fn register_queue_stream(handle: &AppHandle) {
     const EMIT_MIN_INTERVAL_MS: u64 = 50;
     let delta_emit_ms = delta_emit_interval_ms();
 
-    let latest_ui_lite_for_taskbar_for_ui = latest_ui_lite_for_taskbar.clone();
     #[cfg(windows)]
     let taskbar_delta_ui_state_for_ui = taskbar_delta_ui_state.clone();
     engine.register_queue_ui_lite_listener(move |state: QueueStateUiLite| {
         {
             let mut pending = pending_lite.lock().unwrap_or_else(|e| e.into_inner());
-            *pending = Some(state);
+            if !pending.push(state) {
+                return;
+            }
         }
 
         if worker_running.swap(true, Ordering::AcqRel) {
@@ -321,7 +337,6 @@ pub fn register_queue_stream(handle: &AppHandle) {
         }
 
         let pending_lite = pending_lite.clone();
-        let latest_ui_lite_for_taskbar = latest_ui_lite_for_taskbar_for_ui.clone();
         let worker_running = worker_running.clone();
         let event_handle = event_handle.clone();
         let taskbar_handle = taskbar_handle.clone();
@@ -339,20 +354,13 @@ pub fn register_queue_stream(handle: &AppHandle) {
                     worker_running.store(false, Ordering::Release);
                     let has_pending = {
                         let pending = pending_lite.lock().unwrap_or_else(|e| e.into_inner());
-                        pending.is_some()
+                        pending.has_pending()
                     };
                     if has_pending && !worker_running.swap(true, Ordering::AcqRel) {
                         continue;
                     }
                     break;
                 };
-
-                {
-                    let mut latest = latest_ui_lite_for_taskbar
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner());
-                    *latest = Some(ui_lite.clone());
-                }
 
                 // Legacy full snapshot event for compatibility. In production builds
                 // this is opt-in to reduce IPC pressure and queue hot-path cloning.
@@ -393,8 +401,6 @@ pub fn register_queue_stream(handle: &AppHandle) {
     #[cfg(windows)]
     let taskbar_delta_handle = handle.clone();
     #[cfg(windows)]
-    let latest_ui_lite_for_taskbar = latest_ui_lite_for_taskbar.clone();
-    #[cfg(windows)]
     let taskbar_delta_ui_state_for_delta = taskbar_delta_ui_state.clone();
     engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
         {
@@ -411,8 +417,6 @@ pub fn register_queue_stream(handle: &AppHandle) {
         let event_handle = event_handle.clone();
         #[cfg(windows)]
         let taskbar_delta_handle = taskbar_delta_handle.clone();
-        #[cfg(windows)]
-        let latest_ui_lite_for_taskbar = latest_ui_lite_for_taskbar.clone();
         #[cfg(windows)]
         let taskbar_delta_ui_state = taskbar_delta_ui_state_for_delta.clone();
         let delta_emit_ms = delta_emit_ms;
@@ -444,18 +448,9 @@ pub fn register_queue_stream(handle: &AppHandle) {
                 {
                     let engine = taskbar_delta_handle.state::<TranscodingEngine>();
                     let settings = engine.settings();
-                    let latest = latest_ui_lite_for_taskbar
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner());
                     let mut ui = taskbar_delta_ui_state
                         .lock()
                         .unwrap_or_else(|e| e.into_inner());
-                    ui.ensure_base_from_latest(
-                        latest.as_ref(),
-                        delta.base_snapshot_revision,
-                        settings.taskbar_progress_mode,
-                        settings.taskbar_progress_scope,
-                    );
                     ui.apply_delta(
                         &delta,
                         settings.taskbar_progress_mode,

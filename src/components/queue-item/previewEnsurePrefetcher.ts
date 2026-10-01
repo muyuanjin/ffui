@@ -1,6 +1,6 @@
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, hasTauri } from "@/lib/backend";
-import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
+import { jobPreviewSourceKey, requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
 import { decodeUrl } from "@/components/queue-item/previewDecodeUrl";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl } from "@/components/queue-item/previewWarmCache";
@@ -9,6 +9,7 @@ type Cancel = () => void;
 
 type Op = {
   token: number;
+  sourceKey: string;
   cancelEnsure: Cancel;
   cancelDecode: Cancel;
 };
@@ -41,16 +42,20 @@ export function createQueuePreviewEnsurePrefetcher(): {
       nextJobIds.add(jobId);
 
       const existing = opByJobId.get(jobId);
-      if (existing) continue;
+      const sourceKey = jobPreviewSourceKey(job);
+      if (existing?.sourceKey === sourceKey) continue;
+      existing?.cancelDecode();
+      existing?.cancelEnsure();
 
       const revision = job.previewRevision ?? null;
       const token = (tokenSeq = (tokenSeq + 1) >>> 0);
 
-      const ensureHandle = requestJobPreviewAutoEnsure(jobId, { priority: "normal" });
+      const ensureHandle = requestJobPreviewAutoEnsure(jobId, { priority: "normal", cacheKey: sourceKey });
       const abortController = new AbortController();
 
       const op: Op = {
         token,
+        sourceKey,
         cancelEnsure: () => ensureHandle.cancel(),
         cancelDecode: () => abortController.abort(),
       };

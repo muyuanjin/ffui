@@ -4,7 +4,7 @@ const queue = {
   typeAudio: "AUDIO",
   typeOther: "FFMPEG",
   command: {
-    entry: "FFmpeg",
+    entry: "Add command",
     add: "Add FFmpeg command",
     title: "FFmpeg command",
     description:
@@ -109,6 +109,8 @@ const queue = {
   },
   media: {
     duration: "Duration {time}",
+    channels: "{count} channels",
+    noAudioCover: "Audio without embedded cover art",
   },
   warnings: {
     ariaLabel: "Warnings",

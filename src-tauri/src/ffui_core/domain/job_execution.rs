@@ -24,6 +24,14 @@ pub struct FfmpegInvocation {
     pub args: Vec<String>,
     pub working_directory: Option<String>,
     pub output: FfmpegOutput,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<FfmpegProgress>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FfmpegProgress {
+    InputDuration,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]

@@ -158,10 +158,23 @@ pub struct MediaInfo {
     pub frame_rate: Option<f64>,
     pub video_codec: Option<String>,
     pub audio_codec: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<AudioMediaInfo>,
     // Align with TS field name `sizeMB` but accept a legacy `sizeMb` variant
     // if we ever persisted older JSON on disk.
     #[serde(rename = "sizeMB", alias = "sizeMb")]
     pub size_mb: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct AudioMediaInfo {
+    pub sample_rate_hz: Option<u32>,
+    pub channels: Option<u32>,
+    pub bit_rate_kbps: Option<f64>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
 }
 
 /// Represents a single external tool "run" for a job (e.g. the initial ffmpeg

@@ -104,27 +104,40 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
             let next_epoch = meta.progress_epoch.unwrap_or(0).saturating_add(1);
             meta.progress_epoch = Some(next_epoch);
 
-            let baseline_out_time_seconds = meta
-                .target_seconds
-                .or(meta.processed_seconds)
-                .or(meta.last_progress_out_time_seconds)
-                .unwrap_or(0.0);
-            if baseline_out_time_seconds.is_finite() && baseline_out_time_seconds >= 0.0 {
-                meta.last_progress_out_time_seconds = Some(baseline_out_time_seconds);
+            if matches!(
+                job.execution,
+                Some(crate::ffui_core::JobExecution::Ffmpeg { .. })
+            ) {
+                meta.last_progress_percent = None;
+                meta.processed_seconds = None;
+                meta.target_seconds = None;
+                meta.last_progress_out_time_seconds = None;
                 meta.last_progress_speed = None;
-                meta.last_progress_updated_at_ms = Some(now_ms);
+                meta.last_progress_updated_at_ms = None;
+                meta.last_progress_frame = None;
+            } else {
+                let baseline_out_time_seconds = meta
+                    .target_seconds
+                    .or(meta.processed_seconds)
+                    .or(meta.last_progress_out_time_seconds)
+                    .unwrap_or(0.0);
+                if baseline_out_time_seconds.is_finite() && baseline_out_time_seconds >= 0.0 {
+                    meta.last_progress_out_time_seconds = Some(baseline_out_time_seconds);
+                    meta.last_progress_speed = None;
+                    meta.last_progress_updated_at_ms = Some(now_ms);
 
-                if let Some(total) = job.media_info.as_ref().and_then(|m| m.duration_seconds)
-                    && total.is_finite()
-                    && total > 0.0
-                {
-                    let baseline_progress =
-                        compute_progress_percent(Some(total), baseline_out_time_seconds);
-                    if baseline_progress.is_finite()
-                        && (!job.progress.is_finite()
-                            || (job.progress - baseline_progress).abs() > 0.05)
+                    if let Some(total) = job.media_info.as_ref().and_then(|m| m.duration_seconds)
+                        && total.is_finite()
+                        && total > 0.0
                     {
-                        job.progress = baseline_progress;
+                        let baseline_progress =
+                            compute_progress_percent(Some(total), baseline_out_time_seconds);
+                        if baseline_progress.is_finite()
+                            && (!job.progress.is_finite()
+                                || (job.progress - baseline_progress).abs() > 0.05)
+                        {
+                            job.progress = baseline_progress;
+                        }
                     }
                 }
             }
@@ -141,7 +154,14 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
             // Preserve resume evidence for best-effort crash recovery probing
             // without implying resumable segment paths (segments/tmp_output_path).
             job.wait_metadata = Some(WaitMetadata {
-                last_progress_percent: Some(previous_progress),
+                last_progress_percent: if matches!(
+                    job.execution,
+                    Some(crate::ffui_core::JobExecution::Ffmpeg { .. })
+                ) {
+                    None
+                } else {
+                    Some(previous_progress)
+                },
                 processed_wall_millis: job.elapsed_ms,
                 processed_seconds: None,
                 target_seconds: None,
@@ -160,7 +180,13 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
             job.progress = 0.0;
         }
 
-        if job.progress <= 0.0 || job.wait_metadata.is_none() || !job.progress.is_finite() {
+        if matches!(
+            job.execution,
+            Some(crate::ffui_core::JobExecution::Ffmpeg { .. })
+        ) || job.progress <= 0.0
+            || job.wait_metadata.is_none()
+            || !job.progress.is_finite()
+        {
             job.progress = 0.0;
         }
     }

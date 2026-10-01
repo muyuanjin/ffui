@@ -187,6 +187,8 @@ pub struct QueueStateLiteDelta {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLiteTelemetryDelta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_progress_percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub progress_epoch: Option<u64>,

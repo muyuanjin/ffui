@@ -48,6 +48,7 @@ pub(crate) const fn size_only_media_info(original_size_mb: f64) -> MediaInfo {
         frame_rate: None,
         video_codec: None,
         audio_codec: None,
+        audio: None,
         size_mb: Some(original_size_mb),
     }
 }

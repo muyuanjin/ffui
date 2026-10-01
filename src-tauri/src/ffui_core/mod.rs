@@ -18,9 +18,9 @@ mod preview_cache;
 mod preview_common;
 mod settings;
 mod shutdown_marker;
-#[cfg(any(windows, feature = "bench"))]
+#[cfg(any(windows, feature = "bench", test))]
 mod taskbar_progress_delta;
-#[cfg(any(windows, feature = "bench"))]
+#[cfg(any(windows, feature = "bench", test))]
 mod taskbar_progress_value;
 mod template_validation;
 pub mod tools;
@@ -79,7 +79,7 @@ pub use settings::{
 };
 pub(crate) use template_validation::{PresetTemplateValidationResult, validate_preset_template};
 
-#[cfg(any(windows, feature = "bench"))]
+#[cfg(any(windows, feature = "bench", test))]
 pub(crate) fn taskbar_progress_weight(
     mode: TaskbarProgressMode,
     size_mb: f64,
@@ -128,8 +128,8 @@ pub(crate) use shutdown_marker::{
 };
 #[cfg(feature = "bench")]
 pub use taskbar_progress_delta::TaskbarProgressDeltaTracker;
-#[cfg(all(not(feature = "bench"), windows))]
+#[cfg(all(not(feature = "bench"), any(windows, test)))]
 pub(crate) use taskbar_progress_delta::TaskbarProgressDeltaTracker;
-#[cfg(any(windows, feature = "bench"))]
+#[cfg(any(windows, feature = "bench", test))]
 pub(crate) use taskbar_progress_value::{TaskbarProgressValue, is_indeterminate_job_progress};
 pub use tools::{ExternalToolCandidate, ExternalToolStatus};

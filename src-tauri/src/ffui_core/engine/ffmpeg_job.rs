@@ -32,6 +32,7 @@ pub(super) fn process_ffmpeg_job(
     let initial_job = inner.state.lock_unpoisoned().jobs.get(job_id).cloned();
     let mut temporary = None;
     let mut attempt = initial_job.as_ref().map_or(0, |job| job.runs.len());
+    let mut total_duration = None;
     let result = (|| {
         super::manual_execution::validate_invocation(&invocation).map_err(anyhow::Error::msg)?;
         if let Some(job) = &initial_job {
@@ -51,7 +52,45 @@ pub(super) fn process_ffmpeg_job(
                 &program,
             );
         }
+        let media = initial_job.as_ref().and_then(|job| {
+            super::media_probe::probe_audio(Path::new(job.input_path.as_deref()?), &settings.tools)
+        });
+        let cover = media.as_ref().and_then(|media| {
+            super::media_probe::audio_cover(
+                Path::new(initial_job.as_ref()?.input_path.as_deref()?),
+                &program,
+                media.cover_stream?,
+            )
+        });
+        if let Some(media) = media {
+            if invocation.progress == Some(crate::ffui_core::domain::FfmpegProgress::InputDuration)
+            {
+                total_duration = media.audio_duration;
+            }
+            let mut state = inner.state.lock_unpoisoned();
+            if let Some(job) = state.jobs.get_mut(job_id)
+                && current_attempt(job, attempt)
+            {
+                job.job_type = crate::ffui_core::domain::JobType::Audio;
+                job.original_codec = media.info.audio_codec.clone();
+                job.media_info = Some(media.info);
+                job.preview_path = cover.map(|path| path.to_string_lossy().into_owned());
+                job.preview_revision = job.preview_revision.saturating_add(1);
+            }
+        }
         let mut args = invocation.args.clone();
+        {
+            let state = inner.state.lock_unpoisoned();
+            if state.cancelled_jobs.contains(job_id)
+                || state.wait_requests.contains(job_id)
+                || !state
+                    .jobs
+                    .get(job_id)
+                    .is_some_and(|job| current_attempt(job, attempt))
+            {
+                anyhow::bail!("FFmpeg command stopped during preparation");
+            }
+        }
         if let FfmpegOutput::ManagedFile {
             path,
             argument_index,
@@ -132,7 +171,15 @@ pub(super) fn process_ffmpeg_job(
                         .get(job_id)
                         .is_some_and(|job| current_attempt(job, attempt))
             },
-            |line| record_line(inner, job_id, attempt, line),
+            |line| {
+                super::job_runner::update_ffmpeg_job_progress(
+                    inner,
+                    job_id,
+                    attempt,
+                    total_duration,
+                    line,
+                )
+            },
         )
     })();
     finish_run(
@@ -147,8 +194,9 @@ pub(super) fn process_ffmpeg_job(
     Ok(())
 }
 
+#[cfg(test)]
 fn record_line(inner: &Inner, job_id: &str, attempt: usize, line: &str) {
-    super::job_runner::update_ffmpeg_job_progress(inner, job_id, attempt, line);
+    super::job_runner::update_ffmpeg_job_progress(inner, job_id, attempt, None, line);
 }
 
 fn finish_run(

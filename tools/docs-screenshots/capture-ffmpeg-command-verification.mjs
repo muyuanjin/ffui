@@ -54,7 +54,12 @@ await withViteDevServer(
               "Add FFmpeg command",
           );
         }
-        assert.equal((await entry.textContent()).trim(), "FFmpeg");
+        assert.equal((await entry.textContent()).trim(), locale === "en" ? "Add command" : "添加命令任务");
+        const colors = await actions.evaluate((element) => [
+          getComputedStyle(element.querySelector('[data-testid="add-ffmpeg-command"]')).backgroundColor,
+          getComputedStyle(element.querySelector('[data-testid="ffui-action-batch-compress"]')).backgroundColor,
+        ]);
+        assert.notEqual(colors[0], colors[1]);
         assert.equal(
           await entry.getAttribute("aria-label"),
           locale === "en" ? "Add FFmpeg command" : "添加 FFmpeg 命令",

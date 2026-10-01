@@ -38,7 +38,13 @@ describe("Sidebar", () => {
     expect(split.classes()).toContain("grid-cols-2");
     const compress = split.get('[data-testid="ffui-action-batch-compress"]');
     const command = split.get('[data-testid="add-ffmpeg-command"]');
-    expect(command.classes()).toEqual(compress.classes());
+    for (const shared of ["h-10", "rounded-none", "min-w-0", "font-semibold", "text-white"]) {
+      expect(command.classes()).toContain(shared);
+      expect(compress.classes()).toContain(shared);
+    }
+    expect(command.classes()).toContain("bg-violet-600/90");
+    expect(compress.classes()).toContain("bg-chart-2/90");
+    expect(command.text()).toBe(en.queue.command.entry);
     expect(command.attributes("aria-label")).toBe(en.queue.command.add);
     expect(compress.attributes("aria-label")).toBe(en.app.actions.batchCompress);
     expect(compress.text()).toBe(en.app.actions.batchCompressEntry);

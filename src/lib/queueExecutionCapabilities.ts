@@ -8,5 +8,12 @@ export const getQueueReplayEligibility = (jobs: ReadonlyArray<Pick<TranscodeJob,
   resume: jobs.some((job) => canReplayQueueJob(job) && job.status === "paused"),
 });
 
-export const hasIndeterminateQueueProgress = (job: Pick<TranscodeJob, "executionMode" | "status">): boolean =>
-  job.status === "processing" && (job.executionMode === "managed" || job.executionMode === "transparent");
+export const hasIndeterminateQueueProgress = (
+  job: Pick<TranscodeJob, "executionMode" | "status" | "waitMetadata">,
+): boolean => {
+  if (job.status !== "processing") return false;
+  if (job.executionMode === "transparent") return true;
+  if (job.executionMode !== "managed") return false;
+  const percent = job.waitMetadata?.lastProgressPercent;
+  return typeof percent !== "number" || !Number.isFinite(percent);
+};

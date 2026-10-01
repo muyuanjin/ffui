@@ -8,6 +8,7 @@ use crate::ffui_core::domain::{
 use crate::ffui_core::engine::{TranscodingEngine, job_runner, worker};
 use crate::ffui_core::settings::AppSettings;
 
+mod audio_feedback;
 mod legacy;
 mod managed;
 mod preset_files;

@@ -26,6 +26,15 @@ pub(crate) struct FfmpegProgressSample {
 pub(crate) fn parse_ffmpeg_progress_sample(line: &str) -> FfmpegProgressSample {
     let mut sample = FfmpegProgressSample::default();
     let mut iter = line.split_whitespace().peekable();
+    let first_key = iter
+        .peek()
+        .and_then(|token| token.split_once('=').map(|(key, _)| key));
+    if !matches!(
+        first_key,
+        Some("frame" | "size" | "Lsize" | "out_time" | "out_time_ms" | "out_time_us" | "speed")
+    ) {
+        return sample;
+    }
 
     while let Some(token) = iter.next() {
         let (key, value) = match token.split_once('=') {
@@ -43,10 +52,14 @@ pub(crate) fn parse_ffmpeg_progress_sample(line: &str) -> FfmpegProgressSample {
 
         match key {
             "time" | "out_time" => {
-                sample.elapsed_seconds = Some(parse_ffmpeg_time_to_seconds(value));
+                sample.elapsed_seconds =
+                    parse_ffmpeg_time_to_seconds(value).or(sample.elapsed_seconds);
             }
-            "out_time_ms" => {
-                if let Ok(us) = value.parse::<f64>() {
+            "out_time_ms" | "out_time_us" => {
+                if let Ok(us) = value.parse::<f64>()
+                    && us.is_finite()
+                    && us >= 0.0
+                {
                     sample.elapsed_seconds = Some(us / 1_000_000.0);
                 }
             }
@@ -69,27 +82,10 @@ pub(crate) fn parse_ffmpeg_progress_sample(line: &str) -> FfmpegProgressSample {
 }
 
 pub(crate) fn parse_ffmpeg_progress_line(line: &str) -> Option<(f64, Option<f64>)> {
-    let mut elapsed: Option<f64> = None;
-    let mut speed: Option<f64> = None;
-
-    for token in line.split_whitespace() {
-        if let Some(rest) = token.strip_prefix("time=") {
-            elapsed = Some(parse_ffmpeg_time_to_seconds(rest));
-        } else if let Some(rest) = token.strip_prefix("out_time=") {
-            elapsed = Some(parse_ffmpeg_time_to_seconds(rest));
-        } else if let Some(rest) = token.strip_prefix("out_time_ms=") {
-            if let Ok(us) = rest.parse::<f64>() {
-                elapsed = Some(us / 1_000_000.0);
-            }
-        } else if let Some(rest) = token.strip_prefix("speed=") {
-            let value = rest.trim_end_matches('x');
-            if let Ok(v) = value.parse::<f64>() {
-                speed = Some(v);
-            }
-        }
-    }
-
-    elapsed.map(|e| (e, speed))
+    let sample = parse_ffmpeg_progress_sample(line);
+    sample
+        .elapsed_seconds
+        .map(|elapsed| (elapsed, sample.speed))
 }
 
 pub(crate) fn is_ffmpeg_progress_end(line: &str) -> bool {
@@ -103,17 +99,23 @@ pub(crate) fn is_ffmpeg_progress_end(line: &str) -> bool {
     false
 }
 
-pub(crate) fn parse_ffmpeg_time_to_seconds(s: &str) -> f64 {
-    if s.contains(':') {
-        let parts: Vec<&str> = s.split(':').collect();
-        if parts.len() == 3 {
-            let h = parts[0].parse::<f64>().unwrap_or(0.0);
-            let m = parts[1].parse::<f64>().unwrap_or(0.0);
-            let sec = parts[2].parse::<f64>().unwrap_or(0.0);
-            return h.mul_add(3600.0, m * 60.0) + sec;
-        }
+pub(crate) fn parse_ffmpeg_time_to_seconds(value: &str) -> Option<f64> {
+    if value.starts_with('-') {
+        return None;
     }
-    s.parse::<f64>().unwrap_or(0.0)
+    let seconds = if value.contains(':') {
+        let mut parts = value.split(':');
+        let hours = parts.next()?.parse::<u32>().ok()?;
+        let minutes = parts.next()?.parse::<u32>().ok()?;
+        let seconds = parts.next()?.parse::<f64>().ok()?;
+        if parts.next().is_some() || minutes >= 60 || !(0.0..60.0).contains(&seconds) {
+            return None;
+        }
+        f64::from(hours).mul_add(3600.0, f64::from(minutes) * 60.0) + seconds
+    } else {
+        value.parse::<f64>().ok()?
+    };
+    (seconds.is_finite() && seconds >= 0.0).then_some(seconds)
 }
 
 pub(crate) fn parse_ffmpeg_duration_from_metadata_line(line: &str) -> Option<f64> {
@@ -123,6 +125,6 @@ pub(crate) fn parse_ffmpeg_duration_from_metadata_line(line: &str) -> Option<f64
     if time_str.is_empty() {
         return None;
     }
-    let seconds = parse_ffmpeg_time_to_seconds(time_str);
+    let seconds = parse_ffmpeg_time_to_seconds(time_str)?;
     if seconds > 0.0 { Some(seconds) } else { None }
 }

@@ -6,6 +6,9 @@ import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { Eye, Hourglass, Play, RefreshCw, XCircle } from "lucide-vue-next";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
 import { hasIndeterminateQueueProgress } from "@/lib/queueExecutionCapabilities";
+import QueueAudioPlaceholder from "./QueueAudioPlaceholder.vue";
+import QueueAudioInfo from "./QueueAudioInfo.vue";
+import QueueIndeterminateProgress from "./QueueIndeterminateProgress.vue";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -108,7 +111,8 @@ const primaryAction = computed<
       />
 
       <div
-        class="relative h-8 w-11 rounded bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0 cursor-pointer"
+        class="relative h-8 rounded bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0 cursor-pointer"
+        :class="job.type === 'audio' ? 'w-8' : 'w-11'"
         data-testid="queue-item-thumbnail"
         @click.stop="emit('preview', job)"
       >
@@ -122,6 +126,7 @@ const primaryAction = computed<
           class="h-full w-full object-cover"
           @error="emit('preview-error')"
         />
+        <QueueAudioPlaceholder v-else-if="job.type === 'audio'" />
       </div>
     </div>
 
@@ -134,6 +139,8 @@ const primaryAction = computed<
         >
           {{ displayFilename }}
         </h4>
+
+        <QueueAudioInfo v-if="job.type === 'audio'" :job="job" compact class="max-w-[180px] text-[10px]" />
 
         <span
           v-if="!isSkipped"
@@ -178,6 +185,7 @@ const primaryAction = computed<
         </div>
       </div>
 
+      <QueueIndeterminateProgress v-if="hasIndeterminateQueueProgress(job)" />
       <Progress
         v-if="!hasIndeterminateQueueProgress(job)"
         class="h-1.5"

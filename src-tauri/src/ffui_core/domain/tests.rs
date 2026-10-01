@@ -61,6 +61,7 @@ mod domain_contract_tests {
                 frame_rate: Some(29.97),
                 video_codec: Some("h264".to_string()),
                 audio_codec: Some("aac".to_string()),
+                audio: None,
                 size_mb: Some(700.0),
             }),
             estimated_seconds: Some(300.0),

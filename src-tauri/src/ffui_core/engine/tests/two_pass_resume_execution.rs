@@ -230,6 +230,7 @@ fn resumed_two_pass_segment_runs_pass_one_before_pass_two() {
                 frame_rate: Some(30.0),
                 video_codec: Some("h264".to_string()),
                 audio_codec: None,
+                audio: None,
                 size_mb: None,
             },
         );

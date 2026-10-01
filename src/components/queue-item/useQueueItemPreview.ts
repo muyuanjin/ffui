@@ -1,7 +1,11 @@
 import { computed, nextTick, onScopeDispose, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { invalidateJobPreviewAutoEnsure, requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
+import {
+  invalidateJobPreviewAutoEnsure,
+  jobPreviewSourceKey,
+  requestJobPreviewAutoEnsure,
+} from "@/components/queue-item/previewAutoEnsure";
 import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl, markPreviewDecoded } from "@/components/queue-item/previewWarmCache";
@@ -24,6 +28,7 @@ export function useQueueItemPreview(options: {
   const lastPreviewPath = ref<string | null>(null);
   const ensuredPreviewPath = ref<string | null>(null);
   const lastJobId = ref<string | null>(null);
+  let lastSourceKey: string | null = null;
   const lastDesiredHeightPx = ref<number>(180);
   const previewVariantRetryAttempted = ref(false);
   let autoEnsureHandle: { promise: Promise<string | null>; cancel: () => void } | null = null;
@@ -62,9 +67,7 @@ export function useQueueItemPreview(options: {
       outputPath: job.value.outputPath,
       ensuredPreviewPath: ensuredPreviewPath.value,
       desiredHeightPx: desiredHeightPx.value,
-      previewCacheKey: job.value.previewPath
-        ? `${job.value.previewPath}|rev=${Number(job.value.previewRevision ?? 0)}`
-        : "",
+      previewCacheKey: jobPreviewSourceKey(job.value),
       allowAutoEnsure: allowAutoEnsure.value,
       allowPreviewLoads: allowPreviewLoads.value,
     }),
@@ -81,6 +84,16 @@ export function useQueueItemPreview(options: {
       allowAutoEnsure: allowAutoEnsureSnapshot,
       allowPreviewLoads: allowPreviewLoadsSnapshot,
     }) => {
+      let currentEnsured = ensured;
+      if (previewCacheKey !== lastSourceKey) {
+        lastSourceKey = previewCacheKey;
+        currentEnsured = null;
+        ensuredPreviewPath.value = null;
+        previewVariantRetryAttempted.value = false;
+        previewRescreenshotAttempted.value = false;
+        autoEnsureHandle?.cancel();
+        autoEnsureHandle = null;
+      }
       if (id !== lastJobId.value) {
         lastJobId.value = id;
         ensuredPreviewPath.value = null;
@@ -127,25 +140,26 @@ export function useQueueItemPreview(options: {
         }
       }
 
-      if (type === "video") {
+      if (type === "video" || type === "audio") {
         const needsImmediateVisiblePreview = previewUrl.value == null;
         const shouldEnsure =
           !ensuredPreviewPath.value &&
           (allowAutoEnsureSnapshot || needsImmediateVisiblePreview) &&
           hasTauri() &&
-          (desiredHeightPxSnapshot !== 180 || !previewPath);
+          ((type === "video" && desiredHeightPxSnapshot !== 180) || !previewPath);
         if (!shouldEnsure && autoEnsureHandle) {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
         } else if (shouldEnsure && !autoEnsureHandle) {
-          autoEnsureHandle = requestJobPreviewAutoEnsure(id, {
-            heightPx: desiredHeightPxSnapshot,
+          const handle = requestJobPreviewAutoEnsure(id, {
+            heightPx: type === "audio" ? 180 : desiredHeightPxSnapshot,
             cacheKey: previewCacheKey,
             priority: "high",
           });
-          void autoEnsureHandle.promise.then((resolved) => {
+          autoEnsureHandle = handle;
+          void handle.promise.then((resolved) => {
             if (!resolved) return;
-            if (job.value.id !== id) return;
+            if (autoEnsureHandle !== handle || jobPreviewSourceKey(job.value) !== previewCacheKey) return;
             ensuredPreviewPath.value = resolved;
           });
         }
@@ -155,15 +169,15 @@ export function useQueueItemPreview(options: {
 
       if (previewPath) {
         if (type === "video" && desiredHeightPxSnapshot !== 180) {
-          path = ensured || previewPath;
+          path = currentEnsured || previewPath;
         } else {
           path = previewPath;
           ensuredPreviewPath.value = null;
         }
       } else if (type === "image") {
         path = outputPath || inputPath || null;
-      } else if (type === "video") {
-        path = ensured || null;
+      } else if (type === "video" || type === "audio") {
+        path = currentEnsured || null;
       }
 
       if (!path) {
@@ -318,12 +332,11 @@ export function useQueueItemPreview(options: {
     if (previewErrorHandlingInFlight.value) return;
 
     previewErrorHandlingInFlight.value = true;
+    const sourceKey = jobPreviewSourceKey(job.value);
 
     try {
-      const heightPx = lastDesiredHeightPx.value;
-      const cacheKey = job.value.previewPath
-        ? `${job.value.previewPath}|rev=${Number(job.value.previewRevision ?? 0)}`
-        : null;
+      const heightPx = job.value.type === "audio" ? 180 : lastDesiredHeightPx.value;
+      const cacheKey = sourceKey;
 
       if (!previewVariantRetryAttempted.value) {
         previewVariantRetryAttempted.value = true;
@@ -333,6 +346,7 @@ export function useQueueItemPreview(options: {
           await nextTick();
           const handle = requestJobPreviewAutoEnsure(job.value.id, { heightPx, cacheKey });
           const regenerated = await handle.promise;
+          if (jobPreviewSourceKey(job.value) !== sourceKey) return;
           if (regenerated) {
             ensuredPreviewPath.value = heightPx === 180 ? null : regenerated;
             const url = buildJobPreviewUrl(regenerated, job.value.previewRevision);
@@ -348,6 +362,7 @@ export function useQueueItemPreview(options: {
 
       try {
         const url = await loadPreviewDataUrl(path);
+        if (jobPreviewSourceKey(job.value) !== sourceKey) return;
         previewUrl.value = url;
         previewFallbackLoaded.value = true;
         await nextTick();
@@ -365,6 +380,7 @@ export function useQueueItemPreview(options: {
 
         try {
           const regenerated = await ensureJobPreview(job.value.id);
+          if (jobPreviewSourceKey(job.value) !== sourceKey) return;
           if (regenerated) {
             previewUrl.value = buildJobPreviewUrl(regenerated, job.value.previewRevision);
             previewFallbackLoaded.value = false;

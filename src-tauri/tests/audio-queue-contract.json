@@ -1,0 +1,42 @@
+{
+  "probe": {
+    "format": { "duration": "120", "size": "1048576", "tags": { "TITLE": "音楽", "artist": "歌手", "album": "Album" } },
+    "streams": [
+      {
+        "index": 0,
+        "codec_type": "audio",
+        "codec_name": "mp3",
+        "sample_rate": "44100",
+        "channels": 2,
+        "bit_rate": "192000"
+      },
+      { "index": 1, "codec_type": "video", "codec_name": "mjpeg", "disposition": { "attached_pic": 1 } }
+    ]
+  },
+  "mediaInfo": {
+    "durationSeconds": 120.0,
+    "width": null,
+    "height": null,
+    "frameRate": null,
+    "videoCodec": null,
+    "audioCodec": "mp3",
+    "sizeMB": 1.0,
+    "audio": {
+      "sampleRateHz": 44100,
+      "channels": 2,
+      "bitRateKbps": 192.0,
+      "title": "音楽",
+      "artist": "歌手",
+      "album": "Album"
+    }
+  },
+  "execution": {
+    "kind": "ffmpeg",
+    "invocation": {
+      "args": ["-i", "C:\\音楽\\source.mp3", "C:\\音楽\\output.m4a"],
+      "workingDirectory": null,
+      "progress": "inputDuration",
+      "output": { "kind": "managedFile", "path": "C:\\音楽\\output.m4a", "argumentIndex": 2 }
+    }
+  }
+}

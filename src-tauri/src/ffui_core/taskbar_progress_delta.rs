@@ -8,6 +8,7 @@ use crate::ffui_core::{
 #[derive(Debug, Clone)]
 struct JobSnapshot {
     status: JobStatus,
+    known_progress_percent: Option<f64>,
     execution_mode: Option<JobExecutionMode>,
     progress: f64,
     start_time: Option<u64>,
@@ -18,7 +19,11 @@ struct JobSnapshot {
 
 impl JobSnapshot {
     fn is_indeterminate(&self) -> bool {
-        is_indeterminate_job_progress(self.status, self.execution_mode)
+        is_indeterminate_job_progress(
+            self.status,
+            self.execution_mode,
+            self.known_progress_percent,
+        )
     }
     fn is_terminal(&self) -> bool {
         matches!(
@@ -143,6 +148,10 @@ impl TaskbarProgressDeltaTracker {
 
             let snap = JobSnapshot {
                 status: job.status,
+                known_progress_percent: job
+                    .wait_metadata
+                    .as_ref()
+                    .and_then(|meta| meta.last_progress_percent),
                 execution_mode: job.execution_mode,
                 progress: job.progress,
                 start_time: job.start_time,
@@ -276,6 +285,13 @@ impl TaskbarProgressDeltaTracker {
         }
         if let Some(progress) = patch.progress {
             job.progress = progress;
+        }
+        if let Some(percent) = patch
+            .telemetry
+            .as_ref()
+            .and_then(|telemetry| telemetry.last_progress_percent)
+        {
+            job.known_progress_percent = Some(percent);
         }
     }
 

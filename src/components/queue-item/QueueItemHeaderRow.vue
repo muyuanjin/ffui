@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
+import QueueAudioPlaceholder from "./QueueAudioPlaceholder.vue";
+import QueueAudioInfo from "./QueueAudioInfo.vue";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
 import {
   compactTimeDisplayParts,
@@ -167,7 +169,8 @@ const emit = defineEmits<QueueItemRowEmits>();
         @click.stop="emit('toggle-select', job.id)"
       />
       <div
-        class="relative h-[72px] w-32 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0 cursor-pointer"
+        class="relative h-[72px] rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0 cursor-pointer"
+        :class="job.type === 'audio' ? 'w-[72px]' : 'w-32'"
         data-testid="queue-item-thumbnail"
         @click.stop="emit('preview', job)"
       >
@@ -181,6 +184,7 @@ const emit = defineEmits<QueueItemRowEmits>();
           class="h-full w-full object-cover"
           @error="emit('preview-error')"
         />
+        <QueueAudioPlaceholder v-else-if="job.type === 'audio'" />
       </div>
       <span
         class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-[10px] font-semibold"
@@ -201,7 +205,7 @@ const emit = defineEmits<QueueItemRowEmits>();
         <span v-else>•</span>
       </span>
 
-      <div>
+      <div class="min-w-0">
         <div class="flex items-center gap-2">
           <Badge
             variant="outline"
@@ -219,6 +223,8 @@ const emit = defineEmits<QueueItemRowEmits>();
           </h4>
           <QueueJobWarnings :warnings="job.warnings" />
         </div>
+
+        <QueueAudioInfo :job="job" class="mt-1 max-w-xs md:max-w-md" />
 
         <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
           <span v-if="!isSkipped" class="bg-muted px-1.5 py-0.5 rounded text-foreground">
