@@ -375,6 +375,14 @@ export const enqueueFfmpegJob = async (request: import("@/types/queue").FfmpegJo
   return transcodeJobFromWire(wire);
 };
 
+export const parseFfmpegCommand = async (command: string): Promise<string[]> => {
+  const args = await invokeCommand<string[]>("parse_ffmpeg_command", { command });
+  if (!Array.isArray(args) || args.length === 0 || !args.every((argument) => typeof argument === "string")) {
+    throw new Error("Invalid FFmpeg command parser response");
+  }
+  return args;
+};
+
 export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest): Promise<TranscodeJob[]> => {
   const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
   const wire = await invokeCommand<WireTranscodeJob[]>("enqueue_transcode_jobs", {

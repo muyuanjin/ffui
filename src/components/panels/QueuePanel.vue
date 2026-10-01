@@ -17,7 +17,6 @@ import { provideQueuePerfHints } from "@/components/panels/queue/queuePerfHints"
 import { useScrollActivitySignal } from "@/components/panels/queue/useScrollActivitySignal";
 import { coerceQueueProgressStyleForPerf } from "@/components/panels/queue/queueProgressStylePolicy";
 import { useQueuePreviewPrefetch } from "@/components/panels/queue/useQueuePreviewPrefetch";
-import QueueFfmpegCommandEntry from "@/components/panels/queue/QueueFfmpegCommandEntry.vue";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
@@ -263,7 +262,6 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
     data-testid="queue-panel"
     @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
   >
-    <QueueFfmpegCommandEntry />
     <!-- Empty state
          Only show when the queue is truly empty (no jobs and no batches) and
          no filters are active. When filters hide all jobs, keep the secondary

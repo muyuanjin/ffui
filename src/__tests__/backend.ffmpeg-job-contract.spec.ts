@@ -1,11 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { enqueueFfmpegJob, loadQueueStateLite } from "@/lib/backend";
+import { enqueueFfmpegJob, loadQueueStateLite, parseFfmpegCommand } from "@/lib/backend";
+import contract from "../../src-tauri/tests/ffmpeg-command-input-contract.json";
 
 const invokeMock = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock, convertFileSrc: (path: string) => path }));
 
 describe("FFmpeg queue command boundary", () => {
   beforeEach(() => invokeMock.mockReset());
+
+  it.each(contract.valid)(
+    "parses $id through canonical IPC without rewriting text or argv",
+    async ({ command, args }) => {
+      invokeMock.mockResolvedValueOnce(args);
+      expect(await parseFfmpegCommand(command)).toEqual(args);
+      expect(invokeMock).toHaveBeenCalledWith("parse_ffmpeg_command", { command });
+    },
+  );
+
+  it.each([null, [], ["-i", 1], { args: ["-version"] }])("rejects an invalid parser response: %j", async (response) => {
+    invokeMock.mockResolvedValueOnce(response);
+    await expect(parseFfmpegCommand("ffmpeg -version")).rejects.toThrow("Invalid FFmpeg command parser response");
+  });
+
+  it("propagates parser diagnostics", async () => {
+    invokeMock.mockRejectedValueOnce("Unclosed quote in FFmpeg command");
+    await expect(parseFfmpegCommand('ffmpeg -i "broken')).rejects.toBe("Unclosed quote in FFmpeg command");
+  });
 
   it("retains execution capability through the lightweight UI snapshot", async () => {
     invokeMock.mockResolvedValueOnce({

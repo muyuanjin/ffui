@@ -6,6 +6,7 @@ mod config_bundle;
 mod data_root;
 mod domain;
 mod engine;
+pub(crate) use engine::parse_ffmpeg_command;
 mod fallback_preview;
 mod ffprobe;
 pub(crate) mod input_expand;

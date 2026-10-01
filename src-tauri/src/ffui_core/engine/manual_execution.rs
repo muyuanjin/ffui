@@ -24,6 +24,30 @@ pub(super) fn presentation_type(input: &Path) -> JobType {
 }
 
 pub(super) fn parse_command(template: &str) -> Result<Vec<String>, String> {
+    let mut args = split_command_args(template, false)?;
+    strip_leading_ffmpeg_program(&mut args);
+    Ok(args)
+}
+
+pub(crate) fn parse_ffmpeg_command(command: &str) -> Result<Vec<String>, String> {
+    let mut args = split_command_args(command, true)?;
+    let program = args.first().map(|argument| argument.to_lowercase());
+    let basename = program
+        .as_deref()
+        .and_then(|program| program.rsplit(['/', '\\']).next());
+    if !matches!(basename, Some("ffmpeg" | "ffmpeg.exe")) {
+        return Err("Start the command with ffmpeg or ffmpeg.exe".to_string());
+    }
+    strip_leading_ffmpeg_program(&mut args);
+    validate_invocation(&FfmpegInvocation {
+        args: args.clone(),
+        working_directory: None,
+        output: FfmpegOutput::Transparent,
+    })?;
+    Ok(args)
+}
+
+fn split_command_args(template: &str, reject_shell_syntax: bool) -> Result<Vec<String>, String> {
     let mut args = Vec::new();
     let mut current = String::new();
     let mut quote = None;
@@ -31,6 +55,9 @@ pub(super) fn parse_command(template: &str) -> Result<Vec<String>, String> {
     let mut chars = template.chars().peekable();
     while let Some(character) = chars.next() {
         match character {
+            '|' | '&' | ';' | '<' | '>' | '`' if reject_shell_syntax && quote.is_none() => {
+                return Err("Shell operators, redirection and command substitution are not supported; quote literal values".to_string());
+            }
             '\'' | '"' if quote.is_none() => {
                 quote = Some(character);
                 started = true;
@@ -57,7 +84,6 @@ pub(super) fn parse_command(template: &str) -> Result<Vec<String>, String> {
     if started {
         args.push(current);
     }
-    strip_leading_ffmpeg_program(&mut args);
     Ok(args)
 }
 
@@ -72,9 +98,9 @@ pub(super) fn validate_invocation(invocation: &FfmpegInvocation) -> Result<(), S
     {
         return Err("FFmpeg arguments must not contain NUL".to_string());
     }
+    let progress_targets = progress_target_indices(&invocation.args);
     if invocation.args.iter().enumerate().any(|(index, argument)| {
-        let progress_target = index > 0 && invocation.args[index - 1] == "-progress";
-        !progress_target
+        !progress_targets.contains(&index)
             && (argument == "-" || argument.starts_with("pipe:") || argument.starts_with("fd:"))
     }) {
         return Err("Media stdin/stdout pipes are not supported by the queue".to_string());
@@ -98,6 +124,83 @@ pub(super) fn validate_invocation(invocation: &FfmpegInvocation) -> Result<(), S
         }
     }
     Ok(())
+}
+
+fn progress_target_indices(args: &[String]) -> Vec<usize> {
+    let mut targets = Vec::new();
+    let mut index = 0;
+    let mut escaped_output = false;
+    while index < args.len() {
+        let argument = &args[index];
+        if argument == "--" {
+            escaped_output = true;
+            index += 1;
+            continue;
+        }
+        if std::mem::take(&mut escaped_output) {
+            index += 1;
+            continue;
+        }
+        let Some(option) = argument
+            .strip_prefix('-')
+            .filter(|option| !option.is_empty())
+        else {
+            index += 1;
+            continue;
+        };
+        let option = option.split(':').next().expect("option name");
+        if option == "progress" && index + 1 < args.len() {
+            targets.push(index + 1);
+        }
+        index += if is_valueless_option(option) { 1 } else { 2 };
+    }
+    targets
+}
+
+fn is_valueless_option(option: &str) -> bool {
+    if matches!(option, "vstats" | "qphist" | "report") {
+        return true;
+    }
+    matches!(
+        option.strip_prefix("no").unwrap_or(option),
+        "y" | "n"
+            | "hide_banner"
+            | "ignore_unknown"
+            | "copy_unknown"
+            | "recast_media"
+            | "accurate_seek"
+            | "benchmark"
+            | "benchmark_all"
+            | "stdin"
+            | "dump"
+            | "hex"
+            | "re"
+            | "copyts"
+            | "start_at_zero"
+            | "shortest"
+            | "bitexact"
+            | "xerror"
+            | "copyinkf"
+            | "auto_conversion_filters"
+            | "stats"
+            | "debug_ts"
+            | "find_stream_info"
+            | "display_hflip"
+            | "display_vflip"
+            | "vn"
+            | "force_fps"
+            | "autorotate"
+            | "autoscale"
+            | "fix_sub_duration_heartbeat"
+            | "an"
+            | "sn"
+            | "fix_sub_duration"
+            | "dn"
+            | "print_graphs"
+            | "intra"
+            | "deinterlace"
+            | "psnr"
+    )
 }
 
 pub(super) fn plan_manual_execution(

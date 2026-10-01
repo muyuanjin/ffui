@@ -26,6 +26,8 @@ import type {
 } from "@/types";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 import smartPresetsJson from "../../../src-tauri/assets/smart-presets.json";
+import commandInputContract from "../../../src-tauri/tests/ffmpeg-command-input-contract.json";
+import type { FfmpegJobRequest } from "@/types/queue";
 
 // The production app talks to a Tauri backend. For docs screenshots we replace
 // the backend module at build time (Vite alias) with this in-browser mock so
@@ -946,6 +948,33 @@ export const enqueueTranscodeJobs = async (params: {
     }),
   );
 };
+
+export const parseFfmpegCommand = async (command: string): Promise<string[]> => {
+  const valid = commandInputContract.valid.find((entry) => entry.command === command);
+  if (valid) return [...valid.args];
+  const invalid = commandInputContract.invalid.find((entry) => entry.command === command);
+  throw new Error(invalid?.error ?? "Screenshot mock only accepts commands from ffmpeg-command-input-contract.json");
+};
+
+export const enqueueFfmpegJob = async (request: FfmpegJobRequest): Promise<TranscodeJob> => ({
+  id: "docs-command",
+  filename: request.name,
+  type: "other",
+  source: "manual",
+  presetId: "",
+  originalSizeMB: 0,
+  status: "queued",
+  progress: 0,
+  executionMode: "transparent",
+  execution: {
+    kind: "ffmpeg",
+    invocation: {
+      args: [...request.args],
+      workingDirectory: request.workingDirectory ?? null,
+      output: { kind: "transparent" },
+    },
+  },
+});
 
 export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const deleteTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;

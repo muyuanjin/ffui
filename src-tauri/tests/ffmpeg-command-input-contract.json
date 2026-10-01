@@ -1,0 +1,195 @@
+{
+  "valid": [
+    {
+      "id": "postfix-progress",
+      "command": "ffmpeg -i input.wav -progress pipe:2 output.wav",
+      "args": ["-i", "input.wav", "-progress", "pipe:2", "output.wav"]
+    },
+    {
+      "id": "progress-after-switches",
+      "command": "ffmpeg -hide_banner -y -nostdin -f lavfi -i sine -vn -nostats -progress pipe:2 -f null NUL",
+      "args": [
+        "-hide_banner",
+        "-y",
+        "-nostdin",
+        "-f",
+        "lavfi",
+        "-i",
+        "sine",
+        "-vn",
+        "-nostats",
+        "-progress",
+        "pipe:2",
+        "-f",
+        "null",
+        "NUL"
+      ]
+    },
+    {
+      "id": "repeated-progress",
+      "command": "ffmpeg -progress -progress -i input.wav -progress pipe:2 output.wav",
+      "args": ["-progress", "-progress", "-i", "input.wav", "-progress", "pipe:2", "output.wav"]
+    },
+    {
+      "id": "progress-after-stream-switch",
+      "command": "ffmpeg -noautorotate:v:0 -i input.wav -progress pipe:2 output.wav",
+      "args": ["-noautorotate:v:0", "-i", "input.wav", "-progress", "pipe:2", "output.wav"]
+    },
+    {
+      "id": "escaped-output-then-progress",
+      "command": "ffmpeg -i input.wav -- -progress -progress pipe:2",
+      "args": ["-i", "input.wav", "--", "-progress", "-progress", "pipe:2"]
+    },
+    {
+      "id": "tone",
+      "command": "ffmpeg -f lavfi -i \"sine=frequency=440:duration=1\" -c:a pcm_s16le \"C:\\media\\tone.wav\"",
+      "args": ["-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:a", "pcm_s16le", "C:\\media\\tone.wav"]
+    },
+    {
+      "id": "windows-unicode",
+      "command": "\"C:\\Program Files\\FFmpeg\\FFMPEG.EXE\" -i \"C:\\音乐 文件\\track.wav\" -metadata \"\" -map 0 -map 0 -filter_complex \"[0:a]volume=0.5[a];[a]anull[out]\" -map \"[out]\" \"D:\\输出\\新 文件.flac\"",
+      "args": [
+        "-i",
+        "C:\\音乐 文件\\track.wav",
+        "-metadata",
+        "",
+        "-map",
+        "0",
+        "-map",
+        "0",
+        "-filter_complex",
+        "[0:a]volume=0.5[a];[a]anull[out]",
+        "-map",
+        "[out]",
+        "D:\\输出\\新 文件.flac"
+      ]
+    },
+    {
+      "id": "multiple-outputs",
+      "command": "/usr/bin/ffmpeg -i 'one.wav' -i 'two.wav' -map 0:a 'first.flac' -map 1:a 'second.wav'",
+      "args": ["-i", "one.wav", "-i", "two.wav", "-map", "0:a", "first.flac", "-map", "1:a", "second.wav"]
+    },
+    {
+      "id": "escaped-and-adjacent-quotes",
+      "command": "ffmpeg -metadata title=\"hello world\" -metadata 'a=\"quoted\"' -metadata \"title=\\\"test\\\"\" -f null NUL",
+      "args": [
+        "-metadata",
+        "title=hello world",
+        "-metadata",
+        "a=\"quoted\"",
+        "-metadata",
+        "title=\"test\"",
+        "-f",
+        "null",
+        "NUL"
+      ]
+    },
+    {
+      "id": "version",
+      "command": "  ffmpeg.exe  -version  ",
+      "args": ["-version"]
+    },
+    {
+      "id": "progress",
+      "command": "ffmpeg -progress pipe:2 -f lavfi -i sine -f null NUL",
+      "args": ["-progress", "pipe:2", "-f", "lavfi", "-i", "sine", "-f", "null", "NUL"]
+    }
+  ],
+  "invalid": [
+    {
+      "id": "progress-url-is-option-name",
+      "command": "ffmpeg -f lavfi -i sine=frequency=440:duration=0.1 -c:a pcm_s16le -f wav -progress -progress pipe:1",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "input-is-option-name",
+      "command": "ffmpeg -i -progress pipe:1",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "escaped-progress-filename",
+      "command": "ffmpeg -- -progress pipe:2",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "repeated-escape-before-progress-filename",
+      "command": "ffmpeg -- -- -progress pipe:2",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "unknown-option-progress-value",
+      "command": "ffmpeg -custom_option -progress pipe:1",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "missing",
+      "command": "",
+      "error": "Start the command"
+    },
+    {
+      "id": "program-only",
+      "command": "ffmpeg",
+      "error": "arguments must not be empty"
+    },
+    {
+      "id": "non-ffmpeg",
+      "command": "echo hello",
+      "error": "Start the command"
+    },
+    {
+      "id": "args-only",
+      "command": "-i input.wav output.wav",
+      "error": "Start the command"
+    },
+    {
+      "id": "unclosed",
+      "command": "ffmpeg -i \"unfinished",
+      "error": "Unclosed quote"
+    },
+    {
+      "id": "shell-|",
+      "command": "ffmpeg -version | other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "shell-&&",
+      "command": "ffmpeg -version && other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "shell-;",
+      "command": "ffmpeg -version ; other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "shell-<",
+      "command": "ffmpeg -version < other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "shell->",
+      "command": "ffmpeg -version > other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "shell-`",
+      "command": "ffmpeg -version ` other",
+      "error": "Shell operators"
+    },
+    {
+      "id": "media-pipe",
+      "command": "ffmpeg -i pipe:0 out.wav",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "media-stdout",
+      "command": "ffmpeg -i in.wav -f wav -",
+      "error": "Media stdin/stdout"
+    },
+    {
+      "id": "nul",
+      "command": "ffmpeg -metadata title=\u0000 -version",
+      "error": "must not contain NUL"
+    }
+  ]
+}

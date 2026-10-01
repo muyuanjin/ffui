@@ -9,10 +9,15 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div v-if="hasTauri()" class="flex justify-end">
-    <Button variant="outline" size="sm" data-testid="add-ffmpeg-command" @click="open = true">{{
-      t("queue.command.title")
-    }}</Button>
-  </div>
+  <Button
+    v-if="hasTauri()"
+    type="button"
+    variant="outline"
+    size="lg"
+    class="w-full justify-center font-semibold"
+    data-testid="add-ffmpeg-command"
+    @click="open = true"
+    >{{ t("queue.command.add") }}</Button
+  >
   <FfmpegCommandDialog v-if="open" v-model:open="open" />
 </template>

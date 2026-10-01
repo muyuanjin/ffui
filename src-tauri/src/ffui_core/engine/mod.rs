@@ -11,6 +11,7 @@ mod file_times;
 mod job_runner;
 mod listeners;
 mod manual_execution;
+pub(crate) use manual_execution::parse_ffmpeg_command;
 mod os_paths;
 mod output_policy_paths;
 mod preview_cache_gc;

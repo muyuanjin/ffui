@@ -196,6 +196,72 @@ fn transparent_multi_input_multi_output_command_needs_no_probe_or_filename() {
 }
 
 #[test]
+fn pasted_complete_command_generates_unicode_output_through_the_queue() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let engine = engine(crate::test_support::make_ffmpeg_preset_for_tests("unused"));
+    let args = super::super::manual_execution::parse_ffmpeg_command(
+        "ffmpeg -f lavfi -i 'sine=frequency=440:duration=0.1' -progress pipe:2 -c:a pcm_s16le \"音频 输出.wav\"",
+    )
+    .expect("parse complete command");
+    let job = engine
+        .enqueue_ffmpeg_job(FfmpegJobRequest {
+            name: "Custom FFmpeg task".into(),
+            args: args.clone(),
+            working_directory: Some(directory.path().to_string_lossy().into_owned()),
+        })
+        .expect("enqueue parsed command");
+    process(&engine, &job.id);
+    let stored = engine.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+    assert_eq!(
+        stored.status,
+        JobStatus::Completed,
+        "{:?}",
+        stored.failure_reason
+    );
+    let bytes = fs::read(directory.path().join("音频 输出.wav")).expect("generated audio");
+    assert!(bytes.len() > 44);
+    assert_eq!(&bytes[..4], b"RIFF");
+    assert_eq!(&bytes[8..12], b"WAVE");
+    let Some(JobExecution::Ffmpeg { invocation }) = stored.execution else {
+        panic!("FFmpeg execution")
+    };
+    assert_eq!(invocation.args, args);
+    assert_eq!(invocation.output, FfmpegOutput::Transparent);
+}
+
+#[test]
+fn enqueue_rejects_media_pipes_after_progress_named_values_without_creating_jobs() {
+    let engine = engine(crate::test_support::make_ffmpeg_preset_for_tests("unused"));
+    for args in [
+        vec![
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=0.1",
+            "-c:a",
+            "pcm_s16le",
+            "-f",
+            "wav",
+            "-progress",
+            "-progress",
+            "pipe:1",
+        ],
+        vec!["-i", "-progress", "pipe:1"],
+        vec!["--", "-progress", "pipe:2"],
+    ] {
+        let error = engine
+            .enqueue_ffmpeg_job(FfmpegJobRequest {
+                name: "Unsupported media pipe".into(),
+                args: args.into_iter().map(str::to_string).collect(),
+                working_directory: None,
+            })
+            .expect_err("media pipe must fail before queue creation");
+        assert!(error.contains("Media stdin/stdout pipes"));
+        assert!(engine.queue_state().jobs.is_empty());
+    }
+}
+
+#[test]
 fn transparent_missing_input_fails_without_deleting_user_outputs() {
     let directory = tempfile::tempdir().expect("tempdir");
     let sentinel = directory.path().join("keep.wav");

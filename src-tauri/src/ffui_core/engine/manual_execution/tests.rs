@@ -1,6 +1,42 @@
 use super::*;
 
 #[test]
+fn complete_command_input_contract_preserves_argv_and_reports_invalid_syntax() {
+    let contract: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/ffmpeg-command-input-contract.json"
+    ))
+    .expect("command contract fixture");
+    for case in contract["valid"].as_array().expect("valid cases") {
+        let command = case["command"].as_str().expect("command");
+        let expected: Vec<String> = serde_json::from_value(case["args"].clone()).expect("argv");
+        assert_eq!(
+            parse_ffmpeg_command(command).expect("parse"),
+            expected,
+            "{}",
+            case["id"]
+        );
+    }
+    for case in contract["invalid"].as_array().expect("invalid cases") {
+        let error = parse_ffmpeg_command(case["command"].as_str().expect("command"))
+            .expect_err("invalid syntax must fail");
+        assert!(
+            error.contains(case["error"].as_str().expect("error")),
+            "{}: {error}",
+            case["id"]
+        );
+    }
+}
+
+#[test]
+fn advanced_preset_tokens_keep_literal_shell_characters() {
+    assert_eq!(
+        parse_command("-metadata title=a;b -metadata title=a&b").expect("preset"),
+        ["-metadata", "title=a;b", "-metadata", "title=a&b"]
+    );
+    assert!(parse_ffmpeg_command("ffmpeg -metadata title=a;b").is_err());
+}
+
+#[test]
 fn command_preserves_windows_paths_empty_arguments_and_filter_expressions() {
     let args = parse_command(
         r#"ffmpeg -i "C:\音乐\track.flac" -metadata "" -metadata title=INPUT -filter_complex "[0:a]volume=0.5[a]" -map "[a]" "D:\output\new.wav""#,
@@ -58,6 +94,33 @@ fn pipe_rejection_does_not_reject_the_progress_channel() {
         output: FfmpegOutput::Transparent,
     };
     assert!(validate_invocation(&invocation).is_ok());
+}
+
+#[test]
+fn advanced_postfix_progress_and_persisted_invocations_keep_their_arguments() {
+    let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("progress");
+    preset.advanced_enabled = Some(true);
+    preset.ffmpeg_template = Some("ffmpeg -i INPUT -progress pipe:2 OUTPUT".into());
+    let JobExecution::Ffmpeg { invocation } = plan_manual_execution(
+        Path::new("input.wav"),
+        &preset,
+        Path::new("output.wav"),
+        &OutputPolicy::default(),
+    )
+    .expect("advanced postfix progress") else {
+        panic!("FFmpeg execution")
+    };
+    assert_eq!(
+        invocation.args,
+        ["-i", "input.wav", "-progress", "pipe:2", "output.wav"]
+    );
+    let restored: FfmpegInvocation =
+        serde_json::from_value(serde_json::to_value(&invocation).expect("snapshot"))
+            .expect("restore");
+    assert!(validate_invocation(&restored).is_ok());
+    assert_eq!(restored.args, invocation.args);
+    assert_eq!(restored.working_directory, invocation.working_directory);
+    assert_eq!(restored.output, invocation.output);
 }
 
 #[test]

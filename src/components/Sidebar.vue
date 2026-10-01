@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 import { computed, type Component } from "vue";
 import { Activity, Film, ListTodo, Settings2, SlidersHorizontal } from "lucide-vue-next";
+import QueueFfmpegCommandEntry from "@/components/panels/queue/QueueFfmpegCommandEntry.vue";
 
 const { activeTab, jobs } = defineProps<{
   /** Current active tab */
@@ -188,7 +189,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
       </Button>
     </nav>
 
-    <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
+    <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3" data-testid="ffui-sidebar-add-actions">
       <div
         class="relative grid w-full grid-cols-2 overflow-hidden rounded-md after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35"
         data-testid="ffui-action-add-job-split"
@@ -221,6 +222,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
       >
         <span>{{ t("app.actions.batchCompress") }}</span>
       </Button>
+      <QueueFfmpegCommandEntry />
     </div>
   </aside>
 </template>

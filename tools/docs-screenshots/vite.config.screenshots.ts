@@ -194,7 +194,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
       // generic "@/" alias. This is required for Windows builds where alias
       // iteration order can differ after config merging.
       alias: [
-        { find: "@/lib/backend", replacement: aliasBackend },
+        { find: /^@\/lib\/backend$/, replacement: aliasBackend },
         { find: "@tauri-apps/api/app", replacement: aliasTauriApp },
         { find: "@tauri-apps/plugin-opener", replacement: aliasTauriOpener },
         { find: "@tauri-apps/api/event", replacement: aliasTauriEvent },
@@ -216,6 +216,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
       include: [
         "vue",
         "vue-i18n",
+        "vue-sonner",
         "@vueuse/core",
         "@vueuse/integrations/useSortable",
         "lucide-vue-next",

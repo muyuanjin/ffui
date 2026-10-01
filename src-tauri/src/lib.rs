@@ -153,6 +153,7 @@ pub fn run() {
             commands::queue::enqueue_transcode_job,
             commands::queue::enqueue_transcode_jobs,
             commands::queue::enqueue_ffmpeg_job,
+            commands::queue::parse_ffmpeg_command,
             commands::queue::expand_manual_job_inputs,
             commands::queue::cancel_transcode_job,
             commands::queue::cancel_transcode_jobs_bulk,

@@ -364,9 +364,24 @@ pub async fn enqueue_ffmpeg_job(
         .map_err(|error| format!("failed to join enqueue_ffmpeg_job task: {error}"))?
 }
 
+#[tauri::command]
+pub fn parse_ffmpeg_command(command: String) -> Result<Vec<String>, String> {
+    crate::ffui_core::parse_ffmpeg_command(&command)
+}
+
 #[cfg(test)]
 mod command_request_tests {
     use super::*;
+
+    #[test]
+    fn complete_command_parser_ipc_returns_only_argv_and_explicit_errors() {
+        assert_eq!(
+            parse_ffmpeg_command("ffmpeg -metadata \"\" -map 0 -map 1 -version".into())
+                .expect("parse"),
+            ["-metadata", "", "-map", "0", "-map", "1", "-version"]
+        );
+        assert!(parse_ffmpeg_command("ffmpeg -version > output.txt".into()).is_err());
+    }
 
     #[test]
     fn ffmpeg_request_preserves_arguments_and_camel_case_working_directory() {
