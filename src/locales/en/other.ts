@@ -97,11 +97,13 @@ const other = {
   outputPolicy: {
     containerLabel: "Output Container",
     formatHelp:
-      "Choose a format compatible with your codecs. For custom command templates, this setting changes the output extension only; the template controls the actual format.",
+      "Formats apply separately to video, audio and image files; unset formats follow the preset. Choose codecs compatible with each format. For custom command templates, this setting changes the output extension only; the template controls the actual format.",
     container: {
       default: "Default (follow preset/template)",
       keepInput: "Keep input container",
       force: "Force format",
+      byMedia: "Specify formats by media type",
+      followPreset: "Follow preset/template",
     },
     dirLabel: "Output Directory",
     dir: {

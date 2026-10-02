@@ -91,11 +91,14 @@ const other = {
   },
   outputPolicy: {
     containerLabel: "输出容器",
-    formatHelp: "请选择与编码器匹配的格式。自定义命令模板下，此设置仅改变输出扩展名，实际格式由模板决定。",
+    formatHelp:
+      "视频、音频、图片文件分别使用各自格式，未指定时跟随预设。请选择与编码器匹配的格式。自定义命令模板下，此设置仅改变输出扩展名，实际格式由模板决定。",
     container: {
       default: "默认（走预设/模板）",
       keepInput: "维持原文件容器",
       force: "指定格式",
+      byMedia: "按媒体类型指定格式",
+      followPreset: "跟随预设/模板",
     },
     dirLabel: "输出目录",
     dir: {

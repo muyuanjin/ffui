@@ -201,6 +201,15 @@ pub struct AppSettings {
 }
 impl AppSettings {
     pub fn normalize(&mut self) {
+        self.queue_output_policy.container = self
+            .queue_output_policy
+            .container
+            .scoped_for_active_settings();
+        self.batch_compress_defaults.output_policy.container = self
+            .batch_compress_defaults
+            .output_policy
+            .container
+            .scoped_for_active_settings();
         self.max_parallel_jobs = types_helpers::normalize_parallel_limit(self.max_parallel_jobs);
         self.max_parallel_cpu_jobs =
             types_helpers::normalize_parallel_limit(self.max_parallel_cpu_jobs);

@@ -2,10 +2,9 @@ use std::path::Path;
 
 use crate::ffui_core::domain::{
     FFmpegPreset, FfmpegInvocation, FfmpegOutput, FfmpegProgress, JobExecution, JobType,
-    OutputPolicy,
+    OutputPolicy, media_type_for_extension,
 };
 
-use super::batch_compress::{is_audio_file, is_image_file, is_video_file};
 use super::ffmpeg_args::{
     build_ffmpeg_args, effective_output_muxer, preset_requires_two_pass,
     validate_structured_execution_preset,
@@ -13,15 +12,12 @@ use super::ffmpeg_args::{
 use super::template_args::strip_leading_ffmpeg_program;
 
 pub(super) fn presentation_type(input: &Path) -> JobType {
-    if is_audio_file(input) {
-        JobType::Audio
-    } else if is_image_file(input) {
-        JobType::Image
-    } else if is_video_file(input) {
-        JobType::Video
-    } else {
-        JobType::Other
-    }
+    media_type_for_extension(
+        input
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .unwrap_or(""),
+    )
 }
 
 pub(super) fn parse_command(template: &str) -> Result<Vec<String>, String> {

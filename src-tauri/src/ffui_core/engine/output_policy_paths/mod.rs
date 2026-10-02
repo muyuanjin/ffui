@@ -188,7 +188,13 @@ fn infer_container_extension_and_muxer(
     policy: &OutputPolicy,
 ) -> (String, Option<String>, Vec<JobWarning>) {
     let mut warnings: Vec<JobWarning> = Vec::new();
-    match &policy.container {
+    let container =
+        policy
+            .container
+            .for_media_type(crate::ffui_core::domain::media_type_for_extension(
+                input_ext.unwrap_or(""),
+            ));
+    match &container {
         OutputContainerPolicy::Force { format } => {
             let raw = format.trim().trim_start_matches('.');
             let requested_ext = normalize_extension_no_dot(raw);
@@ -260,5 +266,6 @@ fn infer_container_extension_and_muxer(
             let ext = infer_output_extension(container_format, input_ext);
             (ext, None, warnings)
         }
+        OutputContainerPolicy::ByMedia { .. } => unreachable!("media policy has been resolved"),
     }
 }

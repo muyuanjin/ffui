@@ -27,6 +27,7 @@ vi.mock("@tauri-apps/api/event", () => {
 
 import { useAppSettings } from "@/composables/useAppSettings";
 import * as backend from "@/lib/backend";
+import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -57,6 +58,23 @@ const TestHost = defineComponent({
 });
 
 describe("useAppSettings.persistNow", () => {
+  it("scopes a loaded MP3 setting to audio before exposing it to the queue", async () => {
+    const settings = makeAppSettings();
+    settings.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY, container: { mode: "force", format: "mp3" } };
+    vi.mocked(backend.loadAppSettings).mockResolvedValueOnce(settings);
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    await vm.ensureAppSettingsLoaded();
+    expect(vm.appSettings.queueOutputPolicy.container).toEqual({ mode: "byMedia", audio: "mp3" });
+    await vm.persistNow();
+    expect(backend.saveAppSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        queueOutputPolicy: expect.objectContaining({ container: { mode: "byMedia", audio: "mp3" } }),
+      }),
+    );
+    expect(settings.queueOutputPolicy.container).toEqual({ mode: "force", format: "mp3" });
+    wrapper.unmount();
+  });
   it("persists once and keeps the debounced saver from double-writing", async () => {
     const wrapper = mount(TestHost);
     const vm = wrapper.vm as any;

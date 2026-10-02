@@ -12,6 +12,9 @@ vi.mock("@tauri-apps/api/core", () => {
 import { loadAppSettings, saveAppSettings } from "@/lib/backend";
 import type { AppSettings } from "@/types";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
+import mediaOutputContract from "../../src-tauri/tests/output-media-policy-contract.json";
+import type { OutputContainerPolicy } from "@/types/output-policy";
+import type { OutputContainerPolicy as WireContainerPolicy } from "@/lib/backend/generated/queue-contracts";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -83,6 +86,17 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("backend settings contract", () => {
+  it("round trips per-media format fields without flattening them into one force format", async () => {
+    const container = mediaOutputContract.container as OutputContainerPolicy;
+    const wireContainer: WireContainerPolicy = container;
+    expect(wireContainer).toEqual(mediaOutputContract.container);
+    const settings = makeAppSettings();
+    settings.queueOutputPolicy!.container = container;
+    invokeMock.mockResolvedValue(settings);
+    expect((await loadAppSettings()).queueOutputPolicy?.container).toEqual(container);
+    await saveAppSettings(settings);
+    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", { settings });
+  });
   beforeEach(() => {
     invokeMock.mockReset();
   });

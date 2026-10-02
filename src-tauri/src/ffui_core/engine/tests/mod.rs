@@ -60,6 +60,7 @@ mod job_runner_processed_seconds_choice;
 mod job_wait_wall_clock;
 mod listeners_and_queue_state;
 mod network_proxy_startup;
+mod output_media_policy_tests;
 mod output_policy_paths_tests;
 mod pause_quit_without_stderr;
 mod pause_remux_deferral;

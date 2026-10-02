@@ -1,0 +1,51 @@
+{
+  "container": { "mode": "byMedia", "video": "mkv", "audio": "mp3", "image": "bmp" },
+  "cases": [
+    { "input": "C:\\素材\\Movie.MP4", "type": "video", "extension": "mkv", "muxer": "matroska" },
+    { "input": "C:\\素材\\Track.WAV", "type": "audio", "extension": "mp3", "muxer": "mp3" },
+    { "input": "C:\\素材\\Cover.PNG", "type": "image", "extension": "bmp", "muxer": "image2" },
+    { "input": "C:\\素材\\Track.AIFF", "type": "audio", "extension": "mp3", "muxer": "mp3" },
+    { "input": "C:\\素材\\Frame.TIFF", "type": "image", "extension": "bmp", "muxer": "image2" },
+    { "input": "C:\\素材\\Clip.MXF", "type": "video", "extension": "mkv", "muxer": "matroska" },
+    { "input": "C:\\素材\\Data.unknown", "type": "other", "extension": "mp4", "muxer": null },
+    { "input": "C:\\素材\\Data", "type": "other", "extension": "mp4", "muxer": null }
+  ],
+  "webmCases": [
+    { "input": "input.mp4", "videoCodec": "libx264", "audioCodec": "aac", "extension": "mkv" },
+    { "input": "input.webm", "videoCodec": "copy", "audioCodec": "copy", "extension": "webm" },
+    { "input": "input.mp4", "videoCodec": "copy", "audioCodec": "copy", "extension": "mkv" },
+    { "input": "input.webm", "videoCodec": "libsvtav1", "audioCodec": "copy", "extension": "webm" },
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -c:v libvpx-vp9 -c:a libopus -f webm OUTPUT",
+      "extension": "webm"
+    },
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -c:v libx264 -c:a aac -f mp4 OUTPUT",
+      "extension": "mkv"
+    },
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -c:v libvpx-vp9 -f webm OUTPUT",
+      "extension": "webm"
+    }
+  ],
+  "legacy": [
+    { "format": "mp3", "kind": "audio" },
+    { "format": " M4A ", "kind": "audio" },
+    { "format": "adts", "kind": "audio" },
+    { "format": "aif", "kind": "audio" },
+    { "format": "matroska", "kind": "video" },
+    { "format": "m2ts", "kind": "video" },
+    { "format": ".PNG", "kind": "image" },
+    { "format": "tiff", "kind": "image" },
+    { "format": "some_custom_muxer", "kind": null }
+  ]
+}

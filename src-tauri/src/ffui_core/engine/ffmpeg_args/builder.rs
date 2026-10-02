@@ -351,7 +351,12 @@ fn resolved_forced_muxer(
     let mut forced_muxer = forced_muxer_for_policy(output_policy, input);
     if forced_muxer.as_deref() == Some("webm")
         && let Some(policy) = output_policy
-        && matches!(policy.container, OutputContainerPolicy::Force { .. })
+        && matches!(
+            policy
+                .container
+                .for_media_type(super::super::manual_execution::presentation_type(input)),
+            OutputContainerPolicy::Force { .. }
+        )
         && should_fallback_webm_forced_container(preset, input)
     {
         forced_muxer = Some("matroska".to_string());

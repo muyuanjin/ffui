@@ -22,12 +22,12 @@ mod video_helpers;
 mod video_paths;
 
 pub(super) use audio::handle_audio_file_with_id;
-pub(crate) use detection::is_video_file;
+#[cfg(test)]
+pub(super) use detection::is_image_file;
 #[cfg(test)]
 pub(super) use detection::{build_image_avif_paths, is_batch_compress_style_output};
 #[cfg(test)]
 pub(super) use detection::{build_image_target_paths, passes_media_filter};
-pub(super) use detection::{is_audio_file, is_image_file};
 pub(super) use helpers::{
     SavingConditionConfig, mark_job_skipped_by_saving_condition, replace_original_output_policy,
     saving_condition_allows_output,

@@ -51,6 +51,7 @@ pub(super) fn build_mux_args_for_resumed_output_with_processed_audio(
     processed_audio: &Path,
     mux_tmp: &Path,
     preset: &FFmpegPreset,
+    forced_muxer: Option<&str>,
 ) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
     push_resumed_ffmpeg_common_prefix(&mut args, preset);
@@ -68,7 +69,7 @@ pub(super) fn build_mux_args_for_resumed_output_with_processed_audio(
     }
 
     apply_mapping_disposition_and_metadata_args(&mut args, preset);
-    apply_container_args(&mut args, preset, None);
+    apply_container_args(&mut args, preset, forced_muxer);
 
     args.push("-shortest".to_string());
     args.push(mux_tmp.to_string_lossy().into_owned());

@@ -631,3 +631,46 @@ fn app_settings_normalizes_invalid_parallel_limits() {
         Some(crate::ffui_core::settings::types::MAX_PARALLEL_JOBS_LIMIT)
     );
 }
+#[test]
+fn active_output_formats_are_scoped_without_migrating_job_snapshots() {
+    use crate::ffui_core::domain::OutputContainerPolicy;
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/output-media-policy-contract.json"
+    ))
+    .expect("media output contract");
+    for case in fixture["legacy"].as_array().expect("legacy settings") {
+        let format = case["format"].as_str().expect("format");
+        let legacy = OutputContainerPolicy::Force {
+            format: format.into(),
+        };
+        let mut settings = AppSettings::default();
+        settings.queue_output_policy.container = legacy.clone();
+        settings.batch_compress_defaults.output_policy.container = legacy.clone();
+        settings.normalize();
+        let expected = if let Some(kind) = case["kind"].as_str() {
+            let mut wire = serde_json::json!({ "mode": "byMedia" });
+            wire[kind] = serde_json::Value::String(format.into());
+            serde_json::from_value(wire).expect("scoped policy")
+        } else {
+            legacy.clone()
+        };
+        assert_eq!(settings.queue_output_policy.container, expected);
+        assert_eq!(
+            settings.batch_compress_defaults.output_policy.container,
+            expected
+        );
+        let serialized = serde_json::to_vec(&settings).expect("settings persisted");
+        let mut restored: AppSettings =
+            serde_json::from_slice(&serialized).expect("settings restored");
+        restored.normalize();
+        assert_eq!(restored.queue_output_policy.container, expected);
+        let snapshot: OutputContainerPolicy =
+            serde_json::from_str(&serde_json::to_string(&legacy).expect("old snapshot"))
+                .expect("old policy restored");
+        assert_eq!(snapshot, legacy);
+        assert_eq!(
+            snapshot.for_media_type(crate::ffui_core::JobType::Video),
+            legacy
+        );
+    }
+}

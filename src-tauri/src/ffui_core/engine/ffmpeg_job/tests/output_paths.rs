@@ -191,3 +191,289 @@ fn forced_template_extension_changes_address_without_rewriting_the_muxer() {
     assert!(invocation.args.windows(2).any(|pair| pair == ["-f", "mp3"]));
     assert_eq!(invocation.args.last().map(String::as_str), Some(path));
 }
+#[test]
+fn media_scoped_output_snapshots_execute_without_cross_media_overrides() {
+    use crate::ffui_core::domain::{AudioCodecType, OutputContainerPolicy, OutputPolicy};
+    for (name, template, expected_extension, magic) in [
+        ("视频.mp4", None, "mp4", b"ftyp".as_slice()),
+        (
+            "音乐.wav",
+            Some("ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 OUTPUT"),
+            "mp3",
+            b"".as_slice(),
+        ),
+        (
+            "图片.png",
+            Some("ffmpeg -i INPUT -frames:v 1 -c:v bmp -f image2 OUTPUT"),
+            "bmp",
+            b"BM".as_slice(),
+        ),
+    ] {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let input = directory.path().join(name);
+        if expected_extension == "mp4" {
+            generate(
+                &[
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=red:s=16x16",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "sine=frequency=440",
+                    "-t",
+                    "0.2",
+                    "-c:v",
+                    "libx264",
+                    "-c:a",
+                    "aac",
+                ],
+                &input,
+            );
+        } else if expected_extension == "mp3" {
+            generate(
+                &["-f", "lavfi", "-i", "sine=frequency=440", "-t", "0.1"],
+                &input,
+            );
+        } else {
+            generate(
+                &["-f", "lavfi", "-i", "color=c=red:s=16x16", "-frames:v", "1"],
+                &input,
+            );
+        }
+        let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("scoped");
+        preset.audio.codec = AudioCodecType::Aac;
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".into()),
+            movflags: None,
+        });
+        preset.advanced_enabled = Some(template.is_some());
+        preset.ffmpeg_template = template.map(str::to_string);
+        let runtime = engine(preset);
+        let policy = OutputPolicy {
+            container: OutputContainerPolicy::ByMedia {
+                video: None,
+                audio: Some("mp3".into()),
+                image: Some("bmp".into()),
+            },
+            ..OutputPolicy::default()
+        };
+        {
+            let mut state = runtime.inner.state.lock_unpoisoned();
+            state.settings.queue_output_policy = policy.clone();
+            state.settings.tools.ffprobe_path = Some("ffprobe".into());
+        }
+        let job = runtime.enqueue_transcode_job(
+            input.to_string_lossy().into_owned(),
+            JobType::Other,
+            JobSource::Manual,
+            0.0,
+            None,
+            "scoped".into(),
+        );
+        let output = PathBuf::from(job.output_path.as_deref().expect("planned output"));
+        assert_eq!(
+            output.extension().and_then(|extension| extension.to_str()),
+            Some(expected_extension)
+        );
+        if expected_extension == "mp4" {
+            assert!(
+                !job.ffmpeg_command
+                    .as_deref()
+                    .expect("planned command")
+                    .contains("-f mp3")
+            );
+        }
+        let record =
+            crate::ffui_core::JobRecord::from(crate::ffui_core::TranscodeJobLite::from(&job));
+        let record: crate::ffui_core::JobRecord =
+            serde_json::from_slice(&serde_json::to_vec(&record).expect("persist snapshot"))
+                .expect("restore snapshot");
+        let restored =
+            crate::ffui_core::TranscodeJob::from(crate::ffui_core::TranscodeJobLite::from(record));
+        assert_eq!(restored.output_policy, Some(policy));
+        assert_eq!(
+            serde_json::to_value(&restored.execution).expect("execution"),
+            serde_json::to_value(&job.execution).expect("original execution")
+        );
+        {
+            let mut state = runtime.inner.state.lock_unpoisoned();
+            state.settings.queue_output_policy = OutputPolicy::default();
+            state.presets = Arc::new(Vec::new());
+            state.jobs.insert(job.id.clone(), restored);
+        }
+        process(&runtime, &job.id);
+        let stored = runtime.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+        assert_eq!(
+            stored.status,
+            JobStatus::Completed,
+            "{name}: {:?}",
+            stored.failure_reason
+        );
+        assert_eq!(stored.output_path, job.output_path);
+        let bytes = fs::read(&output).expect("produced output");
+        assert!(!bytes.is_empty());
+        if expected_extension == "mp4" {
+            assert_eq!(&bytes[4..8], magic);
+        }
+        if expected_extension == "bmp" {
+            assert!(bytes.starts_with(magic));
+        }
+        let decoded = Command::new(ffmpeg_program())
+            .arg("-i")
+            .arg(output)
+            .args(["-f", "null", "-"])
+            .stdin(Stdio::null())
+            .output()
+            .expect("decode output");
+        assert!(
+            decoded.status.success(),
+            "{}",
+            String::from_utf8_lossy(&decoded.stderr)
+        );
+        if expected_extension == "mp3" {
+            assert!(String::from_utf8_lossy(&decoded.stderr).contains("Audio: mp3"));
+        }
+    }
+}
+#[test]
+fn resumed_video_preserves_scoped_container_after_snapshot_restore_and_settings_changes() {
+    use crate::ffui_core::domain::{AudioCodecType, OutputContainerPolicy, OutputPolicy};
+    for (format, audio_codec) in [
+        ("mkv", AudioCodecType::Copy),
+        ("mkv", AudioCodecType::Aac),
+        ("webm", AudioCodecType::Copy),
+        ("webm", AudioCodecType::Aac),
+    ] {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let input = directory.path().join("视频 input.mp4");
+        generate(
+            &[
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=red:s=16x16:r=10",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440",
+                "-t",
+                "2",
+                "-c:v",
+                "libx264",
+                "-c:a",
+                "aac",
+            ],
+            &input,
+        );
+        let segment = directory.path().join("segment0.mkv");
+        generate(
+            &[
+                "-i",
+                input.to_str().expect("path"),
+                "-t",
+                "0.8",
+                "-map",
+                "0",
+                "-c",
+                "copy",
+                "-f",
+                "matroska",
+            ],
+            &segment,
+        );
+        let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("resumed");
+        preset.audio.codec = audio_codec.clone();
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".into()),
+            movflags: None,
+        });
+        let runtime = engine(preset.clone());
+        runtime
+            .inner
+            .state
+            .lock_unpoisoned()
+            .settings
+            .queue_output_policy = OutputPolicy {
+            container: OutputContainerPolicy::ByMedia {
+                video: Some(format.into()),
+                audio: Some("mp3".into()),
+                image: None,
+            },
+            ..OutputPolicy::default()
+        };
+        let mut job = runtime.enqueue_transcode_job(
+            input.to_string_lossy().into_owned(),
+            JobType::Video,
+            JobSource::Manual,
+            0.0,
+            None,
+            preset.id.clone(),
+        );
+        assert!(
+            job.output_path
+                .as_deref()
+                .expect("output")
+                .ends_with(".mkv")
+        );
+        job.status = JobStatus::Paused;
+        job.wait_metadata = Some(
+            serde_json::from_value(serde_json::json!({
+                "processedSeconds": 0.8, "targetSeconds": 0.8,
+                "lastProgressOutTimeSeconds": 0.8, "processedWallMillis": 100,
+                "tmpOutputPath": segment.to_string_lossy(), "segments": [segment.to_string_lossy()],
+                "segmentEndTargets": [0.8]
+            }))
+            .expect("paused snapshot"),
+        );
+        let record =
+            crate::ffui_core::JobRecord::from(crate::ffui_core::TranscodeJobLite::from(&job));
+        let record: crate::ffui_core::JobRecord =
+            serde_json::from_slice(&serde_json::to_vec(&record).expect("persist"))
+                .expect("restore");
+        let restored =
+            crate::ffui_core::TranscodeJob::from(crate::ffui_core::TranscodeJobLite::from(record));
+        let fresh = engine(preset);
+        {
+            let mut state = fresh.inner.state.lock_unpoisoned();
+            state.presets = Arc::new(Vec::new());
+            state.settings.tools.ffprobe_path = Some("ffprobe".into());
+            state.settings.queue_output_policy = OutputPolicy::default();
+        }
+        super::super::super::state::restore_jobs_from_snapshot(
+            &fresh.inner,
+            crate::ffui_core::QueueState {
+                jobs: vec![restored],
+            },
+        );
+        assert!(fresh.resume_job(&job.id));
+        process(&fresh, &job.id);
+        let stored = fresh.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+        assert_eq!(
+            stored.status,
+            JobStatus::Completed,
+            "{format}/{audio_codec:?}: {:?}",
+            stored.failure_reason
+        );
+        assert!(stored.logs.iter().any(|line| line.text.contains("resume:")));
+        let output = PathBuf::from(stored.output_path.expect("output"));
+        assert!(
+            fs::read(&output)
+                .expect("output bytes")
+                .starts_with(b"\x1a\x45\xdf\xa3")
+        );
+        let decoded = Command::new(ffmpeg_program())
+            .arg("-i")
+            .arg(output)
+            .args(["-f", "null", "-"])
+            .stdin(Stdio::null())
+            .output()
+            .expect("decode output");
+        assert!(
+            decoded.status.success(),
+            "{}",
+            String::from_utf8_lossy(&decoded.stderr)
+        );
+    }
+}

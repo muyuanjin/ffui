@@ -1,5 +1,61 @@
 use super::*;
 
+#[test]
+fn resumed_final_mux_builders_use_resolved_container_without_changing_audio_strategy() {
+    use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
+    let mut preset = make_test_preset(false);
+    preset.container = Some(ContainerConfig {
+        format: Some("mp4".into()),
+        movflags: None,
+    });
+    for container in [
+        OutputContainerPolicy::ByMedia {
+            video: Some("mkv".into()),
+            audio: Some("mp3".into()),
+            image: None,
+        },
+        OutputContainerPolicy::ByMedia {
+            video: Some("webm".into()),
+            audio: None,
+            image: None,
+        },
+        OutputContainerPolicy::Force {
+            format: "mkv".into(),
+        },
+    ] {
+        let policy = OutputPolicy {
+            container,
+            ..OutputPolicy::default()
+        };
+        let input = Path::new("input.mp4");
+        let output = Path::new("output.mkv");
+        let muxer =
+            super::super::ffmpeg_args::effective_output_muxer(&preset, input, output, &policy);
+        assert_eq!(muxer.as_deref(), Some("matroska"));
+        for args in [
+            build_mux_args_for_resumed_output(
+                Path::new("joined.mkv"),
+                input,
+                output,
+                &preset,
+                muxer.as_deref(),
+            ),
+            build_mux_args_for_resumed_output_with_processed_audio(
+                Path::new("joined.mkv"),
+                Path::new("sidecar.m4a"),
+                output,
+                &preset,
+                muxer.as_deref(),
+            ),
+        ] {
+            assert!(args.windows(2).any(|pair| pair == ["-f", "matroska"]));
+            assert!(!args.windows(2).any(|pair| pair == ["-f", "mp4"]));
+            assert!(args.windows(2).any(|pair| pair == ["-c:v", "copy"]));
+            assert!(args.windows(2).any(|pair| pair == ["-c:a", "copy"]));
+        }
+    }
+}
+
 fn make_test_preset(keep_subtitles: bool) -> FFmpegPreset {
     FFmpegPreset {
         id: "preset-test".to_string(),
@@ -79,7 +135,8 @@ fn build_mux_args_for_resumed_output_maps_streams_and_respects_subtitle_keep() {
     let mux_tmp = PathBuf::from("mux.tmp.mp4");
     let preset = make_test_preset(true);
 
-    let args = build_mux_args_for_resumed_output(&joined_video, &input_path, &mux_tmp, &preset);
+    let args =
+        build_mux_args_for_resumed_output(&joined_video, &input_path, &mux_tmp, &preset, None);
 
     let mux_out = mux_tmp.to_string_lossy().into_owned();
     assert!(
@@ -157,6 +214,7 @@ fn audio_sidecar_args_reuse_serial_audio_encoding_and_filters() {
         &input_path,
         &PathBuf::from("mux.tmp.mp4"),
         &preset,
+        None,
     );
     let sidecar_args =
         build_audio_sidecar_args_for_resumed_output(&input_path, &audio_tmp, &preset);
@@ -217,6 +275,7 @@ fn processed_audio_mux_copies_audio_without_reapplying_filters() {
         &processed_audio,
         &mux_tmp,
         &preset,
+        None,
     );
 
     assert!(

@@ -1,4 +1,8 @@
-export type OutputContainerPolicy = { mode: "default" } | { mode: "keepInput" } | { mode: "force"; format: string };
+export type OutputContainerPolicy =
+  | { mode: "default" }
+  | { mode: "keepInput" }
+  | { mode: "force"; format: string }
+  | { mode: "byMedia"; video?: string; audio?: string; image?: string };
 
 export type OutputDirectoryPolicy = { mode: "sameAsInput" } | { mode: "fixed"; directory: string };
 

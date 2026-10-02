@@ -96,6 +96,7 @@ describe("MainContentHeader output settings", () => {
     await nextTick();
 
     const editor = wrapper.get("[data-testid='output-policy-editor-stub']");
+    expect(wrapper.find(".overflow-y-auto").classes()).toContain("max-h-[90vh]");
     await editor.get("[data-testid='output-policy-emit']").trigger("click");
     await nextTick();
 

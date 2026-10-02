@@ -13,7 +13,8 @@ import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputAppendOrderEditor from "@/components/output/OutputAppendOrderEditor.vue";
 import FormatSelect from "@/components/formats/FormatSelect.vue";
-import { FORMAT_CATALOG } from "@/lib/formatCatalog";
+import { FORMAT_CATALOG, type FormatKind } from "@/lib/formatCatalog";
+import { OUTPUT_MEDIA_KINDS, scopedOutputContainerForSettings } from "@/lib/outputContainerPolicy";
 const props = defineProps<{
   modelValue?: OutputPolicy;
   /** When true, disables directory + filename fields (used by Batch Compress replaceOriginal). */
@@ -27,7 +28,10 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: OutputPolicy): void;
 }>();
 const { t } = useI18n();
-const policy = computed<OutputPolicy>(() => props.modelValue ?? DEFAULT_OUTPUT_POLICY);
+const policy = computed<OutputPolicy>(() => {
+  const value = props.modelValue ?? DEFAULT_OUTPUT_POLICY;
+  return { ...value, container: scopedOutputContainerForSettings(value.container) };
+});
 const updatePolicy = (patch: Partial<OutputPolicy>) => {
   emit("update:modelValue", { ...policy.value, ...patch });
 };
@@ -44,9 +48,8 @@ const updateDirectory = (mode: OutputPolicy["directory"]["mode"], directory?: st
 };
 
 const updateContainerMode = (mode: OutputPolicy["container"]["mode"]) => {
-  if (mode === "force") {
-    const current = policy.value.container.mode === "force" ? policy.value.container.format : "mkv";
-    updatePolicy({ container: { mode: "force", format: current } });
+  if (mode === "byMedia") {
+    updatePolicy({ container: { mode: "byMedia" } });
     return;
   }
   if (mode === "default") {
@@ -58,8 +61,16 @@ const updateContainerMode = (mode: OutputPolicy["container"]["mode"]) => {
 
 const containerMode = computed(() => policy.value.container.mode);
 const forcedContainerFormat = computed(() =>
-  policy.value.container.mode === "force" ? policy.value.container.format : "mkv",
+  policy.value.container.mode === "force" ? policy.value.container.format : "",
 );
+
+const FOLLOW_PRESET = "__preset__";
+const mediaFormat = (kind: FormatKind) =>
+  policy.value.container.mode === "byMedia" ? (policy.value.container[kind] ?? FOLLOW_PRESET) : FOLLOW_PRESET;
+const updateMediaFormat = (kind: FormatKind, value: string) => {
+  if (policy.value.container.mode !== "byMedia") return;
+  updatePolicy({ container: { ...policy.value.container, [kind]: value === FOLLOW_PRESET ? undefined : value } });
+};
 
 const containerModeLabel = computed(() => {
   const value = containerMode.value;
@@ -67,6 +78,7 @@ const containerModeLabel = computed(() => {
     default: t("outputPolicy.container.default"),
     keepInput: t("outputPolicy.container.keepInput"),
     force: t("outputPolicy.container.force"),
+    byMedia: t("outputPolicy.container.byMedia"),
   };
   return map[value] ?? "";
 });
@@ -140,7 +152,7 @@ const updatePreserveTimes = (patch: Partial<PreserveTimesState>) => {
 };
 
 const updateContainerModeFromSelect = (value: unknown) => {
-  if (value === "default" || value === "keepInput" || value === "force") {
+  if (value === "default" || value === "keepInput" || value === "byMedia") {
     updateContainerMode(value);
   }
 };
@@ -262,7 +274,7 @@ const pickPreviewFile = async () => {
             <SelectContent>
               <SelectItem value="default">{{ t("outputPolicy.container.default") }}</SelectItem>
               <SelectItem value="keepInput">{{ t("outputPolicy.container.keepInput") }}</SelectItem>
-              <SelectItem value="force">{{ t("outputPolicy.container.force") }}</SelectItem>
+              <SelectItem value="byMedia">{{ t("outputPolicy.container.byMedia") }}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -272,6 +284,26 @@ const pickPreviewFile = async () => {
             :entries="queueOutputContainerEntries"
             :placeholder="t('formatSelect.placeholder') as string"
             @update:model-value="(v) => updatePolicy({ container: { mode: 'force', format: String(v) } })"
+          />
+        </div>
+      </div>
+
+      <div v-if="containerMode === 'byMedia'" class="grid grid-cols-1 sm:grid-cols-3 gap-3 md:col-span-2">
+        <div
+          v-for="kind in OUTPUT_MEDIA_KINDS"
+          :key="kind"
+          class="space-y-1.5"
+          :data-testid="`output-policy-${kind}-format`"
+        >
+          <Label class="text-xs">{{ t(`formatSelect.groups.${kind}`) }}</Label>
+          <FormatSelect
+            :model-value="mediaFormat(kind)"
+            :entries="queueOutputContainerEntries"
+            :allowed-kinds="[kind]"
+            :auto-value="FOLLOW_PRESET"
+            :auto-label="t('outputPolicy.container.followPreset')"
+            trigger-class="w-full"
+            @update:model-value="(value) => updateMediaFormat(kind, value)"
           />
         </div>
       </div>

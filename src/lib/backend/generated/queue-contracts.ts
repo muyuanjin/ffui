@@ -175,13 +175,23 @@ export type MediaPreviewInfo = {
 	durationSeconds: number | null,
 };
 
-export type OutputContainerPolicy =
+export type OutputContainerPolicy = OutputContainerPolicy_Serialize | OutputContainerPolicy_Deserialize;
+
+export type OutputContainerPolicy_Deserialize =
 /**  Follow the preset (structured) or the advanced template when present. */
-{ mode: "default" } |
+({ mode: "default" }) & { audio?: never; format?: never; image?: never; video?: never } |
 /**  Force the output container to match the input file's extension. */
-{ mode: "keepInput" } |
+({ mode: "keepInput" }) & { audio?: never; format?: never; image?: never; video?: never } |
 /**  Force the output container to an explicit format (e.g. mkv/mp4). */
-{ mode: "force"; format: string };
+({ mode: "force"; format: string }) & { audio?: never; image?: never; video?: never } | ({ mode: "byMedia"; video?: string | null; audio?: string | null; image?: string | null }) & { format?: never };
+
+export type OutputContainerPolicy_Serialize =
+/**  Follow the preset (structured) or the advanced template when present. */
+({ mode: "default" }) & { audio?: never; format?: never; image?: never; video?: never } |
+/**  Force the output container to match the input file's extension. */
+({ mode: "keepInput" }) & { audio?: never; format?: never; image?: never; video?: never } |
+/**  Force the output container to an explicit format (e.g. mkv/mp4). */
+({ mode: "force"; format: string }) & { audio?: never; image?: never; video?: never } | ({ mode: "byMedia"; video?: string | null; audio?: string | null; image?: string | null }) & { format?: never };
 
 export type OutputDirectoryPolicy = { mode: "sameAsInput" } | { mode: "fixed"; directory: string };
 
@@ -233,7 +243,7 @@ export type OutputFilenameRegexReplace = {
 export type OutputPolicy = OutputPolicy_Serialize | OutputPolicy_Deserialize;
 
 export type OutputPolicy_Deserialize = {
-	container?: OutputContainerPolicy,
+	container?: OutputContainerPolicy_Deserialize,
 	directory?: OutputDirectoryPolicy,
 	filename?: OutputFilenamePolicy_Deserialize,
 	/**  File time preservation options. */
@@ -241,7 +251,7 @@ export type OutputPolicy_Deserialize = {
 };
 
 export type OutputPolicy_Serialize = {
-	container: OutputContainerPolicy,
+	container: OutputContainerPolicy_Serialize,
 	directory: OutputDirectoryPolicy,
 	filename: OutputFilenamePolicy_Serialize,
 	/**  File time preservation options. */

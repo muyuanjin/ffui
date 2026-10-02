@@ -1,5 +1,6 @@
 import type { FFmpegPreset, OutputFilenameAppend, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { resolveOutputContainerForExtension } from "@/lib/outputContainerPolicy";
 
 const DEFAULT_APPEND_ORDER: OutputFilenameAppend[] = DEFAULT_OUTPUT_POLICY.filename.appendOrder ?? [
   "suffix",
@@ -214,6 +215,56 @@ export function inferPresetDefaultOutputContainer(preset: FFmpegPreset | null | 
   return structured || null;
 }
 
+function shouldFallbackWebmForPreview(preset: FFmpegPreset | null | undefined, inputExtension: string): boolean {
+  if (!preset) return true;
+  const inputIsWebm = inputExtension.toLowerCase() === "webm";
+  if (preset.advancedEnabled && preset.ffmpegTemplate?.trim()) {
+    const tokens = splitTemplateArgs(preset.ffmpegTemplate);
+    const outputIndex = tokens.indexOf("OUTPUT");
+    if (outputIndex < 0) return false;
+    let start = 0;
+    for (let index = 0; index + 1 < outputIndex; index += 1) {
+      if (tokens[index] === "-i") {
+        start = index + 2;
+        index += 1;
+      }
+    }
+    let video: string | null = null;
+    let audio: string | null = null;
+    for (let index = start; index + 1 < outputIndex; index += 1) {
+      if (tokens[index] === "-c:v") {
+        video = tokens[index + 1].trim().toLowerCase();
+        index += 1;
+      } else if (tokens[index] === "-c:a") {
+        audio = tokens[index + 1].trim().toLowerCase();
+        index += 1;
+      }
+    }
+    if (!video || !audio) return false;
+    const videoOk =
+      [
+        "vp8",
+        "libvpx",
+        "vp9",
+        "libvpx-vp9",
+        "av1",
+        "libaom-av1",
+        "libsvtav1",
+        "av1_nvenc",
+        "av1_qsv",
+        "av1_amf",
+      ].includes(video) ||
+      (video === "copy" && inputIsWebm);
+    const audioOk = ["opus", "libopus", "vorbis", "libvorbis"].includes(audio) || (audio === "copy" && inputIsWebm);
+    return !(videoOk && audioOk);
+  }
+  const videoOk =
+    ["av1_nvenc", "av1_qsv", "av1_amf", "libsvtav1"].includes(preset.video.encoder) ||
+    (preset.video.encoder === "copy" && inputIsWebm);
+  const audioOk = preset.audio.codec === "copy" && inputIsWebm;
+  return !(videoOk && audioOk);
+}
+
 export function previewOutputPathLocal(
   inputPath: string,
   policy: OutputPolicy,
@@ -228,19 +279,24 @@ export function previewOutputPathLocal(
   const file = lastSlash >= 0 ? normalizedInput.slice(lastSlash + 1) : normalizedInput;
   const lastDot = file.lastIndexOf(".");
   const stem = lastDot > 0 ? file.slice(0, lastDot) : file;
-  const ext = lastDot > 0 ? file.slice(lastDot + 1) : "mp4";
+  const inputExt = lastDot > 0 ? file.slice(lastDot + 1) : "";
+  const ext = inputExt || "mp4";
 
   const outDir =
     policy.directory.mode === "fixed" && policy.directory.directory?.trim()
       ? policy.directory.directory.trim().replace(/\\/g, "/")
       : dir;
 
-  const outExt =
-    policy.container.mode === "force"
-      ? normalizeForcedContainerExtensionForPreview(String(policy.container.format || ext)) || ext
-      : policy.container.mode === "keepInput"
+  const container = resolveOutputContainerForExtension(policy.container, inputExt);
+  let outExt =
+    container.mode === "force"
+      ? normalizeForcedContainerExtensionForPreview(String(container.format || ext)) || ext
+      : container.mode === "keepInput"
         ? ext
         : (inferPresetDefaultOutputContainer(options.preset) ?? ext);
+  if (container.mode === "force" && outExt === "webm" && shouldFallbackWebmForPreview(options.preset, inputExt)) {
+    outExt = "mkv";
+  }
 
   let outStem = stem;
   if (policy.filename.regexReplace?.pattern) {

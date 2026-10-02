@@ -113,18 +113,40 @@ describe("OutputPolicyEditor preview", () => {
         props: { modelValue: makePolicy({ mode: "force", format: "mp4" }) },
         global: { plugins: [i18n] },
       });
-      const selector = wrapper.getComponent(FormatSelect);
+      const kind = format === "png" ? "image" : "audio";
+      const selector = wrapper.get(`[data-testid="output-policy-${kind}-format"]`).getComponent(FormatSelect);
+      expect(selector.props("allowedKinds")).toEqual([kind]);
       expect(selector.props("entries")).toContainEqual(expect.objectContaining({ value: format }));
       selector.vm.$emit("update:modelValue", format);
       expect(wrapper.emitted("update:modelValue")?.slice(-1)[0]?.[0]).toEqual(
-        expect.objectContaining({ container: { mode: "force", format } }),
+        expect.objectContaining({ container: { mode: "byMedia", video: "mp4", [kind]: format } }),
       );
       expect(wrapper.get('[data-testid="output-policy-format-help"]').text()).toContain("extension only");
       i18n.global.locale.value = "zh-CN";
       await flushPromises();
       expect(wrapper.get('[data-testid="output-policy-format-help"]').text()).toContain("仅改变输出扩展名");
-      expect(wrapper.get('[data-testid="output-policy-container-mode-trigger"]').text()).toContain("指定格式");
+      expect(wrapper.get('[data-testid="output-policy-container-mode-trigger"]').text()).toContain(
+        "按媒体类型指定格式",
+      );
       wrapper.unmount();
     },
   );
+
+  it("keeps three independent formats and clears one selection to follow the preset", async () => {
+    const wrapper = mount(OutputPolicyEditor, {
+      props: { modelValue: makePolicy({ mode: "byMedia", video: "mkv", audio: "mp3", image: "png" }) },
+      global: { plugins: [makeI18n()] },
+    });
+    expect(wrapper.findAllComponents(FormatSelect)).toHaveLength(3);
+    wrapper
+      .get('[data-testid="output-policy-audio-format"]')
+      .getComponent(FormatSelect)
+      .vm.$emit("update:modelValue", "__preset__");
+    expect(wrapper.emitted("update:modelValue")?.slice(-1)[0]?.[0]).toMatchObject({
+      container: { mode: "byMedia", video: "mkv", audio: undefined, image: "png" },
+    });
+    await wrapper.setProps({ modelValue: makePolicy({ mode: "default" }) });
+    expect(wrapper.findAllComponents(FormatSelect)).toHaveLength(0);
+    wrapper.unmount();
+  });
 });

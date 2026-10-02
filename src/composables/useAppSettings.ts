@@ -20,6 +20,7 @@ import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { scopedOutputContainerForSettings } from "@/lib/outputContainerPolicy";
 import { stringifyJsonAsync } from "@/lib/asyncJson";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 import {
@@ -74,10 +75,23 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
   if (!next.queueOutputPolicy) {
     next.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY };
   }
+  next.queueOutputPolicy = {
+    ...next.queueOutputPolicy,
+    container: scopedOutputContainerForSettings(next.queueOutputPolicy.container),
+  };
   if (next.batchCompressDefaults && !next.batchCompressDefaults.outputPolicy) {
     next.batchCompressDefaults = {
       ...next.batchCompressDefaults,
       outputPolicy: { ...DEFAULT_OUTPUT_POLICY },
+    };
+  }
+  if (next.batchCompressDefaults?.outputPolicy) {
+    next.batchCompressDefaults = {
+      ...next.batchCompressDefaults,
+      outputPolicy: {
+        ...next.batchCompressDefaults.outputPolicy,
+        container: scopedOutputContainerForSettings(next.batchCompressDefaults.outputPolicy.container),
+      },
     };
   }
 

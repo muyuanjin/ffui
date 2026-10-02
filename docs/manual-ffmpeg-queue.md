@@ -12,6 +12,14 @@ Add files or folders to use a preset. Regular files are accepted without an exte
 
 You do not need the **Add command** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
 
+### Output formats by media type
+
+**Output settings** offers a unified **Default (follow preset/template)** or **Keep input container** policy, or **Specify formats by media type** with separate video, audio and image choices. Each choice applies to that input file's resource type, not to every stream it contains. Unset choices follow the preset. For example, setting only audio to MP3 does not put a video's H.264/HEVC and AAC streams into an MP3 file; video files keep the preset's container. Unknown extensions follow the preset and remain executable. Format selection does not convert a video preset into an audio-extraction recipe or change its codecs; use an audio command template to extract MP3 from a video.
+
+The queue header shows one badge for a unified policy, or three category-icon badges extending to the left of **Output settings** for a per-media policy. Tooltips and accessible labels identify each category. Active saved single-format settings for recognized formats are scoped to their media type; other types follow the preset. Existing task snapshots retain their saved policy and command, including legacy global overrides. Re-enqueue a failed task after changing its settings. Unknown custom legacy formats retain their explicit global behavior. Batch Compress's native image/audio targets remain controlled by their encoding configuration.
+
+A forced WebM format incompatible with the preset's codecs resolves to Matroska (`.mkv`), with a task warning; output examples show the resolved path. A resumed video's final mux uses the same saved format policy as its segments, including this fallback.
+
 Preset and queue format selectors support video, audio and image formats. Choose codecs compatible with the selected container; selecting a format does not select an encoder. ALAC is an audio codec, normally stored in M4A, not a separate output container. AAC files use the ADTS muxer. With a custom command template, output policy controls the `OUTPUT` address and extension only: the template's `-f`, codecs, maps and filters stay unchanged. Simple `image2` output groups with an identifiable PNG, MJPEG, BMP or TIFF encoder determine the default extension. Complex options or stream selectors require an explicit output format selection; FFUI does not fully interpret FFmpeg arguments. Transparent image task thumbnails prefer a prepared preview, then the input image; a bound output address alone does not replace an available input thumbnail.
 
 A preset template's explicitly bound `OUTPUT` address is saved with the task and can be copied or located from its context menu, including for transparent execution. This address does not grant FFUI ownership of the output or prove that a file was produced. Raw advanced commands without a recorded output address have disabled output-path actions; FFUI does not substitute the input path or discover arbitrary outputs. For existing transparent records that lack this address, inspect the task's saved FFmpeg command to locate its destination.
@@ -57,6 +65,14 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 3. 在转码任务页面的预设选择器中选中已保存的预设，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。文件夹展开后，每个文件按该预设创建任务；文件夹可能含无关文件，每个文件都会尝试执行，不兼容输入会给出失败诊断。
 
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
+
+### 按媒体类型指定输出格式
+
+**输出设置** 可统一使用 **默认（走预设/模板）** 或 **维持原文件容器**，也可选择 **按媒体类型指定格式**，分别设置视频、音频、图片格式。每项作用于输入文件的资源类型，而不是文件里的每条媒体流；未指定时跟随预设。例如只把音频设置为 MP3，不会把视频文件里的 H.264/HEVC 和 AAC 塞进 MP3 文件，视频仍用预设容器。未知扩展名跟随预设，仍可执行。指定格式不把视频预设变成音频提取配方，也不改变编码器；从视频提取 MP3 请使用音频命令模板。
+
+队列顶部的统一策略显示一个徽标；分媒体策略显示三个带分类图标的徽标，向 **输出设置** 左侧展开，悬停提示和无障碍标签标明类别。活动设置中已保存的单一已知格式会归入对应媒体类型，其他类型跟随预设；已有任务快照保留其策略及命令，包括旧的全局覆盖。失败任务调整设置后需重新入队。未知自定义旧格式保留其显式全局语义。Batch Compress 的原生图片、音频目标仍由各自编码配置决定。
+
+强制 WebM 与预设编码器不兼容时，输出回退为 Matroska（`.mkv`），任务给出警告，输出示例展示生效路径。恢复执行的视频，其最终封装与分段使用相同的已保存格式策略，包括这一回退。
 
 预设和队列的格式选择器支持视频、音频及图片格式。请选择与容器匹配的编码器；选择格式不会自动选择编码器。ALAC 是音频编码，通常放在 M4A 容器中，不是独立输出容器。AAC 文件使用 ADTS 封装。自定义命令模板下，输出策略仅控制 `OUTPUT` 地址及扩展名，模板中的 `-f`、编码器、映射和过滤器保持原义。简单的 `image2` 输出组选项可明确识别 PNG、MJPEG、BMP 或 TIFF 编码器时，默认扩展名跟随该图片格式。复杂选项或流选择器需指定输出格式；应用不完整解释 FFmpeg 参数。透明图片任务缩略图优先使用已准备的预览，再使用输入图片；仅绑定输出地址不会替换可用的输入缩略图。
 

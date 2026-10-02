@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { Video, Music, Image as ImageIcon } from "lucide-vue-next";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, OutputPolicy, PresetSortDirection, PresetSortMode } from "@/types";
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { OUTPUT_MEDIA_KINDS } from "@/lib/outputContainerPolicy";
 import {
   inferPresetDefaultOutputContainer,
   normalizeForcedContainerExtensionForPreview,
@@ -79,19 +81,32 @@ const presetDefaultContainerFormat = computed<string | null>(() =>
   inferPresetDefaultOutputContainer(manualPreset.value),
 );
 
-const outputContainerBadge = computed<string>(() => {
+const outputContainerBadges = computed(() => {
   const policy = effectiveOutputPolicy.value;
+  if (policy.container.mode === "byMedia") {
+    const container = policy.container;
+    return OUTPUT_MEDIA_KINDS.map((kind) => ({
+      kind,
+      label: container[kind] ? normalizeForcedContainerExtensionForPreview(container[kind]) : "auto",
+      title: `${t(`formatSelect.groups.${kind}`)}: ${container[kind] ?? t("outputPolicy.container.followPreset")}`,
+    }));
+  }
+  const single = (label: string) => [{ kind: "all", label, title: label }];
   if (policy.container.mode === "force") {
-    return normalizeForcedContainerExtensionForPreview(policy.container.format || "mkv") || "mkv";
+    return single(normalizeForcedContainerExtensionForPreview(policy.container.format));
   }
   if (policy.container.mode === "keepInput") {
-    return "input";
+    return single("input");
   }
-  return presetDefaultContainerFormat.value ?? "auto";
+  return single(presetDefaultContainerFormat.value ?? "auto");
 });
+const outputContainerBadge = computed(() => outputContainerBadges.value.map((badge) => badge.label).join(" / "));
 
 const hoverPreviewContainerText = computed(() => {
   const policy = effectiveOutputPolicy.value;
+  if (policy.container.mode === "byMedia") {
+    return outputContainerBadges.value.map((badge) => badge.title).join(" · ");
+  }
   if (policy.container.mode === "force") {
     const fmt = normalizeForcedContainerExtensionForPreview(policy.container.format || "mkv") || "mkv";
     return `${t("outputPolicy.container.force")}：${fmt}`;
@@ -172,31 +187,23 @@ const hoverPreviewPreserveTimesText = computed(() => {
   return parts.length > 0 ? parts.join(" · ") : none;
 });
 
-const hoverPreviewExample = computed(() => {
-  const exampleInput = "C:/videos/input.mp4";
+const hoverPreviewExamples = computed(() => {
   const policy = effectiveOutputPolicy.value;
-
-  const previewPolicy: OutputPolicy =
-    policy.container.mode === "default" && presetDefaultContainerFormat.value
-      ? {
-          ...policy,
-          // For example path only: match preset/template extension when "default" is selected.
-          container: { mode: "force", format: presetDefaultContainerFormat.value },
-        }
-      : policy;
-
-  const output = previewOutputPathLocal(exampleInput, previewPolicy, { preset: manualPreset.value });
+  const inputs =
+    policy.container.mode === "byMedia"
+      ? ["C:/videos/input.mp4", "C:/audio/input.wav", "C:/images/input.jpg"]
+      : ["C:/videos/input.mp4"];
   const base = (p: string) => p.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? p;
-  return {
-    input: base(exampleInput),
-    output: base(output),
-  };
+  return inputs.map((input) => ({
+    input: base(input),
+    output: base(previewOutputPathLocal(input, policy, { preset: manualPreset.value })),
+  }));
 });
 </script>
 
 <template>
   <header
-    class="shrink-0 px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex items-center justify-between gap-2"
+    class="shrink-0 px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex flex-wrap items-center justify-between gap-2"
   >
     <div class="flex flex-col gap-1">
       <div class="flex items-center gap-3 min-h-8">
@@ -205,7 +212,8 @@ const hoverPreviewExample = computed(() => {
         </h2>
         <span
           v-if="activeTab === 'queue' && jobsLength > 0"
-          class="bg-muted text-xs text-muted-foreground px-2 py-1 rounded-full"
+          data-testid="ffui-queue-job-count"
+          class="shrink-0 whitespace-nowrap bg-muted text-xs text-muted-foreground px-2 py-1 rounded-full"
         >
           {{ completedCount }} / {{ jobsLength }}
         </span>
@@ -215,16 +223,29 @@ const hoverPreviewExample = computed(() => {
       </p>
     </div>
 
-    <div v-if="activeTab === 'queue'" class="flex items-center gap-3">
+    <div v-if="activeTab === 'queue'" class="ml-auto max-w-full flex flex-wrap items-center justify-end gap-3">
       <HoverCard :open-delay="150" :close-delay="100">
         <HoverCardTrigger as-child>
           <div class="inline-flex items-center group">
             <span
+              v-for="(badge, index) in outputContainerBadges"
+              :key="badge.kind"
               data-testid="ffui-queue-output-container-badge"
-              class="h-7 px-2 inline-flex items-center rounded-full rounded-r-none border border-border/40 border-r-0 bg-[#90a4ae]/60 text-[10px] font-mono font-semibold uppercase tracking-wide text-white/85 select-none group-hover:bg-[#90a4ae]/70"
-              :title="outputContainerBadge"
+              :data-media-kind="badge.kind"
+              class="h-7 px-2 inline-flex shrink-0 items-center gap-1 whitespace-nowrap border border-border/40 border-r-0 bg-[#90a4ae]/60 text-[10px] font-mono font-semibold uppercase tracking-wide text-white/85 select-none group-hover:bg-[#90a4ae]/70"
+              :class="index === 0 ? 'rounded-l-full' : ''"
+              :title="badge.title"
+              :aria-label="badge.title"
             >
-              {{ outputContainerBadge }}
+              <template v-if="badge.kind !== 'all'">
+                <component
+                  :is="badge.kind === 'video' ? Video : badge.kind === 'audio' ? Music : ImageIcon"
+                  class="h-3 w-3 shrink-0 text-white/65"
+                  aria-hidden="true"
+                />
+                <span class="sr-only">{{ t(`formatSelect.groups.${badge.kind}`) }}</span>
+              </template>
+              {{ badge.label }}
             </span>
             <Button
               data-testid="ffui-queue-output-settings"
@@ -250,9 +271,11 @@ const hoverPreviewExample = computed(() => {
             <div class="grid grid-cols-[108px,1fr] gap-x-3 gap-y-1 text-[11px]">
               <div class="text-muted-foreground">{{ t("outputPolicy.previewLabel") }}</div>
               <div class="text-foreground">
-                <span class="font-mono">{{ hoverPreviewExample.input }}</span>
-                <span class="text-muted-foreground mx-1">→</span>
-                <span class="font-mono">{{ hoverPreviewExample.output }}</span>
+                <div v-for="example in hoverPreviewExamples" :key="example.input">
+                  <span class="font-mono">{{ example.input }}</span>
+                  <span class="text-muted-foreground mx-1">→</span>
+                  <span class="font-mono">{{ example.output }}</span>
+                </div>
               </div>
 
               <div class="text-muted-foreground">{{ t("outputPolicy.containerLabel") }}</div>
@@ -302,7 +325,7 @@ const hoverPreviewExample = computed(() => {
       >
         <SelectTrigger
           data-testid="ffui-queue-view-mode-trigger"
-          class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]"
+          class="h-7 w-auto px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]"
         >
           <SelectValue>{{ t(queueViewModeLabelKey) }}</SelectValue>
         </SelectTrigger>
@@ -363,7 +386,7 @@ const hoverPreviewExample = computed(() => {
   </header>
 
   <Dialog :open="outputDialogOpen" @update:open="(v) => (outputDialogOpen = !!v)">
-    <DialogContent class="max-w-3xl">
+    <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ t("app.outputSettings") }}</DialogTitle>
       </DialogHeader>

@@ -7,6 +7,31 @@ import { withViteDevServer } from "./lib/viteDevServer.mjs";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const output = path.resolve(process.argv[2] ?? path.join(repoRoot, ".cache/output-path-fix/screenshots"));
+const verifyHeaderLayout = async (page) => {
+  const header = page.locator("header").filter({ has: page.getByTestId("ffui-queue-output-settings") });
+  assert.ok(await header.evaluate((element) => element.scrollWidth <= element.clientWidth));
+  const headerBounds = await header.boundingBox();
+  const viewModeBounds = await page.getByTestId("ffui-queue-view-mode-trigger").boundingBox();
+  assert.ok(headerBounds && viewModeBounds);
+  assert.ok(viewModeBounds.width < headerBounds.width / 2);
+  const count = page.getByTestId("ffui-queue-job-count");
+  assert.ok(
+    await count.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const singleLineHeight =
+        parseFloat(style.lineHeight) + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      return element.getBoundingClientRect().height <= singleLineHeight + 1;
+    }),
+  );
+  const button = await page.getByTestId("ffui-queue-output-settings").boundingBox();
+  assert.ok(button);
+  for (const badge of await page.getByTestId("ffui-queue-output-container-badge").all()) {
+    const bounds = await badge.boundingBox();
+    assert.ok(bounds);
+    assert.ok(bounds.x + bounds.width <= button.x + 1);
+    assert.ok(Math.abs(bounds.y - button.y) <= 1);
+  }
+};
 await fs.mkdir(output, { recursive: true });
 await withViteDevServer(
   {
@@ -43,26 +68,62 @@ await withViteDevServer(
         await page.getByTestId("ffui-queue-output-settings").click();
         const dialog = page.getByRole("dialog");
         const mode = dialog.getByTestId("output-policy-container-mode-trigger");
-        const force = locale === "zh-CN" ? "指定格式" : "Force format";
+        const force = locale === "zh-CN" ? "按媒体类型指定格式" : "Specify formats by media type";
         if (!(await mode.textContent()).includes(force)) {
           await mode.click();
           await page.getByRole("option", { name: force, exact: true }).click();
         }
-        for (const [format, label] of [
-          ["mp3", "MP3 (.mp3)"],
-          ["m4a", "M4A (.m4a)"],
-          ["png", "PNG (.png)"],
+        for (const [format, label, kind] of [
+          ["mkv", "MKV / Matroska (.mkv)", "video"],
+          ["mp3", "MP3 (.mp3)", "audio"],
+          ["m4a", "M4A (.m4a)", "audio"],
+          ["png", "PNG (.png)", "image"],
         ]) {
-          await dialog.getByRole("combobox").nth(1).click();
+          const selector = dialog.getByTestId(`output-policy-${kind}-format`).getByRole("combobox");
+          await selector.click();
+          const wrongKind = kind === "video" ? "MP3 (.mp3)" : "MP4 (.mp4)";
+          assert.equal(await page.getByRole("option").filter({ hasText: wrongKind }).count(), 0);
           const option = page.getByRole("option").filter({ hasText: label });
           assert.notEqual(await option.getAttribute("aria-disabled"), "true");
           await option.click();
-          assert.ok((await dialog.getByRole("combobox").nth(1).textContent()).includes(label));
+          assert.ok((await selector.textContent()).includes(label));
           await dialog.screenshot({ path: path.join(output, `format-${format}-${locale}.png`) });
         }
         const guidance = await dialog.getByTestId("output-policy-format-help").textContent();
         assert.ok(guidance.includes(locale === "zh-CN" ? "仅改变输出扩展名" : "extension only"));
-        await page.keyboard.press("Escape");
+        await dialog.getByRole("button", { name: "Close", exact: true }).click();
+        await dialog.waitFor({ state: "hidden" });
+        await page.mouse.move(0, 0);
+        const badges = page.getByTestId("ffui-queue-output-container-badge");
+        assert.equal(await badges.count(), 3);
+        assert.deepEqual(await badges.evaluateAll((items) => items.map((item) => item.dataset.mediaKind)), [
+          "video",
+          "audio",
+          "image",
+        ]);
+        await verifyHeaderLayout(page);
+        await page
+          .locator("header")
+          .filter({ has: page.getByTestId("ffui-queue-output-settings") })
+          .screenshot({ path: path.join(output, `media-badges-${locale}.png`) });
+        await page.getByTestId("ffui-queue-output-settings").click();
+        await mode.click();
+        await page
+          .getByRole("option", {
+            name: locale === "zh-CN" ? "默认（走预设/模板）" : "Default (follow preset/template)",
+            exact: true,
+          })
+          .click();
+        assert.equal(await dialog.getByTestId("output-policy-audio-format").count(), 0);
+        await dialog.getByRole("button", { name: "Close", exact: true }).click();
+        await dialog.waitFor({ state: "hidden" });
+        await page.mouse.move(0, 0);
+        assert.equal(await badges.count(), 1);
+        await verifyHeaderLayout(page);
+        await page
+          .locator("header")
+          .filter({ has: page.getByTestId("ffui-queue-output-settings") })
+          .screenshot({ path: path.join(output, `unified-badge-${locale}.png`) });
       }
       await page.getByTestId("ffui-queue-view-mode-trigger").click();
       await page.getByTestId("ffui-queue-view-mode-detail").click();
@@ -111,7 +172,11 @@ await withViteDevServer(
         path.join(output, "verification.json"),
         JSON.stringify(
           {
-            formats: ["mp3", "m4a", "png"],
+            formats: ["mkv", "mp3", "m4a", "png"],
+            isolatedMediaSelectors: true,
+            perMediaBadges: 3,
+            unifiedBadges: 1,
+            headerLayout: "single-line count, compact selector, contained controls and adjacent left-side badges",
             locales: ["zh-CN", "en"],
             knownOutputCopied: true,
             unknownOutputDisabled: true,

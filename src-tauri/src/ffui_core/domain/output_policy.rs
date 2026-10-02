@@ -1,3 +1,4 @@
+use super::JobType;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -14,6 +15,79 @@ pub enum OutputContainerPolicy {
     /// Force the output container to an explicit format (e.g. mkv/mp4).
     #[serde(rename = "force")]
     Force { format: String },
+    ByMedia {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        video: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        audio: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        image: Option<String>,
+    },
+}
+
+pub fn media_type_for_extension(extension: &str) -> JobType {
+    match extension
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "mp4" | "mkv" | "matroska" | "mov" | "avi" | "flv" | "ts" | "m2ts" | "mpegts" | "wmv"
+        | "asf" | "webm" | "m4v" | "mxf" | "3gp" | "rm" | "rmvb" | "hls" | "m3u8" | "dash"
+        | "mpd" => JobType::Video,
+        "mp3" | "wav" | "flac" | "aac" | "adts" | "ogg" | "m4a" | "wma" | "opus" | "aiff"
+        | "aif" | "ac3" => JobType::Audio,
+        "jpg" | "jpeg" | "png" | "bmp" | "tif" | "tiff" | "webp" | "avif" => JobType::Image,
+        _ => JobType::Other,
+    }
+}
+
+impl OutputContainerPolicy {
+    pub fn for_media_type(&self, media_type: JobType) -> Self {
+        let Self::ByMedia {
+            video,
+            audio,
+            image,
+        } = self
+        else {
+            return self.clone();
+        };
+        let format = match media_type {
+            JobType::Video => video,
+            JobType::Audio => audio,
+            JobType::Image => image,
+            JobType::Other => return Self::Default,
+        };
+        format.as_ref().map_or(Self::Default, |format| Self::Force {
+            format: format.clone(),
+        })
+    }
+
+    pub fn scoped_for_active_settings(&self) -> Self {
+        let Self::Force { format } = self else {
+            return self.clone();
+        };
+        let mut scoped = Self::ByMedia {
+            video: None,
+            audio: None,
+            image: None,
+        };
+        if let Self::ByMedia {
+            video,
+            audio,
+            image,
+        } = &mut scoped
+        {
+            let target = match media_type_for_extension(format) {
+                JobType::Video => video,
+                JobType::Audio => audio,
+                JobType::Image => image,
+                JobType::Other => return self.clone(),
+            };
+            *target = Some(format.clone());
+        }
+        scoped
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, Default)]

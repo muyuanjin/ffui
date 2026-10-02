@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { defineComponent } from "vue";
 
@@ -19,6 +19,76 @@ const i18n = createI18n({
 });
 
 describe("MainContentHeader output container badge + hover preview", () => {
+  it("extends three labeled badges left of output settings and collapses unified policies to one", async () => {
+    const localI18n = createI18n({ legacy: false, locale: "en", messages: { en, "zh-CN": zhCN } });
+    const policy: OutputPolicy = {
+      container: { mode: "byMedia", video: "mkv", audio: "mp3", image: "png" },
+      directory: { mode: "sameAsInput" },
+      filename: { suffix: ".compressed" },
+    };
+    const wrapper = mount(MainContentHeader, {
+      props: {
+        activeTab: "queue",
+        currentTitle: "Queue",
+        currentSubtitle: "Sub",
+        jobsLength: 3,
+        completedCount: 1,
+        manualJobPresetId: null,
+        presets: [],
+        queueViewModeModel: "detail",
+        queueOutputPolicy: policy,
+      },
+      global: {
+        plugins: [localI18n],
+        stubs: {
+          HoverCard: { template: "<div><slot /></div>" },
+          HoverCardTrigger: { template: "<div><slot /></div>" },
+          HoverCardContent: { template: "<div><slot /></div>" },
+          Dialog: true,
+        },
+      },
+    });
+    const badges = () => wrapper.findAll('[data-testid="ffui-queue-output-container-badge"]');
+    expect(wrapper.get("header").classes()).toContain("flex-wrap");
+    const count = wrapper.get('[data-testid="ffui-queue-job-count"]');
+    expect(count.text()).toBe("1 / 3");
+    expect(count.classes()).toContain("whitespace-nowrap");
+    expect(count.classes()).toContain("shrink-0");
+    expect(wrapper.get('[data-testid="ffui-queue-view-mode-trigger"]').classes()).toContain("w-auto");
+    expect(badges().map((badge) => badge.attributes("data-media-kind"))).toEqual(["video", "audio", "image"]);
+    expect(badges().map((badge) => badge.text())).toEqual(["Video mkv", "Audio mp3", "Image png"]);
+    expect(badges()[0].classes()).toContain("rounded-l-full");
+    for (const badge of badges()) {
+      expect(badge.classes()).toContain("whitespace-nowrap");
+      expect(badge.classes()).toContain("shrink-0");
+      expect(badge.get("svg").attributes("aria-hidden")).toBe("true");
+      expect(badge.attributes("aria-label")).toBe(badge.attributes("title"));
+    }
+    expect(badges()[1].classes()).not.toContain("rounded-l-full");
+    expect(badges()[2].element.nextElementSibling?.getAttribute("data-testid")).toBe("ffui-queue-output-settings");
+    const preview = wrapper.get('[data-testid="ffui-queue-output-settings-hover-preview"]');
+    expect(preview.text()).toContain("input.compressed.mkv");
+    expect(preview.text()).toContain("input.compressed.mp3");
+    expect(preview.text()).toContain("input.compressed.png");
+    localI18n.global.locale.value = "zh-CN";
+    await flushPromises();
+    expect(badges().map((badge) => badge.text())).toEqual(["视频 mkv", "音频 mp3", "图片 png"]);
+    await wrapper.setProps({ queueOutputPolicy: { ...policy, container: { mode: "byMedia", audio: "mp3" } } });
+    expect(badges()[0].text()).toContain("auto");
+    expect(badges()[0].attributes("title")).toContain("跟随预设/模板");
+    await wrapper.setProps({
+      queueOutputPolicy: { ...policy, container: { mode: "byMedia", video: "webm", audio: "mp3" } },
+      presets: [{ id: "webm", name: "H264/AAC", video: { encoder: "libx264" }, audio: { codec: "aac" } } as any],
+    });
+    expect(preview.text()).toContain("input.compressed.mkv");
+    expect(preview.text()).not.toContain("input.compressed.webm");
+    for (const mode of ["default", "keepInput"] as const) {
+      await wrapper.setProps({ queueOutputPolicy: { ...policy, container: { mode } } });
+      expect(badges()).toHaveLength(1);
+      expect(badges()[0].text()).toBe(mode === "default" ? "auto" : "input");
+    }
+    wrapper.unmount();
+  });
   it("renders container badge left of output settings and shows a compact preview", () => {
     const DialogStub = defineComponent({
       name: "Dialog",

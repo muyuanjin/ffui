@@ -8,7 +8,10 @@ pub(super) fn forced_muxer_for_policy(
     input: &Path,
 ) -> Option<String> {
     let policy = policy?;
-    match &policy.container {
+    match policy
+        .container
+        .for_media_type(super::super::manual_execution::presentation_type(input))
+    {
         OutputContainerPolicy::Default => None,
         OutputContainerPolicy::KeepInput => {
             let ext = input
@@ -24,6 +27,7 @@ pub(super) fn forced_muxer_for_policy(
             let muxer = normalize_container_format(raw);
             if muxer.is_empty() { None } else { Some(muxer) }
         }
+        OutputContainerPolicy::ByMedia { .. } => unreachable!("media policy has been resolved"),
     }
 }
 

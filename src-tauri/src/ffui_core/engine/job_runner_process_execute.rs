@@ -430,6 +430,7 @@ fn execute_transcode_job(
             input_path: &input_path,
             output_path: &output_path,
             finalize_preset: &finalize_preset,
+            job_output_policy: job_output_policy.as_ref(),
             all_segments: &all_segments,
             segment_durations: segment_durations.as_deref(),
             tmp_output: tmp_output.as_path(),

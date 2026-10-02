@@ -5,6 +5,7 @@ struct FinalizeResumedJobOutputArgs<'a> {
     input_path: &'a Path,
     output_path: &'a Path,
     finalize_preset: &'a FFmpegPreset,
+    job_output_policy: Option<&'a crate::ffui_core::domain::OutputPolicy>,
     all_segments: &'a [PathBuf],
     segment_durations: Option<&'a [f64]>,
     tmp_output: &'a Path,
@@ -20,12 +21,16 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         input_path,
         output_path,
         finalize_preset,
+        job_output_policy,
         all_segments,
         segment_durations,
         tmp_output,
         finalize_with_source_audio,
         audio_sidecar,
     } = args;
+    let final_muxer = job_output_policy.and_then(|policy| {
+        super::ffmpeg_args::effective_output_muxer(finalize_preset, input_path, output_path, policy)
+    });
     let ext = output_path
         .extension()
         .and_then(|e| e.to_str())
@@ -139,12 +144,14 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
                 audio_tmp,
                 &mux_tmp,
                 finalize_preset,
+                final_muxer.as_deref(),
             ),
             None => build_mux_args_for_resumed_output(
                 &joined_video_tmp,
                 input_path,
                 &mux_tmp,
                 finalize_preset,
+                final_muxer.as_deref(),
             ),
         };
         log_external_command(inner, job_id, ffmpeg_path, &mux_args);
@@ -210,6 +217,7 @@ pub(super) fn finalize_resumed_job_output_for_tests(
     tmp_output: &Path,
     finalize_with_source_audio: bool,
 ) -> Result<u64> {
+    let policy = inner.state.lock_unpoisoned().jobs.get(job_id).and_then(|job| job.output_policy.clone());
     finalize_resumed_job_output(FinalizeResumedJobOutputArgs {
         inner,
         job_id,
@@ -217,6 +225,7 @@ pub(super) fn finalize_resumed_job_output_for_tests(
         input_path,
         output_path,
         finalize_preset,
+        job_output_policy: policy.as_ref(),
         all_segments,
         segment_durations,
         tmp_output,
@@ -230,6 +239,7 @@ pub(super) fn build_mux_args_for_resumed_output(
     input_path: &Path,
     mux_tmp: &Path,
     preset: &FFmpegPreset,
+    forced_muxer: Option<&str>,
 ) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
     push_resumed_ffmpeg_common_prefix(&mut args, preset);
@@ -248,7 +258,7 @@ pub(super) fn build_mux_args_for_resumed_output(
     apply_audio_filter_args(&mut args, preset);
 
     apply_mapping_disposition_and_metadata_args(&mut args, preset);
-    apply_container_args(&mut args, preset, None);
+    apply_container_args(&mut args, preset, forced_muxer);
 
     args.push("-shortest".to_string());
     args.push(mux_tmp.to_string_lossy().into_owned());
