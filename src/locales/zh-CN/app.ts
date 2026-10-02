@@ -294,6 +294,7 @@ const app = {
     cancel: "取消",
   },
   queueDefaultPresetLabel: "默认参数预设",
+  queuePresetSettings: "默认预设",
   queueDefaultPresetPlaceholder: "选择用于添加任务的预设",
   queuePresetSelection: {
     unified: "统一预设",

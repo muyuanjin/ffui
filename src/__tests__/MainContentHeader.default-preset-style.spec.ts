@@ -18,7 +18,7 @@ const i18n = createI18n({
 });
 
 describe("MainContentHeader default preset select style", () => {
-  it("uses a primary-accented trigger style", () => {
+  it("uses one neutral settings button with an adjacent preset summary", () => {
     const DialogStub = defineComponent({
       name: "Dialog",
       props: { open: { type: Boolean, default: false } },
@@ -60,9 +60,10 @@ describe("MainContentHeader default preset select style", () => {
     const trigger = wrapper.get("[data-testid='ffui-queue-default-preset-trigger']");
     const className = trigger.attributes("class") ?? "";
 
-    expect(className).toContain("bg-primary/90");
-    expect(className).toContain("text-primary-foreground");
-    expect(className).toContain("shadow");
-    expect(className).toContain("!border-transparent");
+    expect(className).not.toContain("bg-primary");
+    expect(className).not.toContain("w-full");
+    expect(trigger.text()).toBe("Default preset");
+    expect(wrapper.get('[data-testid="queue-preset-summary-badge"]').text()).toBe("Universal 1080p");
+    expect(wrapper.find('[data-testid="queue-preset-selection-mode"]').exists()).toBe(false);
   });
 });

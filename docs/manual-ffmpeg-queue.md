@@ -8,7 +8,7 @@ Add files or folders to use a preset. Regular files are accepted without an exte
 
 1. Configure and save a preset in **Parameter presets**. For AAC audio, use the audio tab to select AAC and the container tab to select MP4/M4A. Audio encoding is independent of the video encoder, including video Copy.
 2. For other codecs or media recipes, save a custom **command template** in the preset editor, for example `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`. Specify the output muxer with `-f` when changing formats. Under the default output policy it also determines the planned `OUTPUT` extension; output policy overrides can change the planned address, but not the template's parameters.
-3. Select **Unified preset** or **By input type** in the task queue, then drop files/folders or click **Add files** / **Add folder**. Unified mode applies one preset to every file, including extracting audio from video. Per-input mode selects separate presets for video, audio and image inputs; unset and unknown types follow the unified preset. Missing configured presets produce diagnostics before the selection is enqueued, not silent replacements. Expanded file order is preserved. Incompatible inputs fail with diagnostics.
+3. Open **Default preset** in the task queue to select **Unified preset** or **By input type**, then drop files/folders or click **Add files** / **Add folder**. The toolbar shows one preset summary in unified mode or three input-specific summaries beside the same button. Unified mode applies one preset to every file, including extracting audio from video. Per-input mode selects separate presets for video, audio and image inputs; unset and unknown types follow the unified preset, which is also configurable in the popover. Missing configured presets produce diagnostics before the selection is enqueued, not silent replacements. Expanded file order is preserved. Incompatible inputs fail with diagnostics.
 
 You do not need the **Add command** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
 
@@ -64,7 +64,7 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 
 1. 在 **参数预设** 中配置并保存预设。转为 AAC 音频时，在音频页选择 AAC，在封装页选择 MP4/M4A。音频编码独立于视频编码器，视频选直拷贝也可转码音频。
 2. 其他编码器或媒体处理方案可在预设编辑器中保存自定义 **命令模板**，例如 `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`。转换格式时用 `-f` 指定输出封装；默认输出策略下，它也决定规划的 `OUTPUT` 扩展名。输出策略覆盖可改变规划地址，但不改写模板参数。
-3. 在转码任务页面选择 **统一预设** 或 **按输入类型**，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。统一模式对所有文件使用同一预设，支持从视频提取音频等跨类型处理。分类模式为视频、音频、图片输入分别选择预设；未指定及未知类型跟随统一预设。明确配置但已缺失的预设，在本次选择入队前给出诊断，不静默替换。展开后的文件顺序保持不变；不兼容输入会给出失败诊断。
+3. 点击转码任务页面的 **默认预设**，在弹层中选择 **统一预设** 或 **按输入类型**，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。工具栏在同一个按钮左侧显示统一预设摘要，或三个按输入类型划分的摘要。统一模式对所有文件使用同一预设，支持从视频提取音频等跨类型处理。分类模式为视频、音频、图片输入分别选择预设；未指定及未知类型跟随统一预设，统一预设也可在该弹层内调整。明确配置但已缺失的预设，在本次选择入队前给出诊断，不静默替换。展开后的文件顺序保持不变；不兼容输入会给出失败诊断。
 
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
 

@@ -31,6 +31,16 @@ const verifyHeaderLayout = async (page) => {
   const viewModeBounds = await page.getByTestId("ffui-queue-view-mode-trigger").boundingBox();
   assert.ok(headerBounds && viewModeBounds);
   assert.ok(viewModeBounds.width < headerBounds.width / 2);
+  const presetButton = page.getByTestId("ffui-queue-default-preset-trigger");
+  const presetBounds = await presetButton.boundingBox();
+  assert.ok(presetBounds && presetBounds.width < 180);
+  assert.equal(await page.getByTestId("queue-preset-selection-mode").isVisible(), false);
+  for (const badge of await page.getByTestId("queue-preset-summary-badge").all()) {
+    const bounds = await badge.boundingBox();
+    assert.ok(bounds);
+    assert.ok(bounds.x + bounds.width <= presetBounds.x + 1);
+    assert.ok(Math.abs(bounds.y - presetBounds.y) <= 1);
+  }
   const count = page.getByTestId("ffui-queue-job-count");
   assert.ok(
     await count.evaluate((element) => {
@@ -78,6 +88,9 @@ await withScreenshotApp(async ({ baseUrl }) => {
     await page.goto(`${baseUrl}?ffuiLocale=zh-CN`, { waitUntil: "commit" });
     await page.getByTestId("ffui-sidebar").waitFor();
     const setPresetMode = async (mode, locale) => {
+      if (!(await page.getByTestId("queue-preset-settings").isVisible())) {
+        await page.getByTestId("ffui-queue-default-preset-trigger").click();
+      }
       const trigger = page.getByTestId("queue-preset-selection-mode");
       const label =
         mode === "byMedia"
@@ -91,6 +104,7 @@ await withScreenshotApp(async ({ baseUrl }) => {
         await trigger.click();
         await page.getByRole("listbox").waitFor();
         await page.getByRole("option", { name: label, exact: true }).press("Enter");
+        await page.getByRole("listbox").waitFor({ state: "hidden" });
       }
       await trigger.filter({ hasText: label }).waitFor();
       assert.ok((await trigger.textContent()).includes(label));
@@ -99,21 +113,61 @@ await withScreenshotApp(async ({ baseUrl }) => {
       if (locale === "en") {
         await page.getByTestId("ffui-locale-trigger").click();
         await page.getByTestId("ffui-locale-en").click();
+        await page.getByRole("listbox").waitFor({ state: "hidden" });
+        await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
+        await page.getByTestId("ffui-queue-default-preset-trigger").click();
         for (const kind of ["video", "audio", "image"]) {
           assert.ok((await page.getByTestId(`queue-preset-${kind}-trigger`).textContent()).includes("Follow unified"));
         }
       }
-      const presetMode = page.getByTestId("queue-preset-selection-mode");
       await setPresetMode("byMedia", locale);
       for (const kind of ["video", "audio", "image"]) {
         const trigger = page.getByTestId(`queue-preset-${kind}-trigger`);
         assert.ok((await trigger.textContent()).includes(locale === "zh-CN" ? "跟随统一预设" : "Follow unified"));
       }
+      const selectPreset = async (testId, name) => {
+        await page.getByTestId(testId).click();
+        await page.getByRole("option", { name, exact: true }).click();
+        await page.getByRole("listbox").waitFor({ state: "hidden" });
+        assert.equal(await page.getByTestId("queue-preset-settings").isVisible(), true);
+      };
+      const presetBadges = page.getByTestId("queue-preset-summary-badge");
+      await selectPreset("queue-unified-preset-trigger", "Archive Master");
+      assert.deepEqual(await presetBadges.allTextContents(), Array(3).fill("Archive Master"));
+      await selectPreset("queue-preset-audio-trigger", "Universal 1080p");
+      assert.deepEqual(await presetBadges.allTextContents(), ["Archive Master", "Universal 1080p", "Archive Master"]);
+      await selectPreset("queue-unified-preset-trigger", "Universal 1080p");
+      await selectPreset(
+        "queue-preset-audio-trigger",
+        locale === "zh-CN" ? "跟随统一预设：Universal 1080p" : "Follow unified: Universal 1080p",
+      );
+      await page
+        .getByTestId("queue-preset-settings")
+        .screenshot({ path: path.join(output, `preset-settings-${locale}.png`) });
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
+      assert.equal(
+        await page
+          .getByTestId("ffui-queue-default-preset-trigger")
+          .evaluate((element) => element === document.activeElement),
+        true,
+      );
+      await page.getByTestId("ffui-queue-default-preset-trigger").click();
+      await page.getByTestId("queue-preset-settings").waitFor();
+      await page.getByTestId("ffui-queue-default-preset-trigger").click();
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
+      await page.getByTestId("ffui-queue-default-preset-trigger").click();
+      await page.getByTestId("queue-preset-settings").waitFor();
+      await page.locator("header h2").click();
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
+      await verifyHeaderLayout(page);
       await page
         .locator("header")
-        .filter({ has: presetMode })
+        .filter({ has: page.getByTestId("ffui-queue-default-preset-trigger") })
         .screenshot({ path: path.join(output, `preset-routing-${locale}.png`) });
       await setPresetMode("unified", locale);
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       await page.getByTestId("ffui-queue-output-settings").click();
       const dialog = page.getByRole("dialog");
       const mode = dialog.getByTestId("output-policy-container-mode-trigger");
@@ -150,11 +204,26 @@ await withScreenshotApp(async ({ baseUrl }) => {
         "audio",
         "image",
       ]);
+      await setPresetMode("byMedia", locale);
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       await verifyHeaderLayout(page);
+      for (const width of [1100, 1600]) {
+        await page.setViewportSize({ width, height: 850 });
+        await verifyHeaderLayout(page);
+        await page
+          .locator("header")
+          .filter({ has: page.getByTestId("ffui-queue-default-preset-trigger") })
+          .screenshot({ path: path.join(output, `header-${width}-${locale}.png`) });
+      }
+      await page.setViewportSize({ width: 1200, height: 850 });
       await page
         .locator("header")
         .filter({ has: page.getByTestId("ffui-queue-output-settings") })
         .screenshot({ path: path.join(output, `media-badges-${locale}.png`) });
+      await setPresetMode("unified", locale);
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       await page.getByTestId("ffui-queue-output-settings").click();
       await mode.click();
       await page
@@ -241,6 +310,8 @@ await withScreenshotApp(async ({ baseUrl }) => {
           unifiedBadges: 1,
           unifiedForcedFormat: "mp3",
           inputPresetSelectors: ["video", "audio", "image"],
+          presetToolbar:
+            "one settings button with adjacent unified or per-input summaries; routing controls in popover",
           headerLayout: "single-line count, compact selector, contained controls and adjacent left-side badges",
           locales: ["zh-CN", "en"],
           knownOutputCopied: true,
