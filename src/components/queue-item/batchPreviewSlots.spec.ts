@@ -22,7 +22,7 @@ describe("buildBatchPreviewSlots", () => {
   it("prefers previewable jobs, falls back to image paths, and pads placeholders", () => {
     const slots = buildBatchPreviewSlots([
       makeJob({ id: "video-no-preview", type: "video" }),
-      makeJob({ id: "image-output", type: "image", outputPath: "out.jpg" }),
+      makeJob({ id: "image-output", type: "image", status: "completed", outputPath: "out.jpg" }),
       makeJob({ id: "video-preview", previewPath: "preview.jpg", previewRevision: 7 }),
     ]);
 

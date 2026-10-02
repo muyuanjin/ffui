@@ -243,6 +243,12 @@ fn infer_container_extension_and_muxer(
             {
                 let normalized = normalize_extension_no_dot(&fmt);
                 if !normalized.is_empty() {
+                    if normalized == "image2"
+                        && let Some(image_format) =
+                            template::infer_template_image_extension(template)
+                    {
+                        return (image_format.to_string(), None, warnings);
+                    }
                     let ext = infer_output_extension(Some(normalized.as_str()), input_ext);
                     return (ext, None, warnings);
                 }

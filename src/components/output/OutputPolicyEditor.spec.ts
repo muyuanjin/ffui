@@ -4,6 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
+import FormatSelect from "@/components/formats/FormatSelect.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { OutputPolicy } from "@/types";
@@ -103,4 +104,27 @@ describe("OutputPolicyEditor preview", () => {
     expect(previewOutput()).toContain("input.compressed.mkv");
     expect(previewOutput()).not.toContain("input.compressed.mp4");
   });
+
+  it.each(["mp3", "m4a", "aac", "png"])(
+    "emits the selected %s output policy and updates localized guidance",
+    async (format) => {
+      const i18n = makeI18n();
+      const wrapper = mount(OutputPolicyEditor, {
+        props: { modelValue: makePolicy({ mode: "force", format: "mp4" }) },
+        global: { plugins: [i18n] },
+      });
+      const selector = wrapper.getComponent(FormatSelect);
+      expect(selector.props("entries")).toContainEqual(expect.objectContaining({ value: format }));
+      selector.vm.$emit("update:modelValue", format);
+      expect(wrapper.emitted("update:modelValue")?.slice(-1)[0]?.[0]).toEqual(
+        expect.objectContaining({ container: { mode: "force", format } }),
+      );
+      expect(wrapper.get('[data-testid="output-policy-format-help"]').text()).toContain("extension only");
+      i18n.global.locale.value = "zh-CN";
+      await flushPromises();
+      expect(wrapper.get('[data-testid="output-policy-format-help"]').text()).toContain("仅改变输出扩展名");
+      expect(wrapper.get('[data-testid="output-policy-container-mode-trigger"]').text()).toContain("指定格式");
+      wrapper.unmount();
+    },
+  );
 });

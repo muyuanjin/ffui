@@ -337,6 +337,7 @@ fn progress_hints_are_snapshot_owned_and_complex_timelines_do_not_claim_input_du
             &crate::ffui_core::domain::OutputPolicy::default(),
         )
         .expect("recipe")
+        .execution
     };
     let JobExecution::Ffmpeg { invocation } = plan(&preset) else {
         panic!("recipe")

@@ -84,7 +84,7 @@ watch(
           <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
             {{ t("formatSelect.groups.video") }}
           </div>
-          <SelectItem v-for="e in groups.video" :key="e.value" :value="e.value" :disabled="!!e.disabledInVideoPickers">
+          <SelectItem v-for="e in groups.video" :key="e.value" :value="e.value">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
               <span v-if="e.note" class="text-[10px] text-muted-foreground leading-tight">{{ e.note }}</span>
@@ -97,12 +97,10 @@ watch(
           <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
             {{ t("formatSelect.groups.audio") }}
           </div>
-          <SelectItem v-for="e in groups.audio" :key="e.value" :value="e.value" :disabled="true">
+          <SelectItem v-for="e in groups.audio" :key="e.value" :value="e.value">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight">
-                {{ t("formatSelect.disabledHints.audio") }}
-              </span>
+              <span v-if="e.note" class="text-[10px] text-muted-foreground leading-tight">{{ e.note }}</span>
             </div>
           </SelectItem>
         </template>
@@ -112,12 +110,10 @@ watch(
           <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
             {{ t("formatSelect.groups.image") }}
           </div>
-          <SelectItem v-for="e in groups.image" :key="e.value" :value="e.value" :disabled="true">
+          <SelectItem v-for="e in groups.image" :key="e.value" :value="e.value">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight">
-                {{ t("formatSelect.disabledHints.image") }}
-              </span>
+              <span v-if="e.note" class="text-[10px] text-muted-foreground leading-tight">{{ e.note }}</span>
             </div>
           </SelectItem>
         </template>

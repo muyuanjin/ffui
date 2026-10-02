@@ -1,4 +1,5 @@
 import type { TranscodeJob } from "@/types";
+import { imagePreviewSource } from "./imagePreviewSource";
 
 export type BatchPreviewSlot<TJob extends TranscodeJob = TranscodeJob> = {
   key: string;
@@ -10,7 +11,7 @@ export type BatchPreviewSlot<TJob extends TranscodeJob = TranscodeJob> = {
 export function getEffectiveBatchJobPreviewPath(job: TranscodeJob): string | null {
   if (job.previewPath) return job.previewPath;
   if (job.type === "image") {
-    return job.outputPath || job.inputPath || null;
+    return imagePreviewSource(job);
   }
   return job.previewPath ?? null;
 }

@@ -16,6 +16,7 @@ export interface QueueContextMenuPermissionProps {
   bulkActionInProgress?: QueueBulkActionKind | null;
   canRevealInputPath?: boolean;
   canRevealOutputPath?: boolean;
+  canCopyOutputPath?: boolean;
 }
 
 export function createQueueContextMenuPermissions(props: QueueContextMenuPermissionProps) {
@@ -24,6 +25,9 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
 
   const canRevealInput = computed(() => props.mode === "single" && props.canRevealInputPath === true);
   const canRevealOutput = computed(() => props.mode === "single" && props.canRevealOutputPath === true);
+  const canCopyOutput = computed(
+    () => props.canCopyOutputPath === true && (props.mode === "single" || props.hasSelection),
+  );
 
   const isTerminalStatus = (value: JobStatus | undefined) =>
     value === "completed" || value === "failed" || value === "skipped" || value === "cancelled";
@@ -72,6 +76,7 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
     status,
     canRevealInput,
     canRevealOutput,
+    canCopyOutput,
     canWait,
     canResume,
     canRestart,

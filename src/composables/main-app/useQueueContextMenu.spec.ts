@@ -6,19 +6,25 @@ import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu"
 import type { TranscodeJob } from "@/types";
 
 const revealPathInFolderMock = vi.fn();
+const copyToClipboardMock = vi.fn();
+let tauriAvailable = true;
+
+vi.mock("@/lib/copyToClipboard", () => ({
+  copyToClipboard: (...args: unknown[]) => copyToClipboardMock(...args),
+}));
 
 vi.mock("@/lib/backend", () => ({
-  hasTauri: () => true,
+  hasTauri: () => tauriAvailable,
   revealPathInFolder: (...args: any[]) => revealPathInFolderMock(...args),
 }));
 
 const noopAsync = vi.fn().mockResolvedValue(undefined);
 
-function createContext(job: TranscodeJob) {
-  const jobs = ref<TranscodeJob[]>([job]);
+function createContext(job: TranscodeJob, additionalJobs: TranscodeJob[] = []) {
+  const jobs = ref<TranscodeJob[]>([job, ...additionalJobs]);
   const selectedJobIds = ref<Set<string>>(new Set());
 
-  return useQueueContextMenu({
+  const context = useQueueContextMenu({
     jobs,
     selectedJobIds,
     handleWaitJob: noopAsync,
@@ -35,11 +41,14 @@ function createContext(job: TranscodeJob) {
     openJobDetail: vi.fn(),
     openJobCompare: vi.fn(),
   });
+  return { ...context, selectedJobIds };
 }
 
 describe("useQueueContextMenu file reveal", () => {
   beforeEach(() => {
     revealPathInFolderMock.mockReset();
+    copyToClipboardMock.mockReset();
+    tauriAvailable = true;
   });
 
   it("reveals input and output paths for the selected job", async () => {
@@ -67,6 +76,54 @@ describe("useQueueContextMenu file reveal", () => {
     expect(revealPathInFolderMock).toHaveBeenCalledWith("C:/videos/output.mp4");
   });
 
+  it("copies the known audio output without using its input or requiring desktop reveal", async () => {
+    tauriAvailable = false;
+    const job: TranscodeJob = {
+      id: "audio",
+      filename: "C:/音乐/input.flac",
+      inputPath: "C:/音乐/input.flac",
+      outputPath: "D:/输出/output.mp3",
+      type: "audio",
+      source: "manual",
+      presetId: "mp3",
+      status: "completed",
+      progress: 100,
+      originalSizeMB: 1,
+      executionMode: "transparent",
+      logs: [],
+    };
+    const context = createContext(job);
+    context.openQueueContextMenuForJob({ job, event: { clientX: 0, clientY: 0 } as MouseEvent });
+    expect(context.queueContextMenuCanCopyOutputPath.value).toBe(true);
+    expect(context.queueContextMenuCanRevealOutputPath.value).toBe(false);
+    await context.handleQueueContextCopyOutputPath();
+    expect(copyToClipboardMock).toHaveBeenCalledExactlyOnceWith(job.outputPath);
+  });
+
+  it("does not offer or execute output copying when an advanced command has no known output", async () => {
+    const job: TranscodeJob = {
+      id: "analysis",
+      filename: "Analysis",
+      inputPath: "C:/input.wav",
+      type: "audio",
+      source: "manual",
+      presetId: "",
+      status: "completed",
+      progress: 100,
+      originalSizeMB: 1,
+      executionMode: "transparent",
+      logs: [],
+    };
+    const context = createContext(job);
+    context.openQueueContextMenuForJob({ job, event: { clientX: 0, clientY: 0 } as MouseEvent });
+    expect(context.queueContextMenuCanCopyOutputPath.value).toBe(false);
+    expect(context.queueContextMenuCanRevealOutputPath.value).toBe(false);
+    await context.handleQueueContextCopyOutputPath();
+    await context.handleQueueContextOpenOutputFolder();
+    expect(copyToClipboardMock).not.toHaveBeenCalled();
+    expect(revealPathInFolderMock).not.toHaveBeenCalled();
+  });
+
   it("falls back to temporary output when the final output path is absent", async () => {
     const job: TranscodeJob = {
       id: "job-2",
@@ -88,6 +145,34 @@ describe("useQueueContextMenu file reveal", () => {
     await ctx.handleQueueContextOpenOutputFolder();
 
     expect(revealPathInFolderMock).toHaveBeenCalledWith("C:/videos/tmp-output.mp4");
+  });
+
+  it("bulk copies only known output addresses and disables copying an unknown-only selection", async () => {
+    const unknown: TranscodeJob = {
+      id: "unknown",
+      filename: "C:/input.wav",
+      inputPath: "C:/input.wav",
+      type: "audio",
+      source: "manual",
+      presetId: "",
+      status: "completed",
+      progress: 100,
+      originalSizeMB: 1,
+      logs: [],
+      executionMode: "transparent",
+    };
+    const known = { ...unknown, id: "known", outputPath: "D:/输出/result.mp3" };
+    const second = { ...known, id: "second", outputPath: "D:/输出/second.mp3" };
+    const context = createContext(unknown, [known, second]);
+    context.openQueueContextMenuForJob({ job: unknown, event: { clientX: 0, clientY: 0 } as MouseEvent });
+    context.openQueueContextMenuForBulk({ clientX: 0, clientY: 0 } as MouseEvent);
+    expect(context.queueContextMenuCanCopyOutputPath.value).toBe(false);
+    await context.handleQueueContextCopyOutputPath();
+    expect(copyToClipboardMock).not.toHaveBeenCalled();
+    context.selectedJobIds.value = new Set([unknown.id, known.id, second.id]);
+    expect(context.queueContextMenuCanCopyOutputPath.value).toBe(true);
+    await context.handleQueueContextCopyOutputPath();
+    expect(copyToClipboardMock).toHaveBeenCalledExactlyOnceWith(`${known.outputPath}\n${second.outputPath}`);
   });
 });
 

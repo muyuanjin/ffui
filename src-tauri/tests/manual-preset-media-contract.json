@@ -5,6 +5,7 @@
       "inputName": "音乐 track.wav",
       "outputExtension": "mp4",
       "executionMode": "managedFile",
+      "knownOutput": true,
       "preset": {
         "id": "aac-copy-video",
         "name": "AAC audio",
@@ -22,6 +23,7 @@
       "inputName": "音乐 track.unknown",
       "outputExtension": "wav",
       "executionMode": "transparent",
+      "knownOutput": true,
       "preset": {
         "id": "pcm-unknown-input",
         "name": "PCM audio",
@@ -36,9 +38,10 @@
     },
     {
       "id": "png-resize",
-      "inputName": "图片 cover.png",
+      "inputName": "图片 cover.jpg",
       "outputExtension": "png",
       "executionMode": "transparent",
+      "knownOutput": true,
       "preset": {
         "id": "png-resize",
         "name": "PNG resize",
@@ -50,6 +53,61 @@
         "ffmpegTemplate": "ffmpeg -i INPUT -vf scale=8:8 -frames:v 1 -c:v png -f image2 OUTPUT",
         "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
       }
+    },
+    {
+      "id": "mp3-template",
+      "inputName": "音乐 track.flac",
+      "outputExtension": "mp3",
+      "executionMode": "transparent",
+      "knownOutput": true,
+      "preset": {
+        "id": "mp3-template",
+        "name": "MP3 audio",
+        "description": "MP3 conversion using a saved template",
+        "video": { "encoder": "copy", "rateControl": "cbr", "qualityValue": 0, "preset": "" },
+        "audio": { "codec": "copy" },
+        "filters": {},
+        "advancedEnabled": true,
+        "ffmpegTemplate": "ffmpeg -i INPUT -map 0:a:0 -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT",
+        "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
+      }
+    },
+    {
+      "id": "aac-adts",
+      "inputName": "音乐 raw.wav",
+      "outputExtension": "aac",
+      "executionMode": "managedFile",
+      "knownOutput": true,
+      "preset": {
+        "id": "aac-adts",
+        "name": "AAC ADTS audio",
+        "description": "Raw AAC output using the ADTS muxer",
+        "video": { "encoder": "copy", "rateControl": "cbr", "qualityValue": 0, "preset": "" },
+        "audio": { "codec": "aac", "bitrate": 128 },
+        "filters": {},
+        "container": { "format": "aac" },
+        "advancedEnabled": false,
+        "stats": { "usageCount": 0, "totalInputSizeMB": 0, "totalOutputSizeMB": 0, "totalTimeSeconds": 0 }
+      }
     }
+  ],
+  "imageOutputPlanning": [
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c:v:0 png -f image2 OUTPUT", "extension": "png" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -codec:v png -f image2 OUTPUT", "extension": "png" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -vcodec png -f image2 OUTPUT", "extension": "png" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -codec:v:0 png -f image2 OUTPUT", "extension": "png" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c png -f image2 OUTPUT", "extension": "png" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c:v png -c:v:0 mjpeg -f image2 OUTPUT", "extension": "jpg" },
+    {
+      "template": "ffmpeg -i INPUT -map 0:v -frames:v 1 -c:v png -f image2 SIDE -map 0:v -frames:v 1 -f image2 OUTPUT",
+      "extension": "jpg"
+    },
+    {
+      "template": "ffmpeg -i INPUT -map 0:v -frames:v 1 -c:v mjpeg -f image2 SIDE -map 0:v -frames:v 1 -codec:v png -f image2 OUTPUT",
+      "extension": "png"
+    },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c:v copy -f image2 OUTPUT", "extension": "jpg" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c:v bmp -f image2 OUTPUT", "extension": "bmp" },
+    { "template": "ffmpeg -i INPUT -frames:v 1 -c:v tiff -f image2 OUTPUT", "extension": "tiff" }
   ]
 }

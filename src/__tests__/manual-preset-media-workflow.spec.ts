@@ -8,6 +8,9 @@ import { usePresetEditor } from "@/composables/usePresetEditor";
 import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
 import { useMainAppDnDAndContextMenu } from "@/composables/main-app/useMainAppDnDAndContextMenu";
 import { enqueueManualJobsFromPaths } from "@/composables/queue/operations-single";
+import { enqueueTranscodeJob } from "@/lib/backend";
+import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
+import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
 const boundary = vi.hoisted(() => ({ invoke: vi.fn(), open: vi.fn(), toastError: vi.fn(), subscribe: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: boundary.invoke, convertFileSrc: (path: string) => path }));
@@ -28,12 +31,16 @@ describe("preset-driven manual media workflow", () => {
     "saves and selects $id for files, folders and drag/drop through canonical IPC",
     async (entry) => {
       const initial = structuredClone(entry.preset) as FFmpegPreset;
+      expect(previewOutputPathLocal(`C:/素材/${entry.inputName}`, DEFAULT_OUTPUT_POLICY, { preset: initial })).toMatch(
+        new RegExp(`\\.${entry.outputExtension}$`),
+      );
       const fallback = { ...initial, id: "not-selected" };
       const presets = ref<FFmpegPreset[]>([fallback]);
       const selected = ref<string | null>(fallback.id);
       const filename = `C:\\素材 文件\\${entry.inputName}`;
       const folder = "C:\\素材 文件\\专辑";
       const second = `C:\\素材 文件\\second-${entry.inputName}`;
+      const outputPath = `C:\\素材 文件\\转换结果.${entry.outputExtension}`;
       const wireJob = (path: string) => ({
         id: path,
         filename: path,
@@ -43,6 +50,19 @@ describe("preset-driven manual media workflow", () => {
         status: "queued",
         progress: 0,
         originalSizeMB: 0,
+        inputPath: path,
+        outputPath: entry.knownOutput ? outputPath : undefined,
+        execution: {
+          kind: "ffmpeg",
+          invocation: {
+            args: ["-i", path, outputPath],
+            workingDirectory: null,
+            output:
+              entry.executionMode === "managedFile"
+                ? { kind: "managedFile", path: outputPath, argumentIndex: 2 }
+                : { kind: "transparent" },
+          },
+        },
       });
       boundary.invoke.mockImplementation(async (command: string, payload: any) => {
         if (command === "save_preset") return [fallback, payload.preset];
@@ -151,6 +171,17 @@ describe("preset-driven manual media workflow", () => {
       expect(refresh).toHaveBeenCalledTimes(2);
       expect(queueError.value).toBeNull();
       expect(boundary.invoke.mock.calls.some(([command]) => command === "enqueue_ffmpeg_job")).toBe(false);
+      const returned = await enqueueTranscodeJob({
+        filename,
+        jobType: "other",
+        source: "manual",
+        originalSizeMb: 0,
+        presetId: initial.id,
+      });
+      expect(returned.outputPath).toBe(outputPath);
+      expect(returned.inputPath).toBe(filename);
+      expect(returned.outputPath).not.toBe(returned.inputPath);
+      expect(returned.executionMode).toBe(entry.executionMode === "managedFile" ? "managed" : "transparent");
       wrapper.unmount();
     },
   );

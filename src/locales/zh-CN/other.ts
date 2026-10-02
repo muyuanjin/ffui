@@ -19,10 +19,6 @@ const other = {
       audio: "音频",
       image: "图片",
     },
-    disabledHints: {
-      audio: "仅音频；当前结构化视频预设不启用",
-      image: "图片格式；当前容器设置不启用",
-    },
     emptyHint: "未找到匹配项。可尝试清空搜索或输入扩展名（例如 `.m2ts`）。",
   },
   onboarding: {
@@ -95,6 +91,7 @@ const other = {
   },
   outputPolicy: {
     containerLabel: "输出容器",
+    formatHelp: "请选择与编码器匹配的格式。自定义命令模板下，此设置仅改变输出扩展名，实际格式由模板决定。",
     container: {
       default: "默认（走预设/模板）",
       keepInput: "维持原文件容器",

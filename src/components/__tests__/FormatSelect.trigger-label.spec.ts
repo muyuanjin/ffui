@@ -17,7 +17,6 @@ describe("FormatSelect trigger label", () => {
             placeholder: "Select format",
             searchPlaceholder: "Search formats",
             groups: { video: "Video", audio: "Audio", image: "Image" },
-            disabledHints: { audio: "Audio formats are not supported", image: "Image formats are not supported" },
             emptyHint: "No formats",
           },
         },

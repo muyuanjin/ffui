@@ -66,6 +66,7 @@
             </DropdownMenuItem>
 
             <DropdownMenuItem
+              :disabled="!canCopyOutput"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-copy-output"
               @select="onCopyOutputPath"
@@ -170,7 +171,7 @@
               {{ t("queue.actions.copyAllInputPaths") }}
             </DropdownMenuItem>
             <DropdownMenuItem
-              :disabled="!canBulkBase"
+              :disabled="!canCopyOutput"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-copy-all-output"
               @select="onCopyOutputPath"
@@ -399,6 +400,7 @@ const onCopyInputPath = () => {
   closeMenu();
 };
 const onCopyOutputPath = () => {
+  if (!canCopyOutput.value) return;
   emit("copy-output-path");
   closeMenu();
 };
@@ -474,6 +476,7 @@ watch(
 const {
   canRevealInput,
   canRevealOutput,
+  canCopyOutput,
   canWait,
   canResume,
   canRestart,

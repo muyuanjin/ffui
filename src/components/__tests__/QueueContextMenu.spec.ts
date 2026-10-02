@@ -115,6 +115,10 @@ describe("QueueContextMenu", () => {
 
     expect(openInput.attributes("aria-disabled")).toBe("true");
     expect(openOutput.attributes("aria-disabled")).toBe("true");
+    const copyOutput = wrapper.get("[data-testid='queue-context-menu-copy-output']");
+    expect(copyOutput.attributes("aria-disabled")).toBe("true");
+    await copyOutput.trigger("click");
+    expect(wrapper.emitted("copy-output-path")).toBeUndefined();
   });
 
   it("emits file reveal events when enabled", async () => {
@@ -141,6 +145,28 @@ describe("QueueContextMenu", () => {
     expect(wrapper.emitted("open-input-folder")).toBeTruthy();
     expect(wrapper.emitted("open-output-folder")).toBeTruthy();
     expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
+  it("allows known output copying independently of file-manager availability", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "single",
+        jobStatus: "completed",
+        queueMode: "queue",
+        hasSelection: true,
+        canCopyOutputPath: true,
+        canRevealOutputPath: false,
+      },
+      global: { plugins: [i18n] },
+    });
+    const copyOutput = wrapper.get("[data-testid='queue-context-menu-copy-output']");
+    expect(copyOutput.attributes("aria-disabled")).toBeUndefined();
+    expect(wrapper.get("[data-testid='queue-context-menu-open-output']").attributes("aria-disabled")).toBe("true");
+    await copyOutput.trigger("click");
+    expect(wrapper.emitted("copy-output-path")).toHaveLength(1);
   });
 
   it("disables bulk actions when nothing is selected", async () => {

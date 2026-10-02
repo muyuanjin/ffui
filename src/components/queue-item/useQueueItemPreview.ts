@@ -10,6 +10,7 @@ import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl, markPreviewDecoded } from "@/components/queue-item/previewWarmCache";
 import { appendQueryParam } from "@/lib/url";
+import { imagePreviewSource } from "./imagePreviewSource";
 
 type DesiredHeightInput = number | null | undefined | { value: number | null | undefined };
 
@@ -49,13 +50,6 @@ export function useQueueItemPreview(options: {
   const allowAutoEnsure = computed(() => perfHints?.allowPreviewAutoEnsure.value ?? true);
   const allowPreviewLoads = computed(() => perfHints?.allowPreviewLoads.value ?? true);
 
-  /**
-   * 为队列项计算缩略图路径：
-   * - 首选后端提供的 previewPath（通常是预生成的 jpg 预览图或 AVIF 输出）；
-   * - 对于图片任务，当 previewPath 为空时，回退到 outputPath 或 inputPath，保证
-   *   Batch Compress 图片子任务在“替换原文件”后仍然可以预览最终压缩结果；
-   * - 视频任务仍然只依赖 previewPath，避免直接用视频文件作为 <img> 源。
-   */
   watch(
     () => ({
       id: job.value.id,
@@ -76,8 +70,6 @@ export function useQueueItemPreview(options: {
       previewPath,
       previewRevision,
       type,
-      inputPath,
-      outputPath,
       ensuredPreviewPath: ensured,
       desiredHeightPx: desiredHeightPxSnapshot,
       previewCacheKey,
@@ -175,7 +167,7 @@ export function useQueueItemPreview(options: {
           ensuredPreviewPath.value = null;
         }
       } else if (type === "image") {
-        path = outputPath || inputPath || null;
+        path = imagePreviewSource(job.value);
       } else if (type === "video" || type === "audio") {
         path = currentEnsured || null;
       }

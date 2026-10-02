@@ -11,6 +11,7 @@ use crate::ffui_core::settings::AppSettings;
 mod audio_feedback;
 mod legacy;
 mod managed;
+mod output_paths;
 mod preset_files;
 
 fn ffmpeg_program() -> &'static str {

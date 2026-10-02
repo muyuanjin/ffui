@@ -12,6 +12,10 @@ Add files or folders to use a preset. Regular files are accepted without an exte
 
 You do not need the **Add command** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
 
+Preset and queue format selectors support video, audio and image formats. Choose codecs compatible with the selected container; selecting a format does not select an encoder. ALAC is an audio codec, normally stored in M4A, not a separate output container. AAC files use the ADTS muxer. With a custom command template, output policy controls the `OUTPUT` address and extension only: the template's `-f`, codecs, maps and filters stay unchanged. Simple `image2` output groups with an identifiable PNG, MJPEG, BMP or TIFF encoder determine the default extension. Complex options or stream selectors require an explicit output format selection; FFUI does not fully interpret FFmpeg arguments. Transparent image task thumbnails prefer a prepared preview, then the input image; a bound output address alone does not replace an available input thumbnail.
+
+A preset template's explicitly bound `OUTPUT` address is saved with the task and can be copied or located from its context menu, including for transparent execution. This address does not grant FFUI ownership of the output or prove that a file was produced. Raw advanced commands without a recorded output address have disabled output-path actions; FFUI does not substitute the input path or discover arbitrary outputs. For existing transparent records that lack this address, inspect the task's saved FFmpeg command to locate its destination.
+
 Structured video jobs retain two-pass encoding, segment-based resume and existing replacement behavior. Other structured jobs use a managed single-file output: FFUI reserves a temporary file alongside the output, publishes a non-empty result only after FFmpeg exits successfully, and never overwrites a file that appeared at the destination. Failed, cancelled and waited executions remove only their owned temporary output. Relative managed file addresses are bound to absolute paths at enqueue time. Multi-file muxers and image sequences require transparent mode; the effective output policy, not just the preset container, determines this restriction. Manual jobs do not use Batch Compress's minimum-saving gate. Their preset and output policy are captured at enqueue time, including across a restart.
 
 Use **Add command** in the lower-left sidebar, in the same row as the compression action. Its tooltip and accessible name are **Add FFmpeg command**. Paste a complete command starting with `ffmpeg` or `ffmpeg.exe`; a quoted executable path is also accepted. FFUI uses its configured FFmpeg, not the pasted executable path. A task name is supplied automatically. The optional name and working directory are under **Advanced settings**. With no working directory specified, FFmpeg inherits the application's working directory. For example:
@@ -53,6 +57,10 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 3. 在转码任务页面的预设选择器中选中已保存的预设，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。文件夹展开后，每个文件按该预设创建任务；文件夹可能含无关文件，每个文件都会尝试执行，不兼容输入会给出失败诊断。
 
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
+
+预设和队列的格式选择器支持视频、音频及图片格式。请选择与容器匹配的编码器；选择格式不会自动选择编码器。ALAC 是音频编码，通常放在 M4A 容器中，不是独立输出容器。AAC 文件使用 ADTS 封装。自定义命令模板下，输出策略仅控制 `OUTPUT` 地址及扩展名，模板中的 `-f`、编码器、映射和过滤器保持原义。简单的 `image2` 输出组选项可明确识别 PNG、MJPEG、BMP 或 TIFF 编码器时，默认扩展名跟随该图片格式。复杂选项或流选择器需指定输出格式；应用不完整解释 FFmpeg 参数。透明图片任务缩略图优先使用已准备的预览，再使用输入图片；仅绑定输出地址不会替换可用的输入缩略图。
+
+预设模板明确绑定的 `OUTPUT` 地址随任务保存，透明执行任务也可在右键菜单复制或定位该地址。地址不意味着应用拥有输出文件，也不证明已经产出文件。未记录输出地址的原始高级命令禁用输出路径操作；应用不拿输入路径代替输出，也不自动发现任意产物。已有透明记录若缺少该地址，可查看任务中保存的完整 FFmpeg 命令确认目的地。
 
 结构化视频任务保留双遍编码、分段续跑和现有输出替换行为。其他结构化任务托管单文件输出：在目标目录预留临时文件，仅在 FFmpeg 成功退出且文件非空后发布；目标被其他程序占用时失败，不覆盖。失败、取消和等待仅清理本任务拥有的临时输出。托管任务的相对文件地址在入队时绑定为绝对路径。多文件 muxer 和图片序列必须使用透明模式；限制按生效的输出策略判定，而不只是看预设容器。手动任务不使用 Batch Compress 的节省门槛。预设和输出策略在入队时形成快照，重启后仍使用该快照。
 

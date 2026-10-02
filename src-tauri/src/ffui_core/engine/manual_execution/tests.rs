@@ -108,7 +108,9 @@ fn advanced_postfix_progress_and_persisted_invocations_keep_their_arguments() {
         Path::new("output.wav"),
         &OutputPolicy::default(),
     )
-    .expect("advanced postfix progress") else {
+    .expect("advanced postfix progress")
+    .execution
+    else {
         panic!("FFmpeg execution")
     };
     assert_eq!(
@@ -160,7 +162,8 @@ fn advanced_templates_only_bind_complete_tokens_and_keep_explicit_destinations()
         &OutputPolicy::default(),
     )
     .expect("plan");
-    let JobExecution::Ffmpeg { invocation } = execution else {
+    assert!(execution.output_path.is_none());
+    let JobExecution::Ffmpeg { invocation } = execution.execution else {
         panic!("expected command")
     };
     assert_eq!(invocation.args[1], "input.unknown");
@@ -228,6 +231,7 @@ fn managed_output_uses_effective_muxer_instead_of_raw_preset_text() {
         let JobExecution::Ffmpeg { invocation } =
             plan_manual_execution(Path::new("in.wav"), &preset, Path::new("out.wav"), &policy)
                 .expect("single-file policy overrides multi-file preset")
+                .execution
         else {
             panic!("managed recipe")
         };
@@ -256,7 +260,9 @@ fn managed_relative_paths_bind_to_the_enqueue_directory() {
         Path::new("output.wav"),
         &OutputPolicy::default(),
     )
-    .expect("plan") else {
+    .expect("plan")
+    .execution
+    else {
         panic!("managed recipe")
     };
     let input = std::path::absolute("input.wav").expect("input");

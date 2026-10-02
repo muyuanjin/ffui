@@ -276,6 +276,10 @@ const pickPreviewFile = async () => {
         </div>
       </div>
 
+      <p class="text-xs text-muted-foreground md:col-span-2" data-testid="output-policy-format-help">
+        {{ t("outputPolicy.formatHelp") }}
+      </p>
+
       <div v-if="!props.lockLocationAndName" class="space-y-1.5">
         <Label class="text-xs">{{ t("outputPolicy.dirLabel") }}</Label>
         <div class="flex items-center gap-2">

@@ -20,10 +20,6 @@ const other = {
       audio: "Audio",
       image: "Image",
     },
-    disabledHints: {
-      audio: "Audio-only; structured video presets do not support this picker.",
-      image: "Image format; not supported by current container settings.",
-    },
     emptyHint: "No matches. Try clearing search or typing an extension (e.g. `.m2ts`).",
   },
   onboarding: {
@@ -100,6 +96,8 @@ const other = {
   },
   outputPolicy: {
     containerLabel: "Output Container",
+    formatHelp:
+      "Choose a format compatible with your codecs. For custom command templates, this setting changes the output extension only; the template controls the actual format.",
     container: {
       default: "Default (follow preset/template)",
       keepInput: "Keep input container",

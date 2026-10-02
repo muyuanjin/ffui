@@ -24,6 +24,7 @@ pub(crate) fn normalize_container_format(format: &str) -> String {
         "wmv" | "asf" => "asf",
         // M4A is an mp4-family container; ffmpeg expects mp4 as the muxer name.
         "m4a" | "mp4" => "mp4",
+        "aac" | "adts" => "adts",
         // RealMedia family (rm/rmvb) is handled by the "rm" muxer.
         "rm" | "rmvb" => "rm",
         // Pass-through known muxers.

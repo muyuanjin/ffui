@@ -134,13 +134,18 @@ fn enqueue_transcode_job_no_notify(
         } else if matches!(source, JobSource::Manual) {
             Some(match (preset.as_ref(), output_path.as_deref()) {
                 (Some(preset), Some(output)) => {
-                    super::super::manual_execution::plan_manual_execution(
+                    match super::super::manual_execution::plan_manual_execution(
                         Path::new(&input_path),
                         preset,
                         Path::new(output),
                         &queue_output_policy,
-                    )
-                    .unwrap_or_else(|reason| JobExecution::Invalid { reason })
+                    ) {
+                        Ok(plan) => {
+                            output_path = plan.output_path;
+                            plan.execution
+                        }
+                        Err(reason) => JobExecution::Invalid { reason },
+                    }
                 }
                 _ => JobExecution::Invalid {
                     reason: format!("No preset found for preset id '{preset_id}'"),
@@ -185,12 +190,6 @@ fn enqueue_transcode_job_no_notify(
         } else {
             None
         };
-        if matches!(execution.as_ref(), Some(JobExecution::Ffmpeg { invocation })
-            if matches!(invocation.output, FfmpegOutput::Transparent))
-        {
-            output_path = None;
-        }
-
         let mut logs: Vec<JobLogLine> = Vec::new();
         for w in &warnings {
             logs.push(JobLogLine {

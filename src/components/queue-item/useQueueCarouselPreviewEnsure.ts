@@ -2,6 +2,7 @@ import { reactive, type ComputedRef } from "vue";
 import type { QueueListItem } from "@/composables";
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, buildPreviewUrl, hasTauri } from "@/lib/backend";
+import { imagePreviewSource } from "./imagePreviewSource";
 import {
   invalidateJobPreviewAutoEnsure,
   jobPreviewSourceKey,
@@ -44,7 +45,7 @@ export function useQueueCarouselPreviewEnsure(opts: {
     }
 
     if (job.type === "image") {
-      return buildPreviewUrl(job.outputPath || job.inputPath || null);
+      return buildPreviewUrl(imagePreviewSource(job));
     }
 
     return null;

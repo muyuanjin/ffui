@@ -1,6 +1,7 @@
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl } from "@/lib/backend";
 import { highlightFfmpegCommand } from "@/lib/ffmpegCommand";
+import { imagePreviewSource } from "@/components/queue-item/imagePreviewSource";
 
 type LiveRenderFlowOptions = {
   textWorld: HTMLElement;
@@ -37,9 +38,7 @@ const clampText = (text: string, maxChars: number) => {
 const getEffectivePreviewPath = (job: TranscodeJob): string | null => {
   if (typeof job.previewPath === "string" && job.previewPath.length > 0) return job.previewPath;
   if (job.type !== "image") return null;
-  if (typeof job.outputPath === "string" && job.outputPath.length > 0) return job.outputPath;
-  if (typeof job.inputPath === "string" && job.inputPath.length > 0) return job.inputPath;
-  return null;
+  return imagePreviewSource(job);
 };
 
 const pickJob = (jobs: TranscodeJob[]) => {

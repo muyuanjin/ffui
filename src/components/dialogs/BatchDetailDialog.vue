@@ -8,6 +8,7 @@ import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob, QueueProgr
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import { buildPreviewUrl } from "@/lib/backend";
 import { buildBatchPreviewSlots } from "@/components/queue-item/batchPreviewSlots";
+import { useQueueJobPathActions } from "@/composables/queue/useQueueJobPathActions";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const SkippedItemsStack = defineAsyncComponent(() => import("@/components/queue-item/SkippedItemsStack.vue"));
@@ -61,6 +62,7 @@ const contextMenuVisible = ref(false);
 const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const contextMenuJob = ref<TranscodeJob | null>(null);
+const pathActions = useQueueJobPathActions(contextMenuJob);
 
 const onJobContextMenu = (payload: { job: TranscodeJob; event: MouseEvent }) => {
   contextMenuJob.value = payload.job;
@@ -331,8 +333,13 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         :job-source="contextMenuJob?.source"
         queue-mode="queue"
         :has-selection="false"
-        :can-reveal-input-path="!!contextMenuJob?.inputPath"
-        :can-reveal-output-path="!!contextMenuJob?.outputPath"
+        :can-reveal-input-path="pathActions.canRevealInputPath.value"
+        :can-reveal-output-path="pathActions.canRevealOutputPath.value"
+        :can-copy-output-path="pathActions.canCopyOutputPath.value"
+        @copy-input-path="pathActions.copyInputPath"
+        @copy-output-path="pathActions.copyOutputPath"
+        @open-input-folder="pathActions.openInputFolder"
+        @open-output-folder="pathActions.openOutputFolder"
         @close="closeContextMenu"
         @inspect="handleContextMenuInspect"
         @compare="handleContextMenuCompare"

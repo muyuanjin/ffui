@@ -47,6 +47,9 @@ export function normalizeContainerFormatForPreview(value: string): string {
   if (trimmed === "ac3") return "ac3";
   if (trimmed === "ogg") return "ogg";
   if (trimmed === "opus") return "opus";
+  if (["png", "bmp", "tiff", "webp", "avif"].includes(trimmed)) return trimmed;
+  if (trimmed === "jpg" || trimmed === "jpeg") return "jpg";
+  if (trimmed === "tif") return "tiff";
   if (trimmed === "mpegts" || trimmed === "ts") return "ts";
   if (trimmed === "hls") return "m3u8";
   if (trimmed === "dash") return "mpd";
@@ -96,7 +99,74 @@ function splitTemplateArgs(template: string): string[] {
   return args;
 }
 
-export function inferTemplateOutputContainer(template: string): string | null {
+function inferImageExtension(tokens: string[], start: number, outputIndex: number): string | null {
+  let codec: string | null = null;
+  const flags = new Set([
+    "-an",
+    "-sn",
+    "-dn",
+    "-vn",
+    "-shortest",
+    "-y",
+    "-n",
+    "-hide_banner",
+    "-nostats",
+    "-bitexact",
+    "-copyts",
+    "-start_at_zero",
+  ]);
+  const valued = new Set([
+    "-map",
+    "-frames",
+    "-vf",
+    "-filter",
+    "-filter_script",
+    "-f",
+    "-t",
+    "-to",
+    "-ss",
+    "-r",
+    "-s",
+    "-pix_fmt",
+    "-q",
+    "-qscale",
+    "-b",
+    "-threads",
+    "-metadata",
+    "-map_metadata",
+    "-update",
+    "-pattern_type",
+    "-vsync",
+    "-fps_mode",
+    "-loop",
+  ]);
+  for (let index = start; index < outputIndex;) {
+    const token = tokens[index];
+    if (!token.startsWith("-")) {
+      codec = null;
+      index += 1;
+      continue;
+    }
+    if (flags.has(token)) {
+      index += 1;
+      continue;
+    }
+    if (index + 1 >= outputIndex) return null;
+    if (["-c", "-codec", "-c:v", "-codec:v", "-c:v:0", "-codec:v:0", "-vcodec"].includes(token)) {
+      codec = tokens[index + 1];
+    } else if (
+      !["-acodec", "-c:a", "-codec:a", "-c:a:0", "-codec:a:0"].includes(token) &&
+      !valued.has(token.split(":")[0])
+    ) {
+      return null;
+    }
+    index += 2;
+  }
+  if (codec === "mjpeg") return "jpg";
+  return codec && ["png", "bmp", "tiff"].includes(codec) ? codec : null;
+}
+
+function inferTemplateOutputFormat(template: string): string | null {
   const tokens = splitTemplateArgs(template.trim());
   if (/^(ffmpeg|ffmpeg\.exe)$/i.test(tokens[0] ?? "")) tokens.shift();
   const outputIndex = tokens.findIndex((token) => token === "OUTPUT");
@@ -119,6 +189,15 @@ export function inferTemplateOutputContainer(template: string): string | null {
     }
   }
 
+  if (format?.trim().toLowerCase() === "image2") {
+    const imageExtension = inferImageExtension(tokens, start, outputIndex);
+    if (imageExtension) return imageExtension;
+  }
+  return format?.trim() || null;
+}
+
+export function inferTemplateOutputContainer(template: string): string | null {
+  const format = inferTemplateOutputFormat(template);
   const normalized = format ? normalizeContainerFormatForPreview(format) : "";
   return normalized || null;
 }
@@ -127,8 +206,8 @@ export function inferPresetDefaultOutputContainer(preset: FFmpegPreset | null | 
   if (!preset) return null;
 
   if (preset.advancedEnabled && preset.ffmpegTemplate?.trim()) {
-    const fromTemplate = inferTemplateOutputContainer(preset.ffmpegTemplate);
-    if (fromTemplate) return fromTemplate;
+    const fromTemplate = inferTemplateOutputFormat(preset.ffmpegTemplate);
+    if (fromTemplate) return normalizeContainerFormatForPreview(fromTemplate) || null;
   }
 
   const structured = preset.container?.format ? normalizeContainerFormatForPreview(preset.container.format) : "";

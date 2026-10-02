@@ -3,6 +3,7 @@ import { buildJobPreviewUrl } from "@/lib/backend";
 import { decodeUrl } from "@/components/queue-item/previewDecodeUrl";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl } from "@/components/queue-item/previewWarmCache";
+import { imagePreviewSource } from "./imagePreviewSource";
 
 type Cancel = () => void;
 
@@ -11,7 +12,7 @@ const computeJobPreviewUrl = (job: TranscodeJob): string | null => {
   if (previewPath) return buildJobPreviewUrl(previewPath, job.previewRevision);
 
   if (job.type === "image") {
-    const fallback = job.outputPath || job.inputPath || null;
+    const fallback = imagePreviewSource(job);
     return buildJobPreviewUrl(fallback, job.previewRevision);
   }
 

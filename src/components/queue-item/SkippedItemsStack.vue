@@ -8,6 +8,7 @@ import { createWheelSoftSnapController } from "@/lib/wheelSoftSnap";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { parseSkippedJobReason } from "./skippedItemsStack.helpers";
+import { imagePreviewSource } from "./imagePreviewSource";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -139,7 +140,7 @@ const getPreviewUrl = (job: TranscodeJob): string | null => {
 
   // 图片类型可以使用输入/输出路径
   if (job.type === "image") {
-    return buildPreviewUrl(job.outputPath || job.inputPath || null);
+    return buildPreviewUrl(imagePreviewSource(job));
   }
 
   return null;

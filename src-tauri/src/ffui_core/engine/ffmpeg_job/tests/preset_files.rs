@@ -4,6 +4,65 @@ use super::*;
 use crate::ffui_core::domain::FFmpegPreset;
 
 #[test]
+fn image_output_group_addresses_match_real_ffmpeg_contents() {
+    let contract: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../../tests/manual-preset-media-contract.json"
+    ))
+    .expect("media preset contract");
+    for case in contract["imageOutputPlanning"]
+        .as_array()
+        .expect("image planning cases")
+    {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let input = directory.path().join("图像 input.jpg");
+        generate(
+            &["-f", "lavfi", "-i", "color=c=red:s=16x16", "-frames:v", "1"],
+            &input,
+        );
+        let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("image-group");
+        preset.advanced_enabled = Some(true);
+        preset.ffmpeg_template = Some(case["template"].as_str().expect("template").replace(
+            "SIDE",
+            &format!(
+                "\"{}\"",
+                directory.path().join("side.png").to_string_lossy()
+            ),
+        ));
+        let runtime = engine(preset.clone());
+        let job = runtime.enqueue_transcode_job(
+            input.to_string_lossy().into_owned(),
+            JobType::Image,
+            JobSource::Manual,
+            1.0,
+            None,
+            preset.id,
+        );
+        let output = PathBuf::from(job.output_path.as_deref().expect("known output"));
+        assert_eq!(
+            output.extension().and_then(|extension| extension.to_str()),
+            case["extension"].as_str()
+        );
+        process(&runtime, &job.id);
+        let stored = runtime.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+        assert_eq!(
+            stored.status,
+            JobStatus::Completed,
+            "{}: {:?}",
+            case["template"],
+            stored.failure_reason
+        );
+        let bytes = fs::read(output).expect("image output");
+        match case["extension"].as_str().expect("extension") {
+            "png" => assert_eq!(&bytes[..8], b"\x89PNG\r\n\x1a\n"),
+            "jpg" => assert_eq!(&bytes[..2], b"\xff\xd8"),
+            "bmp" => assert_eq!(&bytes[..2], b"BM"),
+            "tiff" => assert!(bytes.starts_with(b"II\x2a\0") || bytes.starts_with(b"MM\0\x2a")),
+            other => panic!("unverified extension {other}"),
+        }
+    }
+}
+
+#[test]
 fn saved_media_presets_execute_expanded_files_and_folders_without_probe() {
     let contract: serde_json::Value = serde_json::from_str(include_str!(
         "../../../../../tests/manual-preset-media-contract.json"
@@ -69,6 +128,21 @@ fn saved_media_presets_execute_expanded_files_and_folders_without_probe() {
             let managed = matches!(invocation.output, FfmpegOutput::ManagedFile { .. });
             assert_eq!(managed, case["executionMode"] == "managedFile");
             let output = PathBuf::from(invocation.args.last().expect("bound OUTPUT"));
+            assert_eq!(job.output_path.is_some(), case["knownOutput"] == true);
+            assert_eq!(job.output_path.as_deref(), output.to_str());
+            let wire = serde_json::to_value(crate::ffui_core::TranscodeJobLite::from(&job))
+                .expect("queue IPC");
+            assert_eq!(
+                wire["outputPath"],
+                job.output_path.as_deref().expect("known output")
+            );
+            let ui_wire = serde_json::to_value(crate::ffui_core::TranscodeJobUiLite::from(&job))
+                .expect("queue UI IPC");
+            assert_eq!(ui_wire["outputPath"], wire["outputPath"]);
+            assert_eq!(
+                ui_wire["executionMode"],
+                if managed { "managed" } else { "transparent" }
+            );
             assert_eq!(
                 output.extension().and_then(|value| value.to_str()),
                 case["outputExtension"].as_str()
@@ -89,19 +163,30 @@ fn saved_media_presets_execute_expanded_files_and_folders_without_probe() {
                 stored.failure_reason
             );
             assert!(stored.failure_reason.is_none());
+            assert_eq!(stored.output_path, job.output_path);
             let bytes = fs::read(&output).expect("preset output");
             match case["id"].as_str().expect("id") {
-                "aac-copy-video" => {
-                    assert_eq!(&bytes[4..8], b"ftyp");
+                "aac-copy-video" | "aac-adts" | "mp3-template" => {
+                    if case["id"] == "aac-copy-video" {
+                        assert_eq!(&bytes[4..8], b"ftyp");
+                    }
                     let decoded = Command::new(ffmpeg_program())
                         .arg("-i")
                         .arg(&output)
                         .args(["-f", "null", "-"])
                         .stdin(Stdio::null())
                         .output()
-                        .expect("decode AAC output");
+                        .expect("decode audio output");
                     assert!(decoded.status.success());
-                    assert!(String::from_utf8_lossy(&decoded.stderr).contains("Audio: aac"));
+                    let codec = if case["id"] == "mp3-template" {
+                        "mp3"
+                    } else {
+                        "aac"
+                    };
+                    assert!(
+                        String::from_utf8_lossy(&decoded.stderr)
+                            .contains(&format!("Audio: {codec}"))
+                    );
                 }
                 "pcm-unknown-input" => {
                     assert_eq!(&bytes[..4], b"RIFF");

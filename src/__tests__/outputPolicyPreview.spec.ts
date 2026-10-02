@@ -3,6 +3,7 @@ import type { OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 import type { FFmpegPreset } from "@/types";
+import mediaContract from "../../src-tauri/tests/manual-preset-media-contract.json";
 
 const makePreset = (overrides: Partial<FFmpegPreset> = {}): FFmpegPreset => ({
   id: "preset-1",
@@ -16,6 +17,47 @@ const makePreset = (overrides: Partial<FFmpegPreset> = {}): FFmpegPreset => ({
 });
 
 describe("previewOutputPathLocal", () => {
+  it.each(mediaContract.imageOutputPlanning)(
+    "plans the current image output group: $template",
+    ({ template, extension }) => {
+      const preset = makePreset({ advancedEnabled: true, container: { format: "mp4" }, ffmpegTemplate: template });
+      expect(previewOutputPathLocal("C:/素材/input.jpg", DEFAULT_OUTPUT_POLICY, { preset })).toBe(
+        `C:/素材/input.compressed.${extension}`,
+      );
+    },
+  );
+
+  it.each([
+    ["png", "png"],
+    ["mjpeg", "jpg"],
+    ["bmp", "bmp"],
+    ["tiff", "tiff"],
+    ["copy", "webp"],
+    ["libwebp", "webp"],
+  ])("uses the image2 %s encoder to plan its extension without changing the recipe", (codec, extension) => {
+    const preset = makePreset({
+      advancedEnabled: true,
+      container: { format: "mp4" },
+      ffmpegTemplate: `ffmpeg -f image2 -i INPUT -c:v ${codec} -f image2 OUTPUT`,
+    });
+    const policy: OutputPolicy = {
+      ...DEFAULT_OUTPUT_POLICY,
+      container: { mode: "default" },
+      filename: { suffix: ".compressed" },
+    };
+    expect(previewOutputPathLocal("C:/素材/input.webp", policy, { preset })).toBe(
+      `C:/素材/input.compressed.${extension}`,
+    );
+    expect(
+      previewOutputPathLocal(
+        "C:/素材/input.webp",
+        { ...policy, container: { mode: "force", format: "mp3" } },
+        { preset },
+      ),
+    ).toBe("C:/素材/input.compressed.mp3");
+    expect(preset.ffmpegTemplate).toBe(`ffmpeg -f image2 -i INPUT -c:v ${codec} -f image2 OUTPUT`);
+  });
+
   it("respects appendOrder for enabled suffix-like options", () => {
     const policy: OutputPolicy = {
       ...DEFAULT_OUTPUT_POLICY,

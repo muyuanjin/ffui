@@ -208,12 +208,17 @@ fn is_valueless_option(option: &str) -> bool {
     )
 }
 
+pub(super) struct ManualExecutionPlan {
+    pub execution: JobExecution,
+    pub output_path: Option<String>,
+}
+
 pub(super) fn plan_manual_execution(
     input: &Path,
     preset: &FFmpegPreset,
     output: &Path,
     policy: &OutputPolicy,
-) -> Result<JobExecution, String> {
+) -> Result<ManualExecutionPlan, String> {
     if preset.advanced_enabled.unwrap_or(false) {
         let template = preset
             .ffmpeg_template
@@ -221,6 +226,10 @@ pub(super) fn plan_manual_execution(
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| "Advanced preset has no FFmpeg command".to_string())?;
         let mut args = parse_command(template)?;
+        let output_path = args
+            .iter()
+            .any(|argument| argument == "OUTPUT")
+            .then(|| output.to_string_lossy().into_owned());
         for argument in &mut args {
             match argument.as_str() {
                 "INPUT" => *argument = input.to_string_lossy().into_owned(),
@@ -235,13 +244,19 @@ pub(super) fn plan_manual_execution(
             output: FfmpegOutput::Transparent,
         };
         validate_invocation(&invocation)?;
-        return Ok(JobExecution::Ffmpeg { invocation });
+        return Ok(ManualExecutionPlan {
+            execution: JobExecution::Ffmpeg { invocation },
+            output_path,
+        });
     }
 
     validate_structured_execution_preset(preset)?;
     if presentation_type(input) == JobType::Video {
-        return Ok(JobExecution::Video {
-            preset: Box::new(preset.clone()),
+        return Ok(ManualExecutionPlan {
+            execution: JobExecution::Video {
+                preset: Box::new(preset.clone()),
+            },
+            output_path: Some(output.to_string_lossy().into_owned()),
         });
     }
     if preset_requires_two_pass(preset) {
@@ -292,7 +307,10 @@ pub(super) fn plan_manual_execution(
         },
     };
     validate_invocation(&invocation)?;
-    Ok(JobExecution::Ffmpeg { invocation })
+    Ok(ManualExecutionPlan {
+        output_path: Some(output.to_string_lossy().into_owned()),
+        execution: JobExecution::Ffmpeg { invocation },
+    })
 }
 
 fn preserves_input_duration(preset: &FFmpegPreset) -> bool {
@@ -399,22 +417,19 @@ pub(super) fn hydrate_legacy_job_snapshot(
             return;
         }
     };
-    let execution = preset.map_or_else(
-        || JobExecution::Invalid {
-            reason: format!("No preset found for preset id '{}'", job.preset_id),
-        },
-        |preset| {
-            plan_manual_execution(&input, preset, &output, &policy)
-                .unwrap_or_else(|reason| JobExecution::Invalid { reason })
-        },
+    let plan = preset.map_or_else(
+        || Err(format!("No preset found for preset id '{}'", job.preset_id)),
+        |preset| plan_manual_execution(&input, preset, &output, &policy),
     );
-    let transparent = matches!(&execution, JobExecution::Ffmpeg { invocation } if matches!(invocation.output, FfmpegOutput::Transparent));
+    job.output_path = plan.as_ref().ok().and_then(|plan| plan.output_path.clone());
+    let execution = plan
+        .map(|plan| plan.execution)
+        .unwrap_or_else(|reason| JobExecution::Invalid { reason });
     if let JobExecution::Invalid { reason } = &execution {
         job.failure_reason = Some(reason.clone());
         super::worker_utils::append_job_log_line(job, reason.clone());
     }
     job.input_path = Some(input.to_string_lossy().into_owned());
-    job.output_path = (!transparent).then(|| output.to_string_lossy().into_owned());
     job.output_policy = Some(policy);
     job.execution = Some(execution);
     super::worker_utils::append_job_log_line(

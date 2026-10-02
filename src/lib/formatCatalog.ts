@@ -11,8 +11,6 @@ export interface FormatCatalogEntry {
   keywords: string[];
   /** Optional helper note shown in UI. */
   note?: string;
-  /** When true, selection is disabled in structured video container pickers. */
-  disabledInVideoPickers?: boolean;
 }
 
 const kw = (...items: string[]) =>
@@ -95,22 +93,19 @@ export const FORMAT_CATALOG: FormatCatalogEntry[] = [
     label: "MP3 (.mp3)",
     kind: "audio",
     keywords: kw("mp3", ".mp3"),
-    disabledInVideoPickers: true,
   },
   {
     value: "aac",
     label: "AAC (.aac)",
     kind: "audio",
     keywords: kw("aac", ".aac", "adts"),
-    disabledInVideoPickers: true,
   },
-  { value: "wav", label: "WAV (.wav)", kind: "audio", keywords: kw("wav", ".wav"), disabledInVideoPickers: true },
+  { value: "wav", label: "WAV (.wav)", kind: "audio", keywords: kw("wav", ".wav") },
   {
     value: "flac",
     label: "FLAC (.flac)",
     kind: "audio",
     keywords: kw("flac", ".flac"),
-    disabledInVideoPickers: true,
   },
   {
     value: "m4a",
@@ -118,58 +113,44 @@ export const FORMAT_CATALOG: FormatCatalogEntry[] = [
     kind: "audio",
     keywords: kw("m4a", ".m4a", "mp4", "aac", "alac"),
     note: "常见：AAC/ALAC（muxer 通常为 mp4）",
-    disabledInVideoPickers: true,
-  },
-  {
-    value: "alac",
-    label: "ALAC (.alac)",
-    kind: "audio",
-    keywords: kw("alac", ".alac", "m4a"),
-    note: "ALAC 是音频编码，常见容器为 m4a",
-    disabledInVideoPickers: true,
   },
   {
     value: "aiff",
     label: "AIFF (.aiff)",
     kind: "audio",
     keywords: kw("aiff", ".aiff", "aif", ".aif"),
-    disabledInVideoPickers: true,
   },
-  { value: "ac3", label: "AC-3 (.ac3)", kind: "audio", keywords: kw("ac3", ".ac3"), disabledInVideoPickers: true },
+  { value: "ac3", label: "AC-3 (.ac3)", kind: "audio", keywords: kw("ac3", ".ac3") },
   {
     value: "ogg",
     label: "Ogg (.ogg)",
     kind: "audio",
     keywords: kw("ogg", ".ogg", "vorbis"),
-    disabledInVideoPickers: true,
   },
   {
     value: "opus",
     label: "Opus (.opus)",
     kind: "audio",
     keywords: kw("opus", ".opus", "ogg"),
-    disabledInVideoPickers: true,
   },
 
   // ---- Image formats ----
-  { value: "png", label: "PNG (.png)", kind: "image", keywords: kw("png", ".png"), disabledInVideoPickers: true },
+  { value: "png", label: "PNG (.png)", kind: "image", keywords: kw("png", ".png") },
   {
     value: "jpg",
     label: "JPG (.jpg)",
     kind: "image",
     keywords: kw("jpg", ".jpg", "jpeg", ".jpeg"),
-    disabledInVideoPickers: true,
   },
   {
     value: "jpeg",
     label: "JPEG (.jpeg)",
     kind: "image",
     keywords: kw("jpeg", ".jpeg", "jpg", ".jpg"),
-    disabledInVideoPickers: true,
   },
-  { value: "webp", label: "WebP (.webp)", kind: "image", keywords: kw("webp", ".webp"), disabledInVideoPickers: true },
-  { value: "avif", label: "AVIF (.avif)", kind: "image", keywords: kw("avif", ".avif"), disabledInVideoPickers: true },
-  { value: "bmp", label: "BMP (.bmp)", kind: "image", keywords: kw("bmp", ".bmp"), disabledInVideoPickers: true },
+  { value: "webp", label: "WebP (.webp)", kind: "image", keywords: kw("webp", ".webp") },
+  { value: "avif", label: "AVIF (.avif)", kind: "image", keywords: kw("avif", ".avif") },
+  { value: "bmp", label: "BMP (.bmp)", kind: "image", keywords: kw("bmp", ".bmp") },
 ];
 
 export function filterFormatCatalog(entries: FormatCatalogEntry[], query: string): FormatCatalogEntry[] {

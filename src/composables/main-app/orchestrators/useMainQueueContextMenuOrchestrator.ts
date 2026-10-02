@@ -24,6 +24,7 @@ export function useMainQueueContextMenuOrchestrator() {
     bulkActionInProgress: computed(() => queue.bulkActionInProgress),
     canRevealInputPath: computed(() => menu.queueContextMenuCanRevealInputPath),
     canRevealOutputPath: computed(() => menu.queueContextMenuCanRevealOutputPath),
+    canCopyOutputPath: computed(() => menu.queueContextMenuCanCopyOutputPath),
   });
 
   const menuListeners = {
