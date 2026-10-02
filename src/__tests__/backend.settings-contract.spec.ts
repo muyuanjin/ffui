@@ -15,6 +15,7 @@ import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 import mediaOutputContract from "../../src-tauri/tests/output-media-policy-contract.json";
 import type { OutputContainerPolicy } from "@/types/output-policy";
 import type { OutputContainerPolicy as WireContainerPolicy } from "@/lib/backend/generated/queue-contracts";
+import planningContract from "../../src-tauri/tests/preset-output-planning-contract.json";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -86,6 +87,15 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("backend settings contract", () => {
+  it("persists per-input preset selection independently of a unified output format", async () => {
+    const settings = makeAppSettings();
+    settings.queuePresetSelection = planningContract.selection as AppSettings["queuePresetSelection"];
+    settings.queueOutputPolicy!.container = { mode: "force", format: "mp3" };
+    invokeMock.mockResolvedValueOnce(settings);
+    expect(await saveAppSettings(settings)).toEqual(settings);
+    expect(invokeMock).toHaveBeenCalledWith("save_app_settings", { settings });
+    expect(settings.queueOutputPolicy!.container).toEqual({ mode: "force", format: "mp3" });
+  });
   it("round trips per-media format fields without flattening them into one force format", async () => {
     const container = mediaOutputContract.container as OutputContainerPolicy;
     const wireContainer: WireContainerPolicy = container;

@@ -24,7 +24,7 @@ use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, ImageTargetFormat,
     JobStatus,
 };
-use crate::ffui_core::settings::{self, AppSettings};
+use crate::ffui_core::settings::AppSettings;
 use crate::sync_ext::MutexExt;
 
 #[cfg(test)]
@@ -83,7 +83,7 @@ pub(crate) fn run_auto_compress(
         (settings_snapshot, presets, batch_id, started_at_ms)
     };
 
-    if let Err(err) = settings::save_settings(&settings_snapshot) {
+    if let Err(err) = inner.persist_current_settings() {
         crate::debug_eprintln!(
             "failed to persist Batch Compress defaults to settings.json: {err:#}"
         );

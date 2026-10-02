@@ -3,10 +3,27 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { withViteDevServer } from "./lib/viteDevServer.mjs";
+import { build, preview } from "vite";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const output = path.resolve(process.argv[2] ?? path.join(repoRoot, ".cache/output-path-fix/screenshots"));
+const withScreenshotApp = async (capture) => {
+  process.env.VITE_DOCS_SCREENSHOT_HAS_TAURI = "1";
+  process.env.VITE_STARTUP_IDLE_TIMEOUT_MS = "0";
+  const buildOptions = { outDir: path.join(output, "app"), emptyOutDir: true };
+  const config = {
+    root: repoRoot,
+    configFile: path.join(repoRoot, "tools/docs-screenshots/vite.config.screenshots.ts"),
+    build: buildOptions,
+  };
+  await build(config);
+  const server = await preview({ ...config, preview: { host: "127.0.0.1", port: 0 } });
+  try {
+    await capture({ baseUrl: server.resolvedUrls.local[0] });
+  } finally {
+    await new Promise((resolve, reject) => server.httpServer.close((error) => (error ? reject(error) : resolve())));
+  }
+};
 const verifyHeaderLayout = async (page) => {
   const header = page.locator("header").filter({ has: page.getByTestId("ffui-queue-output-settings") });
   assert.ok(await header.evaluate((element) => element.scrollWidth <= element.clientWidth));
@@ -33,162 +50,209 @@ const verifyHeaderLayout = async (page) => {
   }
 };
 await fs.mkdir(output, { recursive: true });
-await withViteDevServer(
-  {
-    repoRoot,
-    viteBin: path.join(repoRoot, "node_modules/vite/bin/vite.js"),
-    configPath: path.join(repoRoot, "tools/docs-screenshots/vite.config.screenshots.ts"),
-    env: { VITE_DOCS_SCREENSHOT_HAS_TAURI: "1", VITE_STARTUP_IDLE_TIMEOUT_MS: "0" },
-  },
-  async ({ baseUrl }) => {
-    const browser = await chromium.launch({ headless: true });
-    try {
-      const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
-      page.setDefaultTimeout(60_000);
-      const errors = [];
-      page.on("pageerror", (error) => errors.push(String(error)));
-      await page.addInitScript(() => {
-        window.__FFUI_COPIED_PATH__ = "previous-input-path";
-        Object.defineProperty(navigator, "clipboard", {
-          configurable: true,
-          value: {
-            writeText: async (value) => {
-              window.__FFUI_COPIED_PATH__ = value;
-            },
+await withScreenshotApp(async ({ baseUrl }) => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1200, height: 850 } });
+    page.setDefaultTimeout(60_000);
+    const errors = [];
+    page.on("pageerror", (error) => {
+      errors.push(String(error));
+      console.error(error);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error") console.error(message.text());
+    });
+    page.on("requestfailed", (request) => console.error(request.url(), request.failure()));
+    await page.addInitScript(() => {
+      window.__FFUI_COPIED_PATH__ = "previous-input-path";
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (value) => {
+            window.__FFUI_COPIED_PATH__ = value;
           },
-        });
+        },
       });
-      await page.goto(`${baseUrl}?ffuiLocale=zh-CN`, { waitUntil: "commit" });
-      await page.getByTestId("ffui-sidebar").waitFor();
-      for (const locale of ["zh-CN", "en"]) {
-        if (locale === "en") {
-          await page.getByTestId("ffui-locale-trigger").click();
-          await page.getByTestId("ffui-locale-en").click();
-        }
-        await page.getByTestId("ffui-queue-output-settings").click();
-        const dialog = page.getByRole("dialog");
-        const mode = dialog.getByTestId("output-policy-container-mode-trigger");
-        const force = locale === "zh-CN" ? "按媒体类型指定格式" : "Specify formats by media type";
-        if (!(await mode.textContent()).includes(force)) {
-          await mode.click();
-          await page.getByRole("option", { name: force, exact: true }).click();
-        }
-        for (const [format, label, kind] of [
-          ["mkv", "MKV / Matroska (.mkv)", "video"],
-          ["mp3", "MP3 (.mp3)", "audio"],
-          ["m4a", "M4A (.m4a)", "audio"],
-          ["png", "PNG (.png)", "image"],
-        ]) {
-          const selector = dialog.getByTestId(`output-policy-${kind}-format`).getByRole("combobox");
-          await selector.click();
-          const wrongKind = kind === "video" ? "MP3 (.mp3)" : "MP4 (.mp4)";
-          assert.equal(await page.getByRole("option").filter({ hasText: wrongKind }).count(), 0);
-          const option = page.getByRole("option").filter({ hasText: label });
-          assert.notEqual(await option.getAttribute("aria-disabled"), "true");
-          await option.click();
-          assert.ok((await selector.textContent()).includes(label));
-          await dialog.screenshot({ path: path.join(output, `format-${format}-${locale}.png`) });
-        }
-        const guidance = await dialog.getByTestId("output-policy-format-help").textContent();
-        assert.ok(guidance.includes(locale === "zh-CN" ? "仅改变输出扩展名" : "extension only"));
-        await dialog.getByRole("button", { name: "Close", exact: true }).click();
-        await dialog.waitFor({ state: "hidden" });
-        await page.mouse.move(0, 0);
-        const badges = page.getByTestId("ffui-queue-output-container-badge");
-        assert.equal(await badges.count(), 3);
-        assert.deepEqual(await badges.evaluateAll((items) => items.map((item) => item.dataset.mediaKind)), [
-          "video",
-          "audio",
-          "image",
-        ]);
-        await verifyHeaderLayout(page);
-        await page
-          .locator("header")
-          .filter({ has: page.getByTestId("ffui-queue-output-settings") })
-          .screenshot({ path: path.join(output, `media-badges-${locale}.png`) });
-        await page.getByTestId("ffui-queue-output-settings").click();
-        await mode.click();
-        await page
-          .getByRole("option", {
-            name: locale === "zh-CN" ? "默认（走预设/模板）" : "Default (follow preset/template)",
-            exact: true,
-          })
-          .click();
-        assert.equal(await dialog.getByTestId("output-policy-audio-format").count(), 0);
-        await dialog.getByRole("button", { name: "Close", exact: true }).click();
-        await dialog.waitFor({ state: "hidden" });
-        await page.mouse.move(0, 0);
-        assert.equal(await badges.count(), 1);
-        await verifyHeaderLayout(page);
-        await page
-          .locator("header")
-          .filter({ has: page.getByTestId("ffui-queue-output-settings") })
-          .screenshot({ path: path.join(output, `unified-badge-${locale}.png`) });
+    });
+    await page.goto(`${baseUrl}?ffuiLocale=zh-CN`, { waitUntil: "commit" });
+    await page.getByTestId("ffui-sidebar").waitFor();
+    const setPresetMode = async (mode, locale) => {
+      const trigger = page.getByTestId("queue-preset-selection-mode");
+      const label =
+        mode === "byMedia"
+          ? locale === "zh-CN"
+            ? "按输入类型"
+            : "By input type"
+          : locale === "zh-CN"
+            ? "统一预设"
+            : "Unified preset";
+      if (!(await trigger.textContent()).includes(label)) {
+        await trigger.click();
+        await page.getByRole("listbox").waitFor();
+        await page.getByRole("option", { name: label, exact: true }).press("Enter");
       }
-      await page.getByTestId("ffui-queue-view-mode-trigger").click();
-      await page.getByTestId("ffui-queue-view-mode-detail").click();
-      await page.waitForFunction(() => typeof window.__FFUI_TAURI_EVENT_EMIT__ === "function");
-      await page.evaluate(() =>
-        window.__FFUI_TAURI_EVENT_EMIT__("ffui://queue-state-lite", {
-          snapshotRevision: 10,
-          latestDeltaRevision: 0,
-          jobs: [
-            {
-              id: "known",
-              filename: "known-template.flac",
-              inputPath: "C:/素材/known-template.flac",
-              outputPath: "D:/输出/known-template.mp3",
-            },
-            { id: "unknown", filename: "analysis.wav", inputPath: "C:/素材/analysis.wav" },
-          ].map((job) => ({
-            ...job,
-            type: "audio",
-            source: "manual",
-            presetId: "p1",
-            originalSizeMB: 1,
-            status: "completed",
-            progress: 100,
-            executionMode: "transparent",
-          })),
-        }),
-      );
-      const known = page.getByTestId("queue-item-card").filter({ hasText: "known-template.flac" });
-      await known.click({ button: "right" });
-      const copy = page.getByTestId("queue-context-menu-copy-output");
-      assert.notEqual(await copy.getAttribute("aria-disabled"), "true");
-      assert.notEqual(await page.getByTestId("queue-context-menu-open-output").getAttribute("aria-disabled"), "true");
-      await page.getByTestId("queue-context-menu").screenshot({ path: path.join(output, "known-output-menu.png") });
-      await copy.click();
-      await page.waitForFunction(() => window.__FFUI_COPIED_PATH__ === "D:/输出/known-template.mp3");
-      await page.getByTestId("queue-item-card").filter({ hasText: "analysis.wav" }).click({ button: "right" });
-      const unknownCopy = page.getByTestId("queue-context-menu-copy-output");
-      assert.equal(await unknownCopy.getAttribute("aria-disabled"), "true");
-      assert.equal(await page.getByTestId("queue-context-menu-open-output").getAttribute("aria-disabled"), "true");
-      await unknownCopy.dispatchEvent("click");
-      assert.equal(await page.evaluate(() => window.__FFUI_COPIED_PATH__), "D:/输出/known-template.mp3");
-      await page.getByTestId("queue-context-menu").screenshot({ path: path.join(output, "unknown-output-menu.png") });
-      assert.deepEqual(errors, []);
-      await fs.writeFile(
-        path.join(output, "verification.json"),
-        JSON.stringify(
-          {
-            formats: ["mkv", "mp3", "m4a", "png"],
-            isolatedMediaSelectors: true,
-            perMediaBadges: 3,
-            unifiedBadges: 1,
-            headerLayout: "single-line count, compact selector, contained controls and adjacent left-side badges",
-            locales: ["zh-CN", "en"],
-            knownOutputCopied: true,
-            unknownOutputDisabled: true,
-            ipc: "mocked",
-          },
-          null,
-          2,
-        ),
-      );
-      await page.close();
-    } finally {
-      await browser.close();
+      await trigger.filter({ hasText: label }).waitFor();
+      assert.ok((await trigger.textContent()).includes(label));
+    };
+    for (const locale of ["zh-CN", "en"]) {
+      if (locale === "en") {
+        await page.getByTestId("ffui-locale-trigger").click();
+        await page.getByTestId("ffui-locale-en").click();
+        for (const kind of ["video", "audio", "image"]) {
+          assert.ok((await page.getByTestId(`queue-preset-${kind}-trigger`).textContent()).includes("Follow unified"));
+        }
+      }
+      const presetMode = page.getByTestId("queue-preset-selection-mode");
+      await setPresetMode("byMedia", locale);
+      for (const kind of ["video", "audio", "image"]) {
+        const trigger = page.getByTestId(`queue-preset-${kind}-trigger`);
+        assert.ok((await trigger.textContent()).includes(locale === "zh-CN" ? "跟随统一预设" : "Follow unified"));
+      }
+      await page
+        .locator("header")
+        .filter({ has: presetMode })
+        .screenshot({ path: path.join(output, `preset-routing-${locale}.png`) });
+      await setPresetMode("unified", locale);
+      await page.getByTestId("ffui-queue-output-settings").click();
+      const dialog = page.getByRole("dialog");
+      const mode = dialog.getByTestId("output-policy-container-mode-trigger");
+      const force = locale === "zh-CN" ? "按输出类型指定格式" : "Specify formats by output type";
+      if (!(await mode.textContent()).includes(force)) {
+        await mode.click();
+        await page.getByRole("option", { name: force, exact: true }).click();
+      }
+      for (const [format, label, kind] of [
+        ["mkv", "MKV / Matroska (.mkv)", "video"],
+        ["mp3", "MP3 (.mp3)", "audio"],
+        ["m4a", "M4A (.m4a)", "audio"],
+        ["png", "PNG (.png)", "image"],
+      ]) {
+        const selector = dialog.getByTestId(`output-policy-${kind}-format`).getByRole("combobox");
+        await selector.click();
+        const wrongKind = kind === "video" ? "MP3 (.mp3)" : "MP4 (.mp4)";
+        assert.equal(await page.getByRole("option").filter({ hasText: wrongKind }).count(), 0);
+        const option = page.getByRole("option").filter({ hasText: label });
+        assert.notEqual(await option.getAttribute("aria-disabled"), "true");
+        await option.click();
+        assert.ok((await selector.textContent()).includes(label));
+        await dialog.screenshot({ path: path.join(output, `format-${format}-${locale}.png`) });
+      }
+      const guidance = await dialog.getByTestId("output-policy-format-help").textContent();
+      assert.ok(guidance.includes(locale === "zh-CN" ? "目标输出类型" : "target output type"));
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      await page.mouse.move(0, 0);
+      const badges = page.getByTestId("ffui-queue-output-container-badge");
+      assert.equal(await badges.count(), 3);
+      assert.deepEqual(await badges.evaluateAll((items) => items.map((item) => item.dataset.mediaKind)), [
+        "video",
+        "audio",
+        "image",
+      ]);
+      await verifyHeaderLayout(page);
+      await page
+        .locator("header")
+        .filter({ has: page.getByTestId("ffui-queue-output-settings") })
+        .screenshot({ path: path.join(output, `media-badges-${locale}.png`) });
+      await page.getByTestId("ffui-queue-output-settings").click();
+      await mode.click();
+      await page
+        .getByRole("option", { name: locale === "zh-CN" ? "统一指定格式" : "Unified format", exact: true })
+        .click();
+      const unifiedFormat = dialog.getByTestId("output-policy-container-format").getByRole("combobox");
+      await unifiedFormat.click();
+      await page.getByRole("option").filter({ hasText: "MP3 (.mp3)" }).click();
+      assert.ok((await unifiedFormat.textContent()).includes("MP3 (.mp3)"));
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      assert.equal(await badges.count(), 1);
+      assert.ok((await badges.textContent()).includes("mp3"));
+      await page.getByTestId("ffui-queue-output-settings").click();
+      await mode.click();
+      await page
+        .getByRole("option", {
+          name: locale === "zh-CN" ? "默认（走预设/模板）" : "Default (follow preset/template)",
+          exact: true,
+        })
+        .click();
+      assert.equal(await dialog.getByTestId("output-policy-audio-format").count(), 0);
+      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await dialog.waitFor({ state: "hidden" });
+      await page.mouse.move(0, 0);
+      assert.equal(await badges.count(), 1);
+      await verifyHeaderLayout(page);
+      await page
+        .locator("header")
+        .filter({ has: page.getByTestId("ffui-queue-output-settings") })
+        .screenshot({ path: path.join(output, `unified-badge-${locale}.png`) });
+      if (locale === "zh-CN") await setPresetMode("byMedia", locale);
     }
-  },
-);
+    await page.getByTestId("ffui-queue-view-mode-trigger").click();
+    await page.getByTestId("ffui-queue-view-mode-detail").click();
+    await page.waitForFunction(() => typeof window.__FFUI_TAURI_EVENT_EMIT__ === "function");
+    await page.evaluate(() =>
+      window.__FFUI_TAURI_EVENT_EMIT__("ffui://queue-state-lite", {
+        snapshotRevision: 10,
+        latestDeltaRevision: 0,
+        jobs: [
+          {
+            id: "known",
+            filename: "known-template.flac",
+            inputPath: "C:/素材/known-template.flac",
+            outputPath: "D:/输出/known-template.mp3",
+          },
+          { id: "unknown", filename: "analysis.wav", inputPath: "C:/素材/analysis.wav" },
+        ].map((job) => ({
+          ...job,
+          type: "audio",
+          source: "manual",
+          presetId: "p1",
+          originalSizeMB: 1,
+          status: "completed",
+          progress: 100,
+          executionMode: "transparent",
+        })),
+      }),
+    );
+    const known = page.getByTestId("queue-item-card").filter({ hasText: "known-template.flac" });
+    await known.click({ button: "right" });
+    const copy = page.getByTestId("queue-context-menu-copy-output");
+    assert.notEqual(await copy.getAttribute("aria-disabled"), "true");
+    assert.notEqual(await page.getByTestId("queue-context-menu-open-output").getAttribute("aria-disabled"), "true");
+    await page.getByTestId("queue-context-menu").screenshot({ path: path.join(output, "known-output-menu.png") });
+    await copy.click();
+    await page.waitForFunction(() => window.__FFUI_COPIED_PATH__ === "D:/输出/known-template.mp3");
+    await page.getByTestId("queue-item-card").filter({ hasText: "analysis.wav" }).click({ button: "right" });
+    const unknownCopy = page.getByTestId("queue-context-menu-copy-output");
+    assert.equal(await unknownCopy.getAttribute("aria-disabled"), "true");
+    assert.equal(await page.getByTestId("queue-context-menu-open-output").getAttribute("aria-disabled"), "true");
+    await unknownCopy.dispatchEvent("click");
+    assert.equal(await page.evaluate(() => window.__FFUI_COPIED_PATH__), "D:/输出/known-template.mp3");
+    await page.getByTestId("queue-context-menu").screenshot({ path: path.join(output, "unknown-output-menu.png") });
+    assert.deepEqual(errors, []);
+    await fs.writeFile(
+      path.join(output, "verification.json"),
+      JSON.stringify(
+        {
+          formats: ["mkv", "mp3", "m4a", "png"],
+          isolatedMediaSelectors: true,
+          perMediaBadges: 3,
+          unifiedBadges: 1,
+          unifiedForcedFormat: "mp3",
+          inputPresetSelectors: ["video", "audio", "image"],
+          headerLayout: "single-line count, compact selector, contained controls and adjacent left-side badges",
+          locales: ["zh-CN", "en"],
+          knownOutputCopied: true,
+          unknownOutputDisabled: true,
+          ipc: "mocked",
+        },
+        null,
+        2,
+      ),
+    );
+    await page.close();
+  } finally {
+    await browser.close();
+  }
+});

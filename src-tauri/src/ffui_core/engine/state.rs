@@ -132,6 +132,7 @@ impl EngineState {
 
 pub(crate) struct Inner {
     pub(crate) state: Mutex<EngineState>,
+    pub(crate) settings_persistence: Mutex<()>,
     pub(crate) cv: Condvar,
     pub(crate) next_job_id: AtomicU64,
     pub(crate) queue_recovery_done: AtomicBool,
@@ -149,6 +150,7 @@ impl Inner {
     pub(crate) fn new(presets: Vec<FFmpegPreset>, settings: AppSettings) -> Self {
         Self {
             state: Mutex::new(EngineState::new(presets, settings)),
+            settings_persistence: Mutex::new(()),
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
             queue_recovery_done: AtomicBool::new(false),

@@ -124,6 +124,7 @@ fn make_test_preset(keep_subtitles: bool) -> FFmpegPreset {
         },
         advanced_enabled: Some(false),
         ffmpeg_template: None,
+        output_kind: None,
         is_smart_preset: None,
     }
 }

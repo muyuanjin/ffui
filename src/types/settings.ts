@@ -4,6 +4,9 @@ import type { OutputPolicy } from "./output-policy";
 
 export type QueuePersistenceMode = "none" | "crashRecoveryLite" | "crashRecoveryFull";
 
+export type QueuePresetSelection =
+  { mode: "unified" } | { mode: "byMedia"; video?: string; audio?: string; image?: string };
+
 export interface CrashRecoveryLogRetention {
   /** Maximum number of per-job terminal log files to keep on disk. */
   maxFiles?: number;
@@ -101,6 +104,7 @@ export interface SettingsUiDomain {
 export interface SettingsPresetsDomain {
   /** Optional default preset id used for manual queue jobs. */
   defaultQueuePresetId?: string;
+  queuePresetSelection?: QueuePresetSelection;
   /** Optional preset sort mode for the presets panel and dropdown. */
   presetSortMode?: PresetSortMode;
   /** Optional preset sort direction for the presets panel and dropdown. */

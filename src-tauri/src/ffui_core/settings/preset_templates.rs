@@ -131,6 +131,7 @@ pub(super) fn base_preset(
         stats: empty_stats(),
         advanced_enabled: Some(false),
         ffmpeg_template: None,
+        output_kind: None,
         is_smart_preset,
     }
 }

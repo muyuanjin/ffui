@@ -1,6 +1,7 @@
 import type { FFmpegPreset, OutputFilenameAppend, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
-import { resolveOutputContainerForExtension } from "@/lib/outputContainerPolicy";
+import { outputMediaKindForExtension, resolveOutputContainerForMedia } from "@/lib/outputContainerPolicy";
+import type { FormatKind } from "@/lib/formatCatalog";
 
 const DEFAULT_APPEND_ORDER: OutputFilenameAppend[] = DEFAULT_OUTPUT_POLICY.filename.appendOrder ?? [
   "suffix",
@@ -65,43 +66,46 @@ function splitTemplateArgs(template: string): string[] {
   const args: string[] = [];
   let current = "";
   let quote: '"' | "'" | null = null;
-  let escaped = false;
+  let started = false;
+  const characters = Array.from(template);
 
-  for (const ch of template) {
-    if (escaped) {
-      current += ch;
-      escaped = false;
+  for (let index = 0; index < characters.length; index += 1) {
+    const character = characters[index];
+    if ((character === '"' || character === "'") && quote === null) {
+      quote = character;
+      started = true;
       continue;
     }
-    if (ch === "\\" && quote !== "'") {
-      escaped = true;
-      continue;
-    }
-    if ((ch === '"' || ch === "'") && quote === null) {
-      quote = ch;
-      continue;
-    }
-    if (quote === ch) {
+    if (quote === character) {
       quote = null;
       continue;
     }
-    if (!quote && /\s/.test(ch)) {
-      if (current) {
+    if (character === "\\" && quote === '"' && characters[index + 1] === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+    if (!quote && /\s/.test(character)) {
+      if (started) {
         args.push(current);
         current = "";
+        started = false;
       }
       continue;
     }
-    current += ch;
+    current += character;
+    started = true;
   }
 
-  if (escaped) current += "\\";
-  if (current) args.push(current);
+  if (quote) return [];
+  if (started) args.push(current);
+  const program = args[0]?.toLowerCase().split(/[\\/]/).pop();
+  if (program === "ffmpeg" || program === "ffmpeg.exe") args.shift();
   return args;
 }
 
-function inferImageExtension(tokens: string[], start: number, outputIndex: number): string | null {
-  let codec: string | null = null;
+function templateOutputOptions(tokens: string[], start: number, outputIndex: number): Array<[string, string]> | null {
+  const options: Array<[string, string]> = [];
   const flags = new Set([
     "-an",
     "-sn",
@@ -115,56 +119,60 @@ function inferImageExtension(tokens: string[], start: number, outputIndex: numbe
     "-bitexact",
     "-copyts",
     "-start_at_zero",
-  ]);
-  const valued = new Set([
-    "-map",
-    "-frames",
-    "-vf",
-    "-filter",
-    "-filter_script",
-    "-f",
-    "-t",
-    "-to",
-    "-ss",
-    "-r",
-    "-s",
-    "-pix_fmt",
-    "-q",
-    "-qscale",
-    "-b",
-    "-threads",
-    "-metadata",
-    "-map_metadata",
-    "-update",
-    "-pattern_type",
-    "-vsync",
-    "-fps_mode",
-    "-loop",
+    "-vstats",
+    "-qphist",
+    "-report",
+    "-ignore_unknown",
+    "-copy_unknown",
+    "-recast_media",
+    "-accurate_seek",
+    "-benchmark",
+    "-benchmark_all",
+    "-stdin",
+    "-dump",
+    "-hex",
+    "-re",
+    "-xerror",
+    "-copyinkf",
+    "-auto_conversion_filters",
+    "-stats",
+    "-debug_ts",
+    "-find_stream_info",
+    "-display_hflip",
+    "-display_vflip",
+    "-force_fps",
+    "-autorotate",
+    "-autoscale",
+    "-fix_sub_duration_heartbeat",
+    "-fix_sub_duration",
+    "-print_graphs",
+    "-intra",
+    "-deinterlace",
+    "-psnr",
   ]);
   for (let index = start; index < outputIndex;) {
     const token = tokens[index];
+    if (token === "--") {
+      if (index + 1 === outputIndex) return options;
+      options.length = 0;
+      index += 2;
+      continue;
+    }
     if (!token.startsWith("-")) {
-      codec = null;
+      options.length = 0;
       index += 1;
       continue;
     }
-    if (flags.has(token)) {
+    const option = token.split(":")[0];
+    if (flags.has(option) || flags.has(option.replace(/^-no/, "-"))) {
       index += 1;
       continue;
     }
     if (index + 1 >= outputIndex) return null;
-    if (["-c", "-codec", "-c:v", "-codec:v", "-c:v:0", "-codec:v:0", "-vcodec"].includes(token)) {
-      codec = tokens[index + 1];
-    } else if (
-      !["-acodec", "-c:a", "-codec:a", "-c:a:0", "-codec:a:0"].includes(token) &&
-      !valued.has(token.split(":")[0])
-    ) {
-      return null;
-    }
+    options.push([token, tokens[index + 1]]);
     index += 2;
   }
-  if (codec === "mjpeg") return "jpg";
-  return codec && ["png", "bmp", "tiff"].includes(codec) ? codec : null;
+  return options;
 }
 
 function inferTemplateOutputFormat(template: string): string | null {
@@ -182,16 +190,15 @@ function inferTemplateOutputFormat(template: string): string | null {
   }
 
   const start = lastInputIndex == null ? 0 : lastInputIndex + 1;
-  let format: string | null = null;
-  for (let i = start; i + 1 < outputIndex; i += 1) {
-    if (tokens[i] === "-f") {
-      format = tokens[i + 1] ?? null;
-      i += 1;
-    }
-  }
+  const options = templateOutputOptions(tokens, start, outputIndex);
+  if (!options) return null;
+  const format = options.filter(([option]) => option === "-f").slice(-1)[0]?.[1] ?? null;
 
   if (format?.trim().toLowerCase() === "image2") {
-    const imageExtension = inferImageExtension(tokens, start, outputIndex);
+    const codec = options
+      .filter(([option]) => ["-c", "-codec", "-c:v", "-codec:v", "-c:v:0", "-codec:v:0", "-vcodec"].includes(option))
+      .slice(-1)[0]?.[1];
+    const imageExtension = codec === "mjpeg" ? "jpg" : codec && ["png", "bmp", "tiff"].includes(codec) ? codec : null;
     if (imageExtension) return imageExtension;
   }
   return format?.trim() || null;
@@ -213,6 +220,51 @@ export function inferPresetDefaultOutputContainer(preset: FFmpegPreset | null | 
 
   const structured = preset.container?.format ? normalizeContainerFormatForPreview(preset.container.format) : "";
   return structured || null;
+}
+
+function audioOnlyMaps(maps: string[]): boolean {
+  const positive = maps.filter((value) => !value.startsWith("-"));
+  return positive.length > 0 && positive.every((value) => /^\d+:a(?::.*)?\??$/.test(value));
+}
+
+export function inferPresetOutputKind(
+  preset: FFmpegPreset | null | undefined,
+  inputExtension: string,
+): FormatKind | null {
+  if (!preset?.advancedEnabled) {
+    return audioOnlyMaps(preset?.mapping?.maps ?? []) ? "audio" : outputMediaKindForExtension(inputExtension);
+  }
+  if (preset.outputKind) return preset.outputKind === "other" ? null : preset.outputKind;
+  const tokens = splitTemplateArgs(preset.ffmpegTemplate ?? "");
+  if (tokens.filter((token) => token === "OUTPUT").length !== 1 || tokens[tokens.length - 1] !== "OUTPUT") return null;
+  const delimiter = tokens.indexOf("--");
+  if (delimiter >= 0 && delimiter + 2 !== tokens.length) return null;
+  let start = 0;
+  for (let index = 0; index + 1 < tokens.length; index += 1) {
+    if (tokens[index] === "-i") start = index + 2;
+  }
+  let noVideo = false;
+  let muxer: string | null = null;
+  let videoCodec = false;
+  const maps: string[] = [];
+  for (let index = start; index + 1 < tokens.length;) {
+    const option = tokens[index];
+    if (["-vn", "-an", "-sn", "-dn", "-y", "-n", "-shortest", "-hide_banner", "-nostats"].includes(option)) {
+      noVideo ||= option === "-vn";
+      index += 1;
+    } else if (option.startsWith("-")) {
+      if (option === "-filter_complex") return null;
+      if (option === "-f") muxer = tokens[index + 1];
+      videoCodec ||= ["-c:v", "-codec:v", "-vcodec"].includes(option);
+      if (option === "-map") maps.push(tokens[index + 1]);
+      index += 2;
+    } else {
+      return null;
+    }
+  }
+  if (muxer === "image2" || (muxer && outputMediaKindForExtension(muxer) === "image")) return "image";
+  if (noVideo || audioOnlyMaps(maps) || (muxer && outputMediaKindForExtension(muxer) === "audio")) return "audio";
+  return videoCodec ? "video" : null;
 }
 
 function shouldFallbackWebmForPreview(preset: FFmpegPreset | null | undefined, inputExtension: string): boolean {
@@ -287,7 +339,7 @@ export function previewOutputPathLocal(
       ? policy.directory.directory.trim().replace(/\\/g, "/")
       : dir;
 
-  const container = resolveOutputContainerForExtension(policy.container, inputExt);
+  const container = resolveOutputContainerForMedia(policy.container, inferPresetOutputKind(options.preset, inputExt));
   let outExt =
     container.mode === "force"
       ? normalizeForcedContainerExtensionForPreview(String(container.format || ext)) || ext

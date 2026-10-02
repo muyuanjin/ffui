@@ -95,7 +95,7 @@ fn load_settings_recovers_from_last_good_when_main_settings_is_corrupt() {
             .expect("parse healed settings");
     assert_eq!(
         healed.get("version").and_then(serde_json::Value::as_u64),
-        Some(1)
+        Some(2)
     );
     assert!(
         healed.get("settings").is_some(),

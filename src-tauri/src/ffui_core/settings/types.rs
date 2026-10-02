@@ -16,6 +16,21 @@ pub use performance::{
 pub use queue::{
     CrashRecoveryLogRetention, QueuePersistenceMode, TaskbarProgressMode, TaskbarProgressScope,
 };
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "mode")]
+pub enum QueuePresetSelection {
+    #[default]
+    Unified,
+    ByMedia {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        video: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        audio: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        image: Option<String>,
+    },
+}
 pub use tools::{
     DownloadedToolInfo, DownloadedToolState, ExternalToolSettings, RemoteToolVersionCache,
     RemoteToolVersionInfo,
@@ -107,6 +122,8 @@ pub struct AppSettings {
     /// the first available preset will be used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_queue_preset_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub queue_preset_selection: Option<QueuePresetSelection>,
     /// Optional preset sort mode for the presets panel and dropdown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset_sort_mode: Option<PresetSortMode>,
@@ -201,15 +218,6 @@ pub struct AppSettings {
 }
 impl AppSettings {
     pub fn normalize(&mut self) {
-        self.queue_output_policy.container = self
-            .queue_output_policy
-            .container
-            .scoped_for_active_settings();
-        self.batch_compress_defaults.output_policy.container = self
-            .batch_compress_defaults
-            .output_policy
-            .container
-            .scoped_for_active_settings();
         self.max_parallel_jobs = types_helpers::normalize_parallel_limit(self.max_parallel_jobs);
         self.max_parallel_cpu_jobs =
             types_helpers::normalize_parallel_limit(self.max_parallel_cpu_jobs);
@@ -321,6 +329,7 @@ impl Default for AppSettings {
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,
+            queue_preset_selection: None,
             preset_sort_mode: None,
             preset_sort_direction: None,
             preset_view_mode: None,

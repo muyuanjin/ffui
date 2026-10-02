@@ -20,8 +20,6 @@ import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
-import { scopedOutputContainerForSettings } from "@/lib/outputContainerPolicy";
-import { stringifyJsonAsync } from "@/lib/asyncJson";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 import {
   externalToolCustomPath,
@@ -75,23 +73,10 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
   if (!next.queueOutputPolicy) {
     next.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY };
   }
-  next.queueOutputPolicy = {
-    ...next.queueOutputPolicy,
-    container: scopedOutputContainerForSettings(next.queueOutputPolicy.container),
-  };
   if (next.batchCompressDefaults && !next.batchCompressDefaults.outputPolicy) {
     next.batchCompressDefaults = {
       ...next.batchCompressDefaults,
       outputPolicy: { ...DEFAULT_OUTPUT_POLICY },
-    };
-  }
-  if (next.batchCompressDefaults?.outputPolicy) {
-    next.batchCompressDefaults = {
-      ...next.batchCompressDefaults,
-      outputPolicy: {
-        ...next.batchCompressDefaults.outputPolicy,
-        container: scopedOutputContainerForSettings(next.batchCompressDefaults.outputPolicy.container),
-      },
     };
   }
 
@@ -172,6 +157,11 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   let settingsSaveIdleHandle: number | undefined;
   let toolStatusUnlisten: UnsubscribeFn | null = null;
   let lastSavedSettingsSnapshot: string | null = null;
+  let saveTail = Promise.resolve();
+  let lastQueuedSnapshot: string | null = null;
+  let lastQueuedSave: Promise<void> | null = null;
+  let pendingSaveCount = 0;
+  let latestSaveRevision = 0;
   let awaitingToolsRefreshEvent = false;
 
   // ----- Auto-save Watch -----
@@ -270,28 +260,11 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
   const scheduleSaveSettings = () => {
     if (!hasTauri() || !appSettings.value) return;
-    settingsSaveError.value = null;
     cancelScheduledSave();
 
     const runSave = async () => {
       if (!hasTauri() || !appSettings.value) return;
-      const current = appSettings.value;
-      const serialized = await stringifyJsonAsync(current);
-      if (serialized === lastSavedSettingsSnapshot) return;
-
-      isSavingSettings.value = true;
-      try {
-        // 仅将当前快照持久化，不再用后端返回值覆盖前端状态，
-        // 避免在保存过程中引入旧快照把用户刚刚修改的字段（例如 selectionBarPinned）改回去。
-        await saveAppSettings(current);
-        lastSavedSettingsSnapshot = serialized;
-      } catch (error) {
-        console.error("Failed to save settings", error);
-        settingsSaveError.value =
-          t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings. Please try again later.";
-      } finally {
-        isSavingSettings.value = false;
-      }
+      await persistSnapshot(appSettings.value);
     };
 
     // Defer serialization + persistence off the current UI event tick.
@@ -314,6 +287,42 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }, 0);
   };
 
+  const persistSnapshot = (current: AppSettings): Promise<void> => {
+    const serialized = JSON.stringify(current);
+    if (serialized === lastQueuedSnapshot && lastQueuedSave) return lastQueuedSave;
+    const revision = ++latestSaveRevision;
+    pendingSaveCount += 1;
+    isSavingSettings.value = true;
+    settingsSaveError.value = null;
+    const save = saveTail
+      .then(async () => {
+        if (serialized === lastSavedSettingsSnapshot) return;
+        try {
+          await saveAppSettings(JSON.parse(serialized) as AppSettings);
+        } catch (error) {
+          lastSavedSettingsSnapshot = null;
+          console.error("Failed to save settings", error);
+          if (revision === latestSaveRevision) {
+            settingsSaveError.value = `${t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings."} ${error instanceof Error ? error.message : String(error)}`;
+          }
+          return;
+        }
+        lastSavedSettingsSnapshot = serialized;
+      })
+      .finally(() => {
+        pendingSaveCount -= 1;
+        isSavingSettings.value = pendingSaveCount > 0;
+        if (lastQueuedSave === save) {
+          lastQueuedSnapshot = null;
+          lastQueuedSave = null;
+        }
+      });
+    lastQueuedSnapshot = serialized;
+    lastQueuedSave = save;
+    saveTail = save;
+    return save;
+  };
+
   const persistNow = async (nextSettings?: AppSettings) => {
     if (!hasTauri()) return;
     if (nextSettings) {
@@ -323,25 +332,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     const current = nextSettings ?? appSettings.value;
     if (!current) return;
 
-    cancelScheduledSave({ cancelIdle: false });
-    settingsSaveError.value = null;
-
-    const serialized = await stringifyJsonAsync(current);
-    if (serialized === lastSavedSettingsSnapshot) {
-      return;
-    }
-
-    isSavingSettings.value = true;
-    try {
-      await saveAppSettings(current);
-      lastSavedSettingsSnapshot = serialized;
-    } catch (error) {
-      console.error("Failed to save settings", error);
-      settingsSaveError.value =
-        t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings. Please try again later.";
-    } finally {
-      isSavingSettings.value = false;
-    }
+    cancelScheduledSave();
+    await persistSnapshot(current);
   };
 
   const refreshToolStatuses = async (options?: {

@@ -1,5 +1,4 @@
 use super::TranscodingEngine;
-use crate::ffui_core::settings;
 use crate::ffui_core::tools::{
     ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
     cached_ffmpeg_release_version, cached_tool_status_snapshot, finish_tool_status_refresh,
@@ -338,16 +337,11 @@ impl TranscodingEngine {
                     }
                 }
 
-                if should_persist_settings {
-                    let settings_snapshot = {
-                        let state = engine_clone.inner.state.lock_unpoisoned();
-                        state.settings.clone()
-                    };
-                    if let Err(err) = settings::save_settings(&settings_snapshot) {
+                if should_persist_settings
+                    && let Err(err) = engine_clone.inner.persist_current_settings() {
                         crate::debug_eprintln!(
                             "[tools_refresh] failed to persist remote TTL cache: {err:#}"
                         );
-                    }
                 }
 
                 // Always refresh local tool probing in the background, and push an event when

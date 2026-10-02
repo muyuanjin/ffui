@@ -4,9 +4,7 @@ use super::state::Inner;
 use super::worker_utils::current_time_millis;
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::{MonitorSettings, TranscodeActivityDay};
-use crate::ffui_core::{
-    TranscodeActivityToday, emit_transcode_activity_today_if_possible, settings,
-};
+use crate::ffui_core::{TranscodeActivityToday, emit_transcode_activity_today_if_possible};
 use crate::sync_ext::MutexExt;
 
 const RETAIN_DAYS: usize = 7;
@@ -90,7 +88,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
     };
     let bit = 1u32 << u32::from(hour);
 
-    let (payload_to_emit, settings_to_persist) = {
+    let (payload_to_emit, settings_changed) = {
         let mut state = inner.state.lock_unpoisoned();
 
         let monitor = state
@@ -105,7 +103,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
             .map_or(0, |d| d.active_hours_mask);
         let new_mask = current_mask | bit;
         if new_mask == current_mask {
-            (None, None)
+            (None, false)
         } else {
             upsert_activity_day(days, date_key.clone(), new_mask, now_ms);
 
@@ -113,13 +111,11 @@ pub(super) fn record_processing_activity(inner: &Inner) {
                 date: date_key,
                 active_hours: active_hours_from_mask(new_mask),
             };
-            (Some(payload), Some(state.settings.clone()))
+            (Some(payload), true)
         }
     };
 
-    if let Some(settings_to_persist) = settings_to_persist
-        && let Err(err) = settings::save_settings(&settings_to_persist)
-    {
+    if settings_changed && let Err(err) = inner.persist_current_settings() {
         crate::debug_eprintln!("failed to persist transcode activity buckets: {err:#}");
     }
 

@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { FFmpegPreset, OutputPolicy } from "@/types";
+import type { FFmpegPreset, OutputPolicy, QueuePresetSelection } from "@/types";
+import { planManualPresetGroups } from "@/lib/manualPresetRouting";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { hasTauri, previewOutputPath } from "@/lib/backend";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
@@ -14,7 +15,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputAppendOrderEditor from "@/components/output/OutputAppendOrderEditor.vue";
 import FormatSelect from "@/components/formats/FormatSelect.vue";
 import { FORMAT_CATALOG, type FormatKind } from "@/lib/formatCatalog";
-import { OUTPUT_MEDIA_KINDS, scopedOutputContainerForSettings } from "@/lib/outputContainerPolicy";
+import { OUTPUT_MEDIA_KINDS } from "@/lib/outputContainerPolicy";
 const props = defineProps<{
   modelValue?: OutputPolicy;
   /** When true, disables directory + filename fields (used by Batch Compress replaceOriginal). */
@@ -23,15 +24,15 @@ const props = defineProps<{
   previewPresetId?: string | null;
   /** Optional preset object used for local default-container preview before the backend responds. */
   previewPreset?: FFmpegPreset | null;
+  previewPresets?: FFmpegPreset[];
+  previewPresetSelection?: QueuePresetSelection;
+  previewUnifiedPresetId?: string | null;
 }>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: OutputPolicy): void;
 }>();
 const { t } = useI18n();
-const policy = computed<OutputPolicy>(() => {
-  const value = props.modelValue ?? DEFAULT_OUTPUT_POLICY;
-  return { ...value, container: scopedOutputContainerForSettings(value.container) };
-});
+const policy = computed<OutputPolicy>(() => props.modelValue ?? DEFAULT_OUTPUT_POLICY);
 const updatePolicy = (patch: Partial<OutputPolicy>) => {
   emit("update:modelValue", { ...policy.value, ...patch });
 };
@@ -54,6 +55,10 @@ const updateContainerMode = (mode: OutputPolicy["container"]["mode"]) => {
   }
   if (mode === "default") {
     updatePolicy({ container: { mode: "default" } });
+    return;
+  }
+  if (mode === "force") {
+    updatePolicy({ container: { mode: "force", format: "mkv" } });
     return;
   }
   updatePolicy({ container: { mode: "keepInput" } });
@@ -152,7 +157,7 @@ const updatePreserveTimes = (patch: Partial<PreserveTimesState>) => {
 };
 
 const updateContainerModeFromSelect = (value: unknown) => {
-  if (value === "default" || value === "keepInput" || value === "byMedia") {
+  if (value === "default" || value === "keepInput" || value === "byMedia" || value === "force") {
     updateContainerMode(value);
   }
 };
@@ -174,6 +179,23 @@ const pickDirectory = async () => {
 };
 
 const previewInputPath = ref("C:/videos/input.mp4");
+const previewPresetState = computed(() => {
+  if (!props.previewPresets || !props.previewPresetSelection)
+    return { preset: props.previewPreset, presetId: props.previewPresetId, error: null };
+  let groups: ReturnType<typeof planManualPresetGroups>;
+  try {
+    groups = planManualPresetGroups(
+      [previewInputPath.value],
+      props.previewPresets,
+      props.previewUnifiedPresetId ?? null,
+      props.previewPresetSelection,
+    );
+  } catch (error) {
+    return { preset: null, presetId: null, error: error instanceof Error ? error.message : String(error) };
+  }
+  const presetId = groups[0]?.presetId;
+  return { preset: props.previewPresets.find((preset) => preset.id === presetId), presetId, error: null };
+});
 const previewResolvedPath = ref<string>("");
 const previewError = ref<string | null>(null);
 const previewLoading = ref(false);
@@ -200,14 +222,22 @@ const effectivePolicyForPreview = computed<OutputPolicy>(() => {
 });
 
 const computeLocalPreview = () =>
-  previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value, { preset: props.previewPreset });
+  previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value, {
+    preset: previewPresetState.value.preset,
+  });
 
 const refreshPreview = () => {
   const requestSeq = ++previewRequestSeq;
+  previewLoading.value = false;
   if (previewTimer) window.clearTimeout(previewTimer);
   previewTimer = window.setTimeout(async () => {
     if (requestSeq !== previewRequestSeq) return;
     previewError.value = null;
+    if (previewPresetState.value.error) {
+      previewError.value = previewPresetState.value.error;
+      previewResolvedPath.value = "";
+      return;
+    }
     const fallback = computeLocalPreview();
     previewResolvedPath.value = normalizePathForDisplay(fallback);
 
@@ -219,7 +249,7 @@ const refreshPreview = () => {
     try {
       const resolved = await previewOutputPath({
         inputPath,
-        presetId: props.previewPresetId?.trim() ? props.previewPresetId : null,
+        presetId: previewPresetState.value.presetId?.trim() ? previewPresetState.value.presetId : null,
         outputPolicy: effectivePolicyForPreview.value,
       });
       if (requestSeq !== previewRequestSeq) return;
@@ -235,14 +265,10 @@ const refreshPreview = () => {
   }, 250);
 };
 
-watch(
-  () => [previewInputPath.value, props.previewPresetId, props.previewPreset, effectivePolicyForPreview.value],
-  refreshPreview,
-  {
-    immediate: true,
-    deep: true,
-  },
-);
+watch(() => [previewInputPath.value, previewPresetState.value, effectivePolicyForPreview.value], refreshPreview, {
+  immediate: true,
+  deep: true,
+});
 
 onBeforeUnmount(() => {
   previewRequestSeq += 1;
@@ -275,16 +301,18 @@ const pickPreviewFile = async () => {
               <SelectItem value="default">{{ t("outputPolicy.container.default") }}</SelectItem>
               <SelectItem value="keepInput">{{ t("outputPolicy.container.keepInput") }}</SelectItem>
               <SelectItem value="byMedia">{{ t("outputPolicy.container.byMedia") }}</SelectItem>
+              <SelectItem value="force">{{ t("outputPolicy.container.force") }}</SelectItem>
             </SelectContent>
           </Select>
 
-          <FormatSelect
-            v-if="containerMode === 'force'"
-            :model-value="forcedContainerFormat"
-            :entries="queueOutputContainerEntries"
-            :placeholder="t('formatSelect.placeholder') as string"
-            @update:model-value="(v) => updatePolicy({ container: { mode: 'force', format: String(v) } })"
-          />
+          <div v-if="containerMode === 'force'" data-testid="output-policy-container-format">
+            <FormatSelect
+              :model-value="forcedContainerFormat"
+              :entries="queueOutputContainerEntries"
+              :placeholder="t('formatSelect.placeholder') as string"
+              @update:model-value="(v) => updatePolicy({ container: { mode: 'force', format: String(v) } })"
+            />
+          </div>
         </div>
       </div>
 
@@ -397,7 +425,7 @@ const pickPreviewFile = async () => {
         <div class="space-y-1">
           <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.preview.input") }}</Label>
           <div class="flex items-center gap-2">
-            <Input v-model="previewInputPath" class="h-8 text-xs font-mono" />
+            <Input v-model="previewInputPath" data-testid="output-policy-preview-input" class="h-8 text-xs font-mono" />
             <Button
               type="button"
               variant="outline"

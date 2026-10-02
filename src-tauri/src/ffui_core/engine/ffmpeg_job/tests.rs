@@ -13,6 +13,7 @@ mod legacy;
 mod managed;
 mod output_paths;
 mod preset_files;
+mod target_outputs;
 
 fn ffmpeg_program() -> &'static str {
     if cfg!(target_os = "linux") {

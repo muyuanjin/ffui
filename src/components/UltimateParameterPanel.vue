@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
 import { validatePresetTemplate } from "@/lib/backend";
@@ -56,6 +57,7 @@ const activeTab = ref<
 const {
   name,
   description,
+  outputKind,
   global: globalConfig,
   input: inputTimeline,
   mapping,
@@ -283,6 +285,27 @@ const handleQuickValidate = async () => {
                 :placeholder="t('presetEditor.descriptionPlaceholder')"
                 class="h-8 text-xs flex-1"
               />
+            </div>
+            <div v-if="advancedEnabled" class="flex items-center gap-3">
+              <Label class="text-xs text-muted-foreground whitespace-nowrap">{{
+                t("presetEditor.outputKind.label")
+              }}</Label>
+              <Select
+                :model-value="outputKind ?? 'auto'"
+                @update:model-value="
+                  (value) => (outputKind = value === 'auto' ? undefined : (value as FFmpegPreset['outputKind']))
+                "
+              >
+                <SelectTrigger data-testid="preset-output-kind-trigger" class="h-8 text-xs w-48">
+                  <SelectValue>{{ t(`presetEditor.outputKind.${outputKind ?? "auto"}`) }}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="kind in ['auto', 'video', 'audio', 'image', 'other']" :key="kind" :value="kind">{{
+                    t(`presetEditor.outputKind.${kind}`)
+                  }}</SelectItem>
+                </SelectContent>
+              </Select>
+              <span class="text-xs text-muted-foreground">{{ t("presetEditor.outputKind.hint") }}</span>
             </div>
           </div>
           <!-- 右侧：操作按钮 -->

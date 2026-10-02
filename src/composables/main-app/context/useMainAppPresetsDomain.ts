@@ -5,6 +5,7 @@ import { hasTauri } from "@/lib/backend";
 import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
 import { usePresetPanelModePersistence } from "@/composables/main-app/usePresetPanelModePersistence";
 import type { MainAppSharedState } from "./useMainAppSharedState";
+import { DEFAULT_QUEUE_PRESET_SELECTION } from "@/lib/manualPresetRouting";
 
 export interface UseMainAppPresetsDomainOptions {
   state: MainAppSharedState;
@@ -28,6 +29,9 @@ export function useMainAppPresetsDomain(options: UseMainAppPresetsDomainOptions)
     presets: state.presets,
     presetsLoadedFromBackend: state.presetsLoadedFromBackend,
     manualJobPresetId: state.manualJobPresetId,
+    queuePresetSelection: computed(
+      () => settings.appSettings.value?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION,
+    ),
     dialogManager: dialogs.dialogManager,
     shell,
   });

@@ -5,6 +5,59 @@ use tempfile::tempdir;
 
 use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
+#[test]
+fn settings_v2_preserves_unified_formats_and_per_input_preset_selection() {
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    let contract: Value = serde_json::from_str(include_str!(
+        "../../../tests/preset-output-planning-contract.json"
+    ))
+    .expect("contract");
+    let mut settings = AppSettings::default();
+    settings.queue_output_policy.container =
+        crate::ffui_core::domain::OutputContainerPolicy::Force {
+            format: "mp3".into(),
+        };
+    settings.queue_preset_selection =
+        Some(serde_json::from_value(contract["selection"].clone()).expect("preset selection"));
+    save_settings(&settings).expect("save");
+    let loaded = load_settings().expect("load");
+    assert_eq!(
+        loaded.queue_output_policy.container,
+        settings.queue_output_policy.container
+    );
+    assert_eq!(
+        serde_json::to_value(loaded.queue_preset_selection).expect("selection"),
+        contract["selection"]
+    );
+}
+
+#[test]
+fn settings_v1_scopes_legacy_format_once_without_migrating_new_unified_saves() {
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("path");
+    fs::write(&path, serde_json::json!({"version": 1, "settings": {"queueOutputPolicy": {"container": {"mode": "force", "format": "mp3"}}}}).to_string()).expect("legacy file");
+    let mut migrated = load_settings().expect("migrate");
+    assert_eq!(
+        serde_json::to_value(&migrated.queue_output_policy.container).expect("container"),
+        serde_json::json!({"mode": "byMedia", "audio": "mp3"})
+    );
+    migrated.queue_output_policy.container =
+        crate::ffui_core::domain::OutputContainerPolicy::Force {
+            format: "mp3".into(),
+        };
+    save_settings(&migrated).expect("save explicit unified format");
+    assert_eq!(
+        load_settings()
+            .expect("reload")
+            .queue_output_policy
+            .container,
+        migrated.queue_output_policy.container
+    );
+}
 
 mod corrupt_settings_recovery;
 mod network_proxy;
@@ -253,7 +306,7 @@ fn load_settings_migrates_legacy_unversioned_file_to_versioned_envelope() {
             .expect("parse rewritten settings JSON");
     assert_eq!(
         rewritten.get("version").and_then(Value::as_u64),
-        Some(1),
+        Some(2),
         "settings file must be rewritten with a version envelope"
     );
     assert!(
@@ -294,8 +347,8 @@ fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope()
             .expect("parse rewritten settings JSON");
     assert_eq!(
         rewritten.get("version").and_then(Value::as_u64),
-        Some(1),
-        "legacy wrapper must be rewritten with version 1 envelope"
+        Some(2),
+        "legacy wrapper must be rewritten with the current version envelope"
     );
     assert!(
         rewritten.get("settings").is_some(),
@@ -632,12 +685,16 @@ fn app_settings_normalizes_invalid_parallel_limits() {
     );
 }
 #[test]
-fn active_output_formats_are_scoped_without_migrating_job_snapshots() {
+fn legacy_output_formats_are_scoped_on_load_without_migrating_job_snapshots() {
     use crate::ffui_core::domain::OutputContainerPolicy;
     let fixture: serde_json::Value = serde_json::from_str(include_str!(
         "../../../tests/output-media-policy-contract.json"
     ))
     .expect("media output contract");
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
     for case in fixture["legacy"].as_array().expect("legacy settings") {
         let format = case["format"].as_str().expect("format");
         let legacy = OutputContainerPolicy::Force {
@@ -646,7 +703,12 @@ fn active_output_formats_are_scoped_without_migrating_job_snapshots() {
         let mut settings = AppSettings::default();
         settings.queue_output_policy.container = legacy.clone();
         settings.batch_compress_defaults.output_policy.container = legacy.clone();
-        settings.normalize();
+        fs::write(
+            &path,
+            serde_json::json!({ "version": 1, "settings": settings }).to_string(),
+        )
+        .expect("legacy settings file");
+        let settings = load_settings().expect("migrate legacy settings");
         let expected = if let Some(kind) = case["kind"].as_str() {
             let mut wire = serde_json::json!({ "mode": "byMedia" });
             wire[kind] = serde_json::Value::String(format.into());

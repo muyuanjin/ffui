@@ -27,6 +27,7 @@ import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
 interface PresetEditorFields {
   name: Ref<string>;
   description: Ref<string>;
+  outputKind: Ref<FFmpegPreset["outputKind"]>;
   global: GlobalConfig;
   input: InputTimelineConfig;
   mapping: MappingConfig;
@@ -56,6 +57,7 @@ export interface UsePresetEditorReturn {
   // (shared with PresetEditorState)
   name: PresetEditorFields["name"];
   description: PresetEditorFields["description"];
+  outputKind: PresetEditorFields["outputKind"];
   global: PresetEditorFields["global"];
   input: PresetEditorFields["input"];
   mapping: PresetEditorFields["mapping"];
@@ -102,6 +104,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
   // ----- State -----
   const name = ref(initialPreset.name);
   const description = ref(initialPreset.description ?? "");
+  const outputKind = ref(initialPreset.outputKind);
 
   const global = reactive<GlobalConfig>({ ...(initialPreset.global ?? {}) });
   const input = reactive<InputTimelineConfig>({ ...(initialPreset.input ?? {}) });
@@ -188,6 +191,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     if (stringify(hardware) !== stringify(initialPreset.hardware ?? {})) return true;
     if (advancedEnabled.value !== (initialPreset.advancedEnabled ?? false)) return true;
     if (ffmpegTemplate.value.trim() !== (initialPreset.ffmpegTemplate ?? "").trim()) return true;
+    if (outputKind.value !== initialPreset.outputKind) return true;
     return false;
   };
 
@@ -221,6 +225,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
       hardware: { ...(hardware as HardwareConfig) },
       advancedEnabled: advancedEnabled.value && ffmpegTemplate.value.trim().length > 0,
       ffmpegTemplate: ffmpegTemplate.value.trim() || undefined,
+      outputKind: outputKind.value,
       stats: initialPreset.stats,
       isSmartPreset,
     };
@@ -278,6 +283,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     // State
     name,
     description,
+    outputKind,
     global,
     input,
     mapping,

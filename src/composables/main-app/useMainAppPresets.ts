@@ -1,5 +1,6 @@
 import { computed, onMounted, ref, type Ref, type ComputedRef } from "vue";
-import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
+import type { FFmpegPreset, TranscodeJob, Translate, QueuePresetSelection } from "@/types";
+import { enqueueManualPresetFiles } from "@/lib/manualPresetRouting";
 import {
   hasTauri,
   loadPresets,
@@ -7,8 +8,6 @@ import {
   savePresetOnBackend,
   deletePresetOnBackend,
   reorderPresetsOnBackend,
-  enqueueTranscodeJob,
-  enqueueTranscodeJobs,
   expandManualJobInputs,
 } from "@/lib/backend";
 import { toast } from "vue-sonner";
@@ -34,6 +33,7 @@ export interface UseMainAppPresetsOptions {
   presets: Ref<FFmpegPreset[]>;
   presetsLoadedFromBackend: Ref<boolean>;
   manualJobPresetId: Ref<string | null>;
+  queuePresetSelection?: Ref<QueuePresetSelection>;
   dialogManager: UseMainAppDialogsReturn["dialogManager"];
   shell?: UseMainAppShellReturn;
 }
@@ -315,24 +315,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       const preset = manualJobPreset.value ?? presets.value[0];
       if (!preset) return;
 
-      if (files.length === 1) {
-        await enqueueTranscodeJob({
-          filename: files[0],
-          jobType: "other",
-          source: "manual",
-          originalSizeMb: 0,
-          presetId: preset.id,
-        });
-        return;
-      }
-
-      await enqueueTranscodeJobs({
-        filenames: files,
-        jobType: "other",
-        source: "manual",
-        originalSizeMb: 0,
-        presetId: preset.id,
-      });
+      await enqueueManualPresetFiles(files, presets.value, preset.id, options.queuePresetSelection?.value);
     } catch (e) {
       console.error("Failed to add manual job:", e);
       toast.error(t("queue.error.enqueueFailed"), {

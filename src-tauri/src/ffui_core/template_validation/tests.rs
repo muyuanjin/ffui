@@ -148,6 +148,7 @@ fn make_preset(template: &str) -> FFmpegPreset {
         },
         advanced_enabled: Some(true),
         ffmpeg_template: Some(template.to_string()),
+        output_kind: None,
         is_smart_preset: None,
     }
 }

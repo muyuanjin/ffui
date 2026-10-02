@@ -90,7 +90,7 @@ describe("MainApp preset sort direction persistence", () => {
       const payload = (saveCalls[0]?.[1] ?? {}) as Record<string, any>;
       expect(payload.settings?.presetSortDirection).toBe("asc");
 
-      expect(typeof idleCallback).toBe("function");
+      expect(idleCallback).toBeNull();
       wrapper.unmount();
     } finally {
       (window as any).requestIdleCallback = originalRequestIdleCallback;

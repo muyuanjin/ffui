@@ -97,12 +97,12 @@ const other = {
   outputPolicy: {
     containerLabel: "Output Container",
     formatHelp:
-      "Formats apply separately to video, audio and image files; unset formats follow the preset. Choose codecs compatible with each format. For custom command templates, this setting changes the output extension only; the template controls the actual format.",
+      "Formats follow the preset's target output type, not the input file type. Unset formats follow the preset. A unified format applies to every task and must be compatible with its codecs. Explicit template formats are preserved; conflicts are reported instead of renaming incompatible media.",
     container: {
       default: "Default (follow preset/template)",
       keepInput: "Keep input container",
-      force: "Force format",
-      byMedia: "Specify formats by media type",
+      force: "Unified format",
+      byMedia: "Specify formats by output type",
       followPreset: "Follow preset/template",
     },
     dirLabel: "Output Directory",

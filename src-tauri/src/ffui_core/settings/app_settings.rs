@@ -8,8 +8,11 @@ use std::path::{Path, PathBuf};
 use super::io::write_json_file;
 use super::types::AppSettings;
 use crate::ffui_core::data_root::settings_path;
+use crate::sync_ext::MutexExt;
+use std::sync::Mutex;
 
-const CURRENT_SETTINGS_FILE_VERSION: u16 = 1;
+const CURRENT_SETTINGS_FILE_VERSION: u16 = 2;
+static SETTINGS_WRITE_LOCK: Mutex<()> = Mutex::new(());
 const LAST_GOOD_SETTINGS_FILENAME: &str = "ffui.settings.last-good.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +42,10 @@ fn recover_from_last_good(settings_path: &Path) -> Option<AppSettings> {
     let last_good_path = last_good_settings_path(settings_path)?;
     let last_good_bytes = fs::read(&last_good_path).ok()?;
     let last_good_value = serde_json::from_slice::<Value>(&last_good_bytes).ok()?;
-    let (settings, _) = decode_settings_file_json(last_good_value).ok()?;
+    let (mut settings, legacy) = decode_settings_file_json(last_good_value).ok()?;
+    if legacy {
+        migrate_legacy_output_formats(&mut settings);
+    }
     let normalized = normalize_settings(settings);
     if let Err(err) = write_json_file(settings_path, &encode_settings_file_v1(normalized.clone())) {
         crate::debug_eprintln!(
@@ -129,7 +135,7 @@ fn decode_settings_file_json(value: Value) -> Result<(AppSettings, bool)> {
                         .context("failed to decode legacy unversioned settings")?;
                     Ok((settings, true))
                 }
-                Some(1) => {
+                Some(1 | 2) => {
                     let Some(settings_value) = settings_value else {
                         let settings: AppSettings = serde_json::from_value(Value::Object(obj))
                             .context("failed to decode settings object")?;
@@ -137,7 +143,7 @@ fn decode_settings_file_json(value: Value) -> Result<(AppSettings, bool)> {
                     };
                     let settings: AppSettings = serde_json::from_value(settings_value)
                         .context("failed to decode settings")?;
-                    Ok((settings, false))
+                    Ok((settings, version != Some(CURRENT_SETTINGS_FILE_VERSION)))
                 }
                 Some(other) => {
                     // Best-effort downgrade support: attempt to decode the settings payload even
@@ -179,7 +185,7 @@ pub fn load_settings() -> Result<AppSettings> {
             ));
         }
     };
-    let (settings, needs_rewrite) = match decode_settings_file_json(raw) {
+    let (mut settings, needs_rewrite) = match decode_settings_file_json(raw) {
         Ok(decoded) => decoded,
         Err(err) => {
             let _ = backup_unreadable_settings_file(&path, &raw_bytes, "decode failure");
@@ -191,6 +197,9 @@ pub fn load_settings() -> Result<AppSettings> {
                 .with_context(|| format!("failed to decode settings file {}", path.display()));
         }
     };
+    if needs_rewrite {
+        migrate_legacy_output_formats(&mut settings);
+    }
     let normalized = normalize_settings(settings);
 
     if needs_rewrite {
@@ -209,6 +218,7 @@ pub fn load_settings() -> Result<AppSettings> {
 }
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {
+    let _guard = SETTINGS_WRITE_LOCK.lock_unpoisoned();
     let path = settings_path()?;
     let normalized = normalize_settings(settings.clone());
     let encoded = encode_settings_file_v1(normalized);
@@ -222,4 +232,16 @@ pub fn save_settings(settings: &AppSettings) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn migrate_legacy_output_formats(settings: &mut AppSettings) {
+    settings.queue_output_policy.container = settings
+        .queue_output_policy
+        .container
+        .scoped_for_active_settings();
+    settings.batch_compress_defaults.output_policy.container = settings
+        .batch_compress_defaults
+        .output_policy
+        .container
+        .scoped_for_active_settings();
 }

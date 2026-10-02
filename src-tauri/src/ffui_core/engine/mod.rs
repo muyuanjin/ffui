@@ -15,6 +15,7 @@ mod media_probe;
 pub(crate) use manual_execution::parse_ffmpeg_command;
 mod os_paths;
 mod output_policy_paths;
+mod preset_output;
 mod preview_cache_gc;
 mod preview_refresh;
 mod segment_discovery;

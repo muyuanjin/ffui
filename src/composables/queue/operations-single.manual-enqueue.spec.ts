@@ -54,6 +54,28 @@ const queueErrorValue = (deps: SingleJobOpsDeps) =>
   (deps as unknown as { queueError: { value: string | null } }).queueError.value;
 
 describe("enqueueManualJobsFromPaths", () => {
+  it("routes expanded drag-and-drop inputs and fails missing references before creating tasks", async () => {
+    await withManualEnqueueMock(async ({ enqueueManualJobsFromPaths, jobMock, jobsMock, expandMock, deps }) => {
+      const audio = { ...makePreset(), id: "audio" };
+      deps.presets = ref([makePreset(), audio]);
+      deps.queuePresetSelection = ref({ mode: "byMedia", video: "audio" });
+      expandMock.mockResolvedValueOnce({ accepted: ["C:/folder/movie.mp4", "C:/folder/track.wav"], skipped: 0 });
+      await enqueueManualJobsFromPaths(["C:/folder"], deps);
+      expect(jobMock.mock.calls.map(([request]) => [(request as any).filename, (request as any).presetId])).toEqual([
+        ["C:/folder/movie.mp4", "audio"],
+        ["C:/folder/track.wav", "preset-1"],
+      ]);
+      jobMock.mockClear();
+      deps.queuePresetSelection.value = { mode: "byMedia", audio: "deleted" };
+      expandMock.mockResolvedValueOnce({ accepted: ["C:/movie.mp4", "C:/track.wav"], skipped: 0 });
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      await enqueueManualJobsFromPaths(["C:/folder"], deps);
+      expect(jobMock).not.toHaveBeenCalled();
+      expect(jobsMock).not.toHaveBeenCalled();
+      expect(queueErrorValue(deps)).toContain("deleted");
+      consoleError.mockRestore();
+    });
+  });
   it("enqueues regular files and reports inaccessible entries", async () => {
     await withManualEnqueueMock(async ({ enqueueManualJobsFromPaths, jobMock, expandMock, deps }) => {
       expandMock.mockResolvedValueOnce({ accepted: ["C:/v/a.mp4"], skipped: 1 });

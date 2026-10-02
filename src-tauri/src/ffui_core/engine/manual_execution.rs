@@ -158,7 +158,7 @@ fn progress_target_indices(args: &[String]) -> Vec<usize> {
     targets
 }
 
-fn is_valueless_option(option: &str) -> bool {
+pub(super) fn is_valueless_option(option: &str) -> bool {
     if matches!(option, "vstats" | "qphist" | "report") {
         return true;
     }
@@ -222,6 +222,54 @@ pub(super) fn plan_manual_execution(
             .filter(|value| !value.trim().is_empty())
             .ok_or_else(|| "Advanced preset has no FFmpeg command".to_string())?;
         let mut args = parse_command(template)?;
+        let requested_format = match &policy.container {
+            crate::ffui_core::domain::OutputContainerPolicy::Force { format } => {
+                Some(format.as_str())
+            }
+            crate::ffui_core::domain::OutputContainerPolicy::KeepInput => {
+                input.extension().and_then(|value| value.to_str())
+            }
+            _ => None,
+        };
+        if let Some(format) = requested_format
+            && let Some(explicit) = super::output_policy_paths::template_output_muxer(template)
+        {
+            let requested = super::ffmpeg_args::normalize_container_format(format);
+            let actual = super::ffmpeg_args::normalize_container_format(&explicit);
+            if requested != actual {
+                return Err(format!(
+                    "Output format '{format}' conflicts with template muxer '{explicit}'; change the preset or follow its output format"
+                ));
+            }
+        }
+        if args.iter().any(|argument| argument == "OUTPUT") {
+            let output_extension = output
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or("");
+            let muxer =
+                super::output_policy_paths::template_output_muxer(template).unwrap_or_else(|| {
+                    super::ffmpeg_args::normalize_container_format(output_extension)
+                });
+            if muxer == "image2"
+                && let Some(extension) =
+                    super::output_policy_paths::template_image_extension(template)
+                && super::ffmpeg_args::infer_output_extension(Some(output_extension), None)
+                    != extension
+            {
+                return Err(format!(
+                    "Output format '{output_extension}' conflicts with template image encoder '{extension}'"
+                ));
+            }
+            if muxer == "mp3"
+                && super::output_policy_paths::infer_template_output_codecs(template)
+                    .1
+                    .as_deref()
+                    .is_some_and(|codec| matches!(codec, "aac" | "libfdk_aac"))
+            {
+                return Err("MP3 output requires an MP3 encoder; this template selects AAC".into());
+            }
+        }
         let output_path = args
             .iter()
             .any(|argument| argument == "OUTPUT")
@@ -247,7 +295,37 @@ pub(super) fn plan_manual_execution(
     }
 
     validate_structured_execution_preset(preset)?;
-    if presentation_type(input) == JobType::Video {
+    let kind = super::preset_output::output_type(
+        Some(preset),
+        input
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or(""),
+    );
+    let muxer = super::ffmpeg_args::effective_output_muxer(preset, input, output, policy);
+    if kind == JobType::Video
+        && muxer.as_deref().is_some_and(|format| {
+            crate::ffui_core::domain::media_type_for_extension(format) == JobType::Audio
+        })
+    {
+        return Err("An audio-only container cannot carry this video preset; select an audio extraction preset or a compatible output format".into());
+    }
+    if muxer.as_deref() == Some("mp3")
+        && matches!(
+            preset.audio.codec,
+            crate::ffui_core::domain::AudioCodecType::Aac
+        )
+    {
+        return Err("MP3 output requires an MP3 encoder; this preset selects AAC".into());
+    }
+    if super::preset_output::output_type(
+        Some(preset),
+        input
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or(""),
+    ) == JobType::Video
+    {
         return Ok(ManualExecutionPlan {
             execution: JobExecution::Video {
                 preset: Box::new(preset.clone()),

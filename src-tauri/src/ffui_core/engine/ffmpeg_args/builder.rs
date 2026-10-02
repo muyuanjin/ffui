@@ -348,13 +348,19 @@ fn resolved_forced_muxer(
     input: &Path,
     output_policy: Option<&OutputPolicy>,
 ) -> Option<String> {
-    let mut forced_muxer = forced_muxer_for_policy(output_policy, input);
+    let mut forced_muxer = forced_muxer_for_policy(output_policy, input, preset);
     if forced_muxer.as_deref() == Some("webm")
         && let Some(policy) = output_policy
         && matches!(
             policy
                 .container
-                .for_media_type(super::super::manual_execution::presentation_type(input)),
+                .for_media_type(super::super::preset_output::output_type(
+                    Some(preset),
+                    input
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("")
+                )),
             OutputContainerPolicy::Force { .. }
         )
         && should_fallback_webm_forced_container(preset, input)

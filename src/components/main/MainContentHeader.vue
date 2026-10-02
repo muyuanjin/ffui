@@ -3,7 +3,8 @@ import { computed, ref } from "vue";
 import { Video, Music, Image as ImageIcon } from "lucide-vue-next";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { FFmpegPreset, OutputPolicy, PresetSortDirection, PresetSortMode } from "@/types";
+import type { FFmpegPreset, OutputPolicy, PresetSortDirection, PresetSortMode, QueuePresetSelection } from "@/types";
+import QueuePresetSelector from "./QueuePresetSelector.vue";
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +12,7 @@ import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { OUTPUT_MEDIA_KINDS } from "@/lib/outputContainerPolicy";
+import { planManualPresetGroups } from "@/lib/manualPresetRouting";
 import {
   inferPresetDefaultOutputContainer,
   normalizeForcedContainerExtensionForPreview,
@@ -25,6 +27,7 @@ const props = defineProps<{
   jobsLength: number;
   completedCount: number;
   manualJobPresetId: string | null;
+  queuePresetSelection?: QueuePresetSelection;
   presets: FFmpegPreset[];
   queueViewModeModel: QueueViewMode;
   presetSortMode?: PresetSortMode;
@@ -35,6 +38,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:manualJobPresetId", value: string | null): void;
+  (e: "update:queuePresetSelection", value: QueuePresetSelection): void;
   (e: "update:queueViewModeModel", value: QueueViewMode): void;
   (e: "openPresetWizard"): void;
   (e: "update:queueOutputPolicy", value: OutputPolicy): void;
@@ -78,7 +82,7 @@ const manualPreset = computed<FFmpegPreset | null>(() => {
 const manualPreviewPresetId = computed(() => manualPreset.value?.id ?? null);
 
 const presetDefaultContainerFormat = computed<string | null>(() =>
-  inferPresetDefaultOutputContainer(manualPreset.value),
+  props.queuePresetSelection?.mode === "byMedia" ? null : inferPresetDefaultOutputContainer(manualPreset.value),
 );
 
 const outputContainerBadges = computed(() => {
@@ -190,14 +194,26 @@ const hoverPreviewPreserveTimesText = computed(() => {
 const hoverPreviewExamples = computed(() => {
   const policy = effectiveOutputPolicy.value;
   const inputs =
-    policy.container.mode === "byMedia"
+    policy.container.mode === "byMedia" || props.queuePresetSelection?.mode === "byMedia"
       ? ["C:/videos/input.mp4", "C:/audio/input.wav", "C:/images/input.jpg"]
       : ["C:/videos/input.mp4"];
   const base = (p: string) => p.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? p;
-  return inputs.map((input) => ({
-    input: base(input),
-    output: base(previewOutputPathLocal(input, policy, { preset: manualPreset.value })),
-  }));
+  return inputs.map((input) => {
+    if (!props.presets.length) return { input: base(input), output: base(previewOutputPathLocal(input, policy)) };
+    let groups: ReturnType<typeof planManualPresetGroups>;
+    try {
+      groups = planManualPresetGroups(
+        [input],
+        props.presets,
+        props.manualJobPresetId,
+        props.queuePresetSelection ?? { mode: "unified" },
+      );
+    } catch (error) {
+      return { input: base(input), output: error instanceof Error ? error.message : String(error) };
+    }
+    const preset = props.presets.find((entry) => entry.id === groups[0]?.presetId);
+    return { input: base(input), output: base(previewOutputPathLocal(input, policy, { preset })) };
+  });
 });
 </script>
 
@@ -297,27 +313,14 @@ const hoverPreviewExamples = computed(() => {
         </HoverCardContent>
       </HoverCard>
 
-      <div v-if="presets.length > 0" class="flex items-center gap-2">
-        <span class="text-xs text-muted-foreground whitespace-nowrap">
-          {{ t("app.queueDefaultPresetLabel") }}
-        </span>
-        <Select
-          :model-value="manualJobPresetId"
-          @update:model-value="(v) => emit('update:manualJobPresetId', v as string)"
-        >
-          <SelectTrigger
-            data-testid="ffui-queue-default-preset-trigger"
-            class="h-7 px-3 py-0 text-xs rounded-full min-w-[160px] font-semibold bg-primary/90 text-primary-foreground shadow hover:bg-[#f9a825]/90 focus-visible:ring-1 focus-visible:ring-ring !border-transparent data-[state=open]:bg-primary/90"
-          >
-            <SelectValue :placeholder="t('app.queueDefaultPresetPlaceholder')" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="preset in sortedPresets" :key="preset.id" :value="preset.id">
-              {{ preset.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <QueuePresetSelector
+        v-if="presets.length > 0"
+        :presets="sortedPresets"
+        :unified-preset-id="manualJobPresetId"
+        :selection="queuePresetSelection ?? { mode: 'unified' }"
+        @update:unified-preset-id="(value) => emit('update:manualJobPresetId', value)"
+        @update:selection="(value) => emit('update:queuePresetSelection', value)"
+      />
 
       <Select
         :model-value="queueViewModeModel"
@@ -394,6 +397,9 @@ const hoverPreviewExamples = computed(() => {
         :model-value="effectiveOutputPolicy"
         :preview-preset-id="manualPreviewPresetId"
         :preview-preset="manualPreset"
+        :preview-presets="presets.length ? presets : undefined"
+        :preview-preset-selection="queuePresetSelection ?? { mode: 'unified' }"
+        :preview-unified-preset-id="manualJobPresetId"
         @update:model-value="(v) => emit('update:queueOutputPolicy', v)"
       />
     </DialogContent>

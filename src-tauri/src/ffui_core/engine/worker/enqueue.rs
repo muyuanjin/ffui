@@ -94,7 +94,18 @@ fn enqueue_transcode_job_no_notify(
         let estimated_seconds = preset
             .as_ref()
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
-        let queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
+        let mut queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
+        if matches!(source, JobSource::Manual) && !direct_command {
+            queue_output_policy.container = queue_output_policy.container.for_media_type(
+                super::super::preset_output::output_type(
+                    preset.as_ref(),
+                    Path::new(&input_path)
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or(""),
+                ),
+            );
+        }
         let (mut output_path, warnings) = if !direct_command
             && (matches!(source, JobSource::Manual) || matches!(job_type, JobType::Video))
         {

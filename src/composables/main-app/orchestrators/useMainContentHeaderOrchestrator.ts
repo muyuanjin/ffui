@@ -1,12 +1,14 @@
 import { computed, proxyRefs } from "vue";
-import { useDialogsDomain, usePresetsDomain, useQueueDomain, useShellDomain } from "@/MainApp.setup";
-import type { OutputPolicy, QueueViewMode } from "@/types";
+import { useDialogsDomain, usePresetsDomain, useQueueDomain, useShellDomain, useSettingsDomain } from "@/MainApp.setup";
+import type { OutputPolicy, QueueViewMode, QueuePresetSelection } from "@/types";
+import { DEFAULT_QUEUE_PRESET_SELECTION } from "@/lib/manualPresetRouting";
 
 export function useMainContentHeaderOrchestrator() {
   const dialogs = useDialogsDomain();
   const shell = proxyRefs(useShellDomain());
   const queue = proxyRefs(useQueueDomain());
   const presets = proxyRefs(usePresetsDomain());
+  const settings = proxyRefs(useSettingsDomain());
 
   const headerProps = proxyRefs({
     activeTab: computed(() => shell.activeTab),
@@ -15,6 +17,7 @@ export function useMainContentHeaderOrchestrator() {
     jobsLength: computed(() => queue.jobs.length),
     completedCount: computed(() => queue.completedCount),
     manualJobPresetId: computed(() => presets.manualJobPresetId),
+    queuePresetSelection: computed(() => settings.appSettings?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION),
     presets: computed(() => presets.presets),
     queueViewModeModel: computed(() => queue.queueViewModeModel),
     presetSortMode: computed(() => presets.presetSortMode),
@@ -24,6 +27,10 @@ export function useMainContentHeaderOrchestrator() {
   });
 
   const headerListeners = {
+    "update:queuePresetSelection": (value: QueuePresetSelection) => {
+      if (!settings.appSettings) return;
+      settings.appSettings = { ...settings.appSettings, queuePresetSelection: value };
+    },
     "update:manualJobPresetId": (value: string | null) => {
       presets.manualJobPresetId = value;
     },

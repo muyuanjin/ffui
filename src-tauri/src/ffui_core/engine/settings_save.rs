@@ -2,6 +2,57 @@ use super::{AppSettings, Result, TranscodingEngine, settings, state, worker};
 use crate::ffui_core::tools::{ExternalToolKind, clear_tool_runtime_error};
 use crate::sync_ext::MutexExt;
 
+impl super::state::Inner {
+    pub(crate) fn persist_current_settings(&self) -> Result<()> {
+        let _guard = self.settings_persistence.lock_unpoisoned();
+        let snapshot = self.state.lock_unpoisoned().settings.clone();
+        settings::save_settings(&snapshot)
+    }
+}
+
+#[cfg(test)]
+mod persistence_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn queued_settings_persistence_reads_the_latest_state_after_acquiring_ownership() {
+        let directory = tempfile::tempdir().expect("directory");
+        let _data_root =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+        let inner = Arc::new(super::super::state::Inner::new(
+            Vec::new(),
+            AppSettings::default(),
+        ));
+        inner
+            .state
+            .lock_unpoisoned()
+            .settings
+            .default_queue_preset_id = Some("audio".into());
+        let guard = inner.settings_persistence.lock_unpoisoned();
+        let pending = Arc::clone(&inner);
+        let worker = std::thread::spawn(move || pending.persist_current_settings());
+        inner
+            .state
+            .lock_unpoisoned()
+            .settings
+            .default_queue_preset_id = Some("video".into());
+        drop(guard);
+        worker
+            .join()
+            .expect("worker")
+            .expect("save latest settings");
+        let saved = settings::load_settings().expect("load settings");
+        assert_eq!(saved.default_queue_preset_id.as_deref(), Some("video"));
+        let last_good: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(directory.path().join("ffui.settings.last-good.json"))
+                .expect("last good"),
+        )
+        .expect("last good JSON");
+        assert_eq!(last_good["settings"]["defaultQueuePresetId"], "video");
+    }
+}
+
 fn merge_backend_owned_tool_state(
     new_tools: &mut crate::ffui_core::settings::ExternalToolSettings,
     old_tools: &crate::ffui_core::settings::ExternalToolSettings,
@@ -31,7 +82,6 @@ impl TranscodingEngine {
             new_percent,
             proxy_snapshot,
             saved,
-            settings_to_persist,
         ) = {
             let mut state = self.inner.state.lock_unpoisoned();
 
@@ -49,7 +99,6 @@ impl TranscodingEngine {
             merge_backend_owned_tool_state(&mut normalized.tools, &old_tools);
 
             state.settings = normalized.clone();
-            let settings_to_persist = state.settings.clone();
 
             let new_tools = &state.settings.tools;
             let tools_changed = old_tools.ffmpeg_path != new_tools.ffmpeg_path
@@ -77,11 +126,10 @@ impl TranscodingEngine {
                 new_percent,
                 proxy_snapshot,
                 normalized,
-                settings_to_persist,
             )
         };
 
-        settings::save_settings(&settings_to_persist)?;
+        self.inner.persist_current_settings()?;
 
         if tools_changed {
             clear_tool_runtime_error(ExternalToolKind::Ffmpeg);

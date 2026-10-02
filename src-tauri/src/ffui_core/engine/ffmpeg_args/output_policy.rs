@@ -1,17 +1,23 @@
 use std::path::Path;
 
 use super::normalize_container_format;
-use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
+use crate::ffui_core::domain::{FFmpegPreset, OutputContainerPolicy, OutputPolicy};
 
 pub(super) fn forced_muxer_for_policy(
     policy: Option<&OutputPolicy>,
     input: &Path,
+    preset: &FFmpegPreset,
 ) -> Option<String> {
     let policy = policy?;
     match policy
         .container
-        .for_media_type(super::super::manual_execution::presentation_type(input))
-    {
+        .for_media_type(super::super::preset_output::output_type(
+            Some(preset),
+            input
+                .extension()
+                .and_then(|value| value.to_str())
+                .unwrap_or(""),
+        )) {
         OutputContainerPolicy::Default => None,
         OutputContainerPolicy::KeepInput => {
             let ext = input

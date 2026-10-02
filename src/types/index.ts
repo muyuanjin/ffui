@@ -105,6 +105,7 @@ export type {
 // Application settings
 export type {
   AppSettings,
+  QueuePresetSelection,
   PresetSortMode,
   PresetSortDirection,
   PresetViewMode,

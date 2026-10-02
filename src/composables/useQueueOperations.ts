@@ -1,5 +1,12 @@
 import { type Ref, type ComputedRef } from "vue";
-import type { QueueStateLiteDelta, TranscodeJob, FFmpegPreset, QueueState, Translate } from "@/types";
+import type {
+  QueueStateLiteDelta,
+  TranscodeJob,
+  FFmpegPreset,
+  QueueState,
+  Translate,
+  QueuePresetSelection,
+} from "@/types";
 import {
   refreshQueueFromBackend as refreshQueueFromBackendImpl,
   applyQueueStateFromBackend as applyQueueStateFromBackendImpl,
@@ -33,6 +40,7 @@ export interface UseQueueOperationsOptions {
   jobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
+  queuePresetSelection?: Ref<QueuePresetSelection>;
   /** All available presets. */
   presets: Ref<FFmpegPreset[]>;
   /** Queue error message ref. */
@@ -94,6 +102,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const {
     jobs,
     manualJobPreset,
+    queuePresetSelection,
     presets,
     queueError,
     selectedJobIds,
@@ -136,6 +145,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const singleJobOpsDeps = {
     jobs,
     manualJobPreset,
+    queuePresetSelection,
     presets,
     queueError,
     t,

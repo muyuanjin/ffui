@@ -2,9 +2,13 @@ use std::fs;
 use std::io::{BufReader, Write};
 use std::path::Path;
 
+use crate::sync_ext::MutexExt;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use tempfile::Builder;
+
+static JSON_REPLACE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Reads and deserializes a JSON file into the specified type.
 ///
@@ -59,12 +63,65 @@ pub(crate) fn write_json_file<T: Serialize + ?Sized>(path: &Path, value: &T) -> 
     tmp.as_file()
         .sync_all()
         .with_context(|| format!("failed to sync {}", tmp_path.display()))?;
-    tmp.persist(path).map_err(|err| {
+    let _guard = JSON_REPLACE_LOCK.lock_unpoisoned();
+    drop(tmp.persist(path).map_err(|err| {
         anyhow::anyhow!(
             "failed to atomically replace {}: {}",
             path.display(),
             err.error
         )
-    })?;
+    })?);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Barrier};
+
+    #[test]
+    fn concurrent_json_replacements_leave_valid_complete_json_and_no_temporary_files() {
+        let directory = tempfile::tempdir().expect("directory");
+        let path = directory.path().join("settings.json");
+        let barrier = Arc::new(Barrier::new(8));
+        let workers: Vec<_> = (0..8)
+            .map(|worker| {
+                let path = path.clone();
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    for iteration in 0..50 {
+                        barrier.wait();
+                        write_json_file(
+                            &path,
+                            &serde_json::json!({"worker": worker, "iteration": iteration}),
+                        )
+                        .expect("concurrent atomic write");
+                        barrier.wait();
+                    }
+                })
+            })
+            .collect();
+        for worker in workers {
+            worker.join().expect("worker");
+        }
+        let value: serde_json::Value = read_json_file(&path).expect("complete JSON");
+        assert_eq!(value["iteration"], 49);
+        assert_eq!(fs::read_dir(directory.path()).expect("entries").count(), 1);
+    }
+
+    #[test]
+    fn failed_replacement_preserves_target_and_removes_only_its_temporary_file() {
+        let directory = tempfile::tempdir().expect("directory");
+        let target = directory.path().join("occupied");
+        fs::create_dir(&target).expect("occupied target");
+        fs::write(target.join("keep"), "user content").expect("user file");
+        let error = write_json_file(&target, &serde_json::json!({"preset": "audio"}))
+            .expect_err("replacement must fail");
+        assert!(error.to_string().contains("failed to atomically replace"));
+        assert_eq!(
+            fs::read_to_string(target.join("keep")).expect("kept file"),
+            "user content"
+        );
+        assert_eq!(fs::read_dir(directory.path()).expect("entries").count(), 1);
+    }
 }

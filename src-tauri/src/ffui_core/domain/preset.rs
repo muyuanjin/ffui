@@ -54,6 +54,8 @@ pub struct FFmpegPreset {
     pub stats: PresetStats,
     pub advanced_enabled: Option<bool>,
     pub ffmpeg_template: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_kind: Option<super::JobType>,
     /// 标记该预设是否为智能推荐预设（用户修改参数后会被清除）
     pub is_smart_preset: Option<bool>,
 }

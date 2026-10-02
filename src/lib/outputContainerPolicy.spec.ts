@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OutputContainerPolicy } from "@/types/output-policy";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
-import {
-  outputMediaKindForExtension,
-  resolveOutputContainerForExtension,
-  scopedOutputContainerForSettings,
-} from "./outputContainerPolicy";
+import { outputMediaKindForExtension, resolveOutputContainerForExtension } from "./outputContainerPolicy";
 import { previewOutputPathLocal } from "./outputPolicyPreview";
 import contract from "../../src-tauri/tests/output-media-policy-contract.json";
 
@@ -38,9 +34,8 @@ describe("media-scoped output container contract", () => {
       new RegExp(`\\.${entry.extension}$`),
     );
   });
-  it.each(contract.legacy)("scopes active legacy setting $format without altering a snapshot", ({ format, kind }) => {
+  it.each(contract.legacy)("preserves an explicit unified format $format", ({ format }) => {
     const legacy: OutputContainerPolicy = { mode: "force", format };
-    expect(scopedOutputContainerForSettings(legacy)).toEqual(kind ? { mode: "byMedia", [kind]: format } : legacy);
     expect(legacy).toEqual({ mode: "force", format });
     expect(resolveOutputContainerForExtension(legacy, "mp4")).toEqual(legacy);
   });
@@ -48,7 +43,6 @@ describe("media-scoped output container contract", () => {
     const audioOnly: OutputContainerPolicy = { mode: "byMedia", audio: "mp3" };
     expect(resolveOutputContainerForExtension(audioOnly, "mp4")).toEqual({ mode: "default" });
     expect(resolveOutputContainerForExtension(audioOnly, "png")).toEqual({ mode: "default" });
-    expect(scopedOutputContainerForSettings(audioOnly)).toBe(audioOnly);
     for (const mode of ["default", "keepInput"] as const) {
       expect(resolveOutputContainerForExtension({ mode }, "wav")).toEqual({ mode });
     }

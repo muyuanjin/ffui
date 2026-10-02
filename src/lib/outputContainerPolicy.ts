@@ -27,18 +27,19 @@ export function outputMediaKindForExtension(extension: string): FormatKind | nul
   return null;
 }
 
-export function scopedOutputContainerForSettings(container: OutputContainerPolicy): OutputContainerPolicy {
-  if (container.mode !== "force") return container;
-  const kind = outputMediaKindForExtension(container.format);
-  return kind ? { mode: "byMedia", [kind]: container.format } : container;
-}
-
 export function resolveOutputContainerForExtension(
   container: OutputContainerPolicy,
   extension: string,
 ): Exclude<OutputContainerPolicy, { mode: "byMedia" }> {
-  if (container.mode !== "byMedia") return container;
   const kind = outputMediaKindForExtension(extension);
+  return resolveOutputContainerForMedia(container, kind);
+}
+
+export function resolveOutputContainerForMedia(
+  container: OutputContainerPolicy,
+  kind: FormatKind | null,
+): Exclude<OutputContainerPolicy, { mode: "byMedia" }> {
+  if (container.mode !== "byMedia") return container;
   const format = kind ? container[kind] : undefined;
   return format ? { mode: "force", format } : { mode: "default" };
 }

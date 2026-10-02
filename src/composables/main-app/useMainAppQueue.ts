@@ -30,6 +30,7 @@ export interface UseMainAppQueueOptions {
   lastQueueSnapshotRevision: Ref<number | null>;
   presets: Ref<FFmpegPreset[]>;
   manualJobPresetId: Ref<string | null>;
+  queuePresetSelection?: Ref<import("@/types").QueuePresetSelection>;
   compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
   compositeTasksById: ComputedRef<Map<string, CompositeBatchCompressTask>>;
   onJobCompleted?: (job: TranscodeJob) => void;
@@ -278,6 +279,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = useQueueOperations({
     jobs,
     manualJobPreset,
+    queuePresetSelection: options.queuePresetSelection,
     presets,
     queueError,
     selectedJobIds,

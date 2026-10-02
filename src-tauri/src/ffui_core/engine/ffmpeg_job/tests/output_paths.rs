@@ -150,7 +150,7 @@ fn legacy_template_only_records_an_explicit_output_binding() {
 }
 
 #[test]
-fn forced_template_extension_changes_address_without_rewriting_the_muxer() {
+fn incompatible_template_format_has_an_invalid_plan_without_rewriting_the_muxer() {
     let directory = tempfile::tempdir().expect("tempdir");
     let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("mp3");
     preset.advanced_enabled = Some(true);
@@ -184,12 +184,10 @@ fn forced_template_extension_changes_address_without_rewriting_the_muxer() {
             .and_then(|extension| extension.to_str()),
         Some("wav")
     );
-    let Some(JobExecution::Ffmpeg { invocation }) = job.execution else {
-        panic!("transparent snapshot")
-    };
-    assert_eq!(invocation.output, FfmpegOutput::Transparent);
-    assert!(invocation.args.windows(2).any(|pair| pair == ["-f", "mp3"]));
-    assert_eq!(invocation.args.last().map(String::as_str), Some(path));
+    assert!(
+        matches!(job.execution, Some(JobExecution::Invalid { ref reason }) if reason.contains("conflicts") && reason.contains("mp3") && reason.contains("wav"))
+    );
+    assert!(!Path::new(path).exists());
 }
 #[test]
 fn media_scoped_output_snapshots_execute_without_cross_media_overrides() {
@@ -292,7 +290,15 @@ fn media_scoped_output_snapshots_execute_without_cross_media_overrides() {
                 .expect("restore snapshot");
         let restored =
             crate::ffui_core::TranscodeJob::from(crate::ffui_core::TranscodeJobLite::from(record));
-        assert_eq!(restored.output_policy, Some(policy));
+        let mut resolved_policy = policy;
+        resolved_policy.container = if expected_extension == "mp4" {
+            OutputContainerPolicy::Default
+        } else {
+            OutputContainerPolicy::Force {
+                format: expected_extension.into(),
+            }
+        };
+        assert_eq!(restored.output_policy, Some(resolved_policy));
         assert_eq!(
             serde_json::to_value(&restored.execution).expect("execution"),
             serde_json::to_value(&job.execution).expect("original execution")

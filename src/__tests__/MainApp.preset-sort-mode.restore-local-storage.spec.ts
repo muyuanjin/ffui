@@ -91,7 +91,7 @@ describe("MainApp preset sort mode persistence", () => {
       expect(saveCalls.length).toBe(1);
       const payload = (saveCalls[0]?.[1] ?? {}) as Record<string, any>;
       expect(payload.settings?.presetSortMode).toBe("name");
-      expect(typeof idleCallback).toBe("function");
+      expect(idleCallback).toBeNull();
 
       wrapper.unmount();
     } finally {

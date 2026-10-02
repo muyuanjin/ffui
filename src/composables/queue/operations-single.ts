@@ -1,9 +1,8 @@
 import { type Ref, type ComputedRef } from "vue";
-import type { TranscodeJob, JobStatus, FFmpegPreset, Translate } from "@/types";
+import type { TranscodeJob, JobStatus, FFmpegPreset, Translate, QueuePresetSelection } from "@/types";
+import { enqueueManualPresetFiles } from "@/lib/manualPresetRouting";
 import {
   hasTauri,
-  enqueueTranscodeJob,
-  enqueueTranscodeJobs,
   expandManualJobInputs,
   cancelTranscodeJob,
   waitTranscodeJob,
@@ -19,6 +18,7 @@ export interface SingleJobOpsDeps {
   jobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
+  queuePresetSelection?: Ref<QueuePresetSelection>;
   /** All available presets. */
   presets: Ref<FFmpegPreset[]>;
   /** Queue error message ref. */
@@ -235,32 +235,14 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
       return;
     }
 
-    if (files.length === 1) {
-      await enqueueTranscodeJob({
-        filename: files[0],
-        jobType: "other",
-        source: "manual",
-        originalSizeMb: 0,
-        originalCodec: undefined,
-        presetId: preset.id,
-      });
-    } else {
-      await enqueueTranscodeJobs({
-        filenames: files,
-        jobType: "other",
-        source: "manual",
-        originalSizeMb: 0,
-        originalCodec: undefined,
-        presetId: preset.id,
-      });
-    }
+    await enqueueManualPresetFiles(files, deps.presets.value, preset.id, deps.queuePresetSelection?.value);
 
     // Avoid racing with queue stream events; let backend be the single source of truth.
     await deps.refreshQueueFromBackend();
     deps.queueError.value = unsupportedMessage;
   } catch (error) {
     console.error("Failed to enqueue manual jobs from paths", error);
-    deps.queueError.value = deps.t?.("queue.error.enqueueFailed") ?? "";
+    deps.queueError.value = `${deps.t?.("queue.error.enqueueFailed") ?? ""}: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 

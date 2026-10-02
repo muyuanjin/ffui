@@ -15,8 +15,10 @@ mod webm;
 use std::sync::atomic::AtomicU64;
 
 use filename::{apply_filename_policy, sanitize_windows_path_segment};
+pub(super) use template::infer_template_image_extension as template_image_extension;
 pub(super) use template::infer_template_output_codecs;
 use template::infer_template_output_muxer;
+pub(super) use template::infer_template_output_muxer as template_output_muxer;
 use utils::{normalize_extension_no_dot, random_hex};
 pub(super) use webm::should_fallback_webm;
 
@@ -188,12 +190,12 @@ fn infer_container_extension_and_muxer(
     policy: &OutputPolicy,
 ) -> (String, Option<String>, Vec<JobWarning>) {
     let mut warnings: Vec<JobWarning> = Vec::new();
-    let container =
-        policy
-            .container
-            .for_media_type(crate::ffui_core::domain::media_type_for_extension(
-                input_ext.unwrap_or(""),
-            ));
+    let container = policy
+        .container
+        .for_media_type(super::preset_output::output_type(
+            preset,
+            input_ext.unwrap_or(""),
+        ));
     match &container {
         OutputContainerPolicy::Force { format } => {
             let raw = format.trim().trim_start_matches('.');

@@ -309,6 +309,14 @@ const app = {
   },
   queueDefaultPresetLabel: "Default preset for new jobs",
   queueDefaultPresetPlaceholder: "Select preset used when adding jobs",
+  queuePresetSelection: {
+    unified: "Unified preset",
+    byMedia: "By input type",
+    inputLabel: "Preset for {kind} inputs",
+    followUnified: "Follow unified: {name}",
+    missing: "Missing preset: {id}",
+    hint: "Input type selects a preset; the preset determines the output type. Unset and unknown types follow the unified preset.",
+  },
   outputSettings: "Output settings",
   newPreset: "New Preset",
   lang: {

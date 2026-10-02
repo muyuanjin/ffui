@@ -19,6 +19,48 @@ const i18n = createI18n({
 });
 
 describe("MainContentHeader output container badge + hover preview", () => {
+  it("does not present the unified preset container as a universal default when input routes differ", () => {
+    const wrapper = mount(MainContentHeader, {
+      props: {
+        activeTab: "queue",
+        currentTitle: "Queue",
+        currentSubtitle: "",
+        jobsLength: 0,
+        completedCount: 0,
+        manualJobPresetId: "video",
+        queueViewModeModel: "detail",
+        queuePresetSelection: { mode: "byMedia", video: "extract" },
+        queueOutputPolicy: {
+          container: { mode: "default" },
+          directory: { mode: "sameAsInput" },
+          filename: { suffix: ".compressed" },
+        },
+        presets: [
+          { id: "video", name: "Video", container: { format: "mp4" } },
+          {
+            id: "extract",
+            name: "Extract",
+            advancedEnabled: true,
+            ffmpegTemplate: "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 OUTPUT",
+          },
+        ] as any,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: "<div><slot /></div>" },
+          HoverCardTrigger: { template: "<div><slot /></div>" },
+          HoverCardContent: { template: "<div><slot /></div>" },
+          Dialog: true,
+        },
+      },
+    });
+    expect(wrapper.get('[data-testid="ffui-queue-output-container-badge"]').text()).toBe("auto");
+    const preview = wrapper.get('[data-testid="ffui-queue-output-settings-hover-preview"]').text();
+    expect(preview).toContain("input.compressed.mp3");
+    expect(preview).not.toContain("Default (follow preset/template)（mp4）");
+    wrapper.unmount();
+  });
   it("extends three labeled badges left of output settings and collapses unified policies to one", async () => {
     const localI18n = createI18n({ legacy: false, locale: "en", messages: { en, "zh-CN": zhCN } });
     const policy: OutputPolicy = {
@@ -143,7 +185,7 @@ describe("MainContentHeader output container badge + hover preview", () => {
     expect(preview.text()).toContain("Preview");
     expect(preview.text()).toContain("Output Container");
     expect(preview.text()).toContain("mkv");
-    expect(preview.text()).toContain("Force format");
+    expect(preview.text()).toContain("Unified format");
     expect(preview.text()).toContain("Fixed directory");
     expect(preview.text()).toContain("D:/Outputs");
     expect(preview.text()).not.toContain("prefix=");

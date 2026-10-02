@@ -130,6 +130,7 @@ pub fn make_ffmpeg_preset_for_tests(id: &str) -> crate::ffui_core::FFmpegPreset 
         },
         advanced_enabled: Some(false),
         ffmpeg_template: None,
+        output_kind: None,
         is_smart_preset: None,
     }
     /* jscpd:ignore-end */

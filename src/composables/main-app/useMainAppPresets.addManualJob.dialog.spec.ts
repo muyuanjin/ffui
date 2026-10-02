@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, ref } from "vue";
-import type { FFmpegPreset } from "@/types";
+import type { FFmpegPreset, QueuePresetSelection } from "@/types";
 
 const openDialogMock = vi.fn();
 
@@ -52,12 +52,16 @@ const makePreset = (): FFmpegPreset => ({
 type AddManualJobApi = { addManualJob: (mode?: "files" | "folder") => Promise<void> };
 
 /** 挂载 useMainAppPresets 并取回 addManualJob（Tauri v2 只看 __TAURI_INTERNALS__）。 */
-function mountPresets(): AddManualJobApi {
+function mountPresets(selection: QueuePresetSelection = { mode: "unified" }): AddManualJobApi {
   let api: AddManualJobApi | null = null;
   mount(
     defineComponent({
       setup() {
-        const presets = ref<FFmpegPreset[]>([makePreset()]);
+        const presets = ref<FFmpegPreset[]>([
+          makePreset(),
+          { ...makePreset(), id: "audio" },
+          { ...makePreset(), id: "image" },
+        ]);
         const presetsLoadedFromBackend = ref(true);
         const manualJobPresetId = ref<string | null>(null);
         const locale = ref("en");
@@ -67,6 +71,7 @@ function mountPresets(): AddManualJobApi {
           presets,
           presetsLoadedFromBackend,
           manualJobPresetId,
+          queuePresetSelection: ref(selection),
           dialogManager: {
             openParameterPanel: () => {},
             closeParameterPanel: () => {},
@@ -84,6 +89,20 @@ function mountPresets(): AddManualJobApi {
 }
 
 describe("useMainAppPresets addManualJob dialog (Tauri v2 internals)", () => {
+  it("routes expanded folder files through the per-input presets", async () => {
+    openDialogMock.mockResolvedValueOnce(["C:/mixed"]);
+    expandManualJobInputsMock.mockResolvedValueOnce({
+      accepted: ["C:/mixed/movie.mp4", "C:/mixed/track.wav", "C:/mixed/cover.jpg"],
+      skipped: 0,
+    });
+    const api = mountPresets({ mode: "byMedia", video: "audio", image: "image" });
+    await api.addManualJob("folder");
+    expect(enqueueTranscodeJobMock.mock.calls.map(([request]) => [request.filename, request.presetId])).toEqual([
+      ["C:/mixed/movie.mp4", "audio"],
+      ["C:/mixed/track.wav", "preset-1"],
+      ["C:/mixed/cover.jpg", "image"],
+    ]);
+  });
   beforeEach(() => {
     openDialogMock.mockReset();
     expandManualJobInputsMock.mockReset();

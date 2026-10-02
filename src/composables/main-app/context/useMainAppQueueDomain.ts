@@ -17,6 +17,7 @@ import { useBatchCompressQueueRefresh } from "@/composables/main-app/useBatchCom
 import { useQueueStartupToast } from "@/composables/main-app/useQueueStartupToast";
 import type { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
 import type { MainAppSharedState } from "./useMainAppSharedState";
+import { DEFAULT_QUEUE_PRESET_SELECTION } from "@/lib/manualPresetRouting";
 
 export interface UseMainAppQueueDomainOptions {
   state: MainAppSharedState;
@@ -45,6 +46,9 @@ export function useMainAppQueueDomain(options: UseMainAppQueueDomainOptions): Qu
     lastQueueSnapshotRevision: state.lastQueueSnapshotRevision,
     presets: state.presets,
     manualJobPresetId: state.manualJobPresetId,
+    queuePresetSelection: computed(
+      () => settings.appSettings.value?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION,
+    ),
     compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
     compositeTasksById: batchCompress.compositeTasksById,
     onJobCompleted: presets.handleCompletedJobFromBackend,

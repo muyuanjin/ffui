@@ -1,0 +1,129 @@
+{
+  "selection": { "mode": "byMedia", "video": "extract-audio", "audio": "audio", "image": "image" },
+  "cases": [
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a aac -f mp4 -- side.mp4 -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "other",
+      "extension": "mp3",
+      "defaultExtension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 -- OUTPUT",
+      "kind": "audio",
+      "extension": "mp3",
+      "defaultExtension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 -- side.mp3 OUTPUT",
+      "kind": "other",
+      "extension": "mp4",
+      "defaultExtension": "mp4"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -loglevel error -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3",
+      "defaultExtension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -an -frames:v 1 -c:v png -compression_level 9 -f image2 OUTPUT",
+      "kind": "image",
+      "extension": "bmp",
+      "defaultExtension": "png"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -metadata title=-f -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3",
+      "defaultExtension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -compression_level 9 -f mp3 side.mp3 -vn -c:a aac -loglevel error OUTPUT",
+      "declared": "other",
+      "kind": "other",
+      "extension": "mp4",
+      "defaultExtension": "mp4"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 side.mp3 -vn -c:a aac OUTPUT",
+      "declared": "other",
+      "kind": "other",
+      "extension": "mp4"
+    },
+    {
+      "input": "unknown",
+      "template": "ffmpeg -f lavfi -i sine=duration=1 -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "\"C:\\工具\\ffmpeg.exe\" -i INPUT -metadata title=\"\" -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -vn -c:a aac -f mp4 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -map 0:a -c:a aac -f mp4 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -frames:v 1 -c:v bmp -f image2 OUTPUT",
+      "kind": "image",
+      "extension": "bmp"
+    },
+    {
+      "input": "unknown",
+      "template": "ffmpeg -i INPUT -vn -c:a libmp3lame -f mp3 OUTPUT",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -metadata title=-vn -c:v libx264 -f mp4 OUTPUT",
+      "kind": "video",
+      "extension": "mkv"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -filter_complex \"[0:a]volume=0.5[a]\" -map \"[a]\" -c:a aac -f mp4 OUTPUT",
+      "kind": "other",
+      "extension": "mp4"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -filter_complex \"[0:a]volume=0.5[a]\" -map \"[a]\" -c:a aac -f mp4 OUTPUT",
+      "declared": "audio",
+      "kind": "audio",
+      "extension": "mp3"
+    },
+    {
+      "input": "movie.mp4",
+      "template": "ffmpeg -i INPUT -c:a aac side.m4a -f mp4 OUTPUT",
+      "kind": "other",
+      "extension": "mp4"
+    }
+  ]
+}

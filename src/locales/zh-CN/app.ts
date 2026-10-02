@@ -295,6 +295,14 @@ const app = {
   },
   queueDefaultPresetLabel: "默认参数预设",
   queueDefaultPresetPlaceholder: "选择用于添加任务的预设",
+  queuePresetSelection: {
+    unified: "统一预设",
+    byMedia: "按输入类型",
+    inputLabel: "{kind}输入使用的预设",
+    followUnified: "跟随统一预设：{name}",
+    missing: "预设已缺失：{id}",
+    hint: "输入类型用于选择预设，预设决定输出类型。未指定及未知类型跟随统一预设。",
+  },
   outputSettings: "输出设置",
   newPreset: "新建预设",
   lang: {
