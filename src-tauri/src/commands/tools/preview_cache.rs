@@ -3,7 +3,8 @@ use tauri::State;
 use crate::commands::wait_for_queue_recovery;
 use crate::ffui_core::{
     TranscodingEngine, cleanup_unreferenced_previews, clear_fallback_frame_cache,
-    clear_preview_thumb_cache, previews_root_dir_best_effort, referenced_preview_filenames,
+    clear_media_preview_cache, clear_preview_thumb_cache, previews_root_dir_best_effort,
+    referenced_preview_filenames,
 };
 
 fn cleanup_preview_caches_worker(
@@ -12,6 +13,7 @@ fn cleanup_preview_caches_worker(
 ) {
     // This cache is not keyed to queue recovery and is safe to clear eagerly.
     drop(clear_fallback_frame_cache());
+    drop(clear_media_preview_cache());
 
     // Only delete unreferenced previews once crash recovery has finished,
     // otherwise a partial/empty job list can cause valid previews to be purged.

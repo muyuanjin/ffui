@@ -1,3 +1,5 @@
+import previewFallback from "./previewFallback";
+
 const other = {
   common: {
     back: "上一步",
@@ -293,15 +295,7 @@ const other = {
       unavailable: "该任务暂不可对比。",
     },
   },
-  previewFallback: {
-    title: "原生播放失败",
-    nativePlaybackFailed: "WebView2 可能不支持该格式。可用帧预览，或用系统播放器打开。",
-    hint: "拖动时会优先请求更快的低清帧；松手后会加载更清晰的帧。",
-    loadingFrame: "正在加载预览帧…",
-    noFrame: "暂无预览帧",
-    scrub: "拖动预览",
-    openInSystemPlayer: "用系统播放器打开",
-  },
+  previewFallback,
   presets: {
     saveFailedTitle: "预设保存失败",
     vmafHint95: "≥95（肉眼接近无损）",

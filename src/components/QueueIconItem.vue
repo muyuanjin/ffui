@@ -346,7 +346,7 @@ if (isQueuePerfEnabled) {
     @click="onCardClick"
     @contextmenu.prevent.stop="onCardContextMenu"
   >
-    <div class="relative w-full bg-muted/60" :class="thumbnailAspectClass">
+    <div class="relative w-full bg-muted/60" :class="thumbnailAspectClass" @click="onPreview">
       <img
         v-if="previewUrl"
         :src="previewUrl"
@@ -355,7 +355,6 @@ if (isQueuePerfEnabled) {
         loading="lazy"
         fetchpriority="low"
         class="absolute inset-0 h-full w-full object-cover"
-        @click="onPreview"
         @error="handlePreviewError"
       />
       <div v-else-if="job.type === 'audio'" class="absolute inset-0 flex items-center justify-center">
@@ -387,6 +386,7 @@ if (isQueuePerfEnabled) {
             ? 'bg-amber-500 border-amber-500 text-white'
             : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'
         "
+        @click.stop="onCardClick"
       >
         <svg v-if="isSelected" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />

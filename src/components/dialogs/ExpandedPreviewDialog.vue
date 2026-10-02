@@ -7,6 +7,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 import FallbackMediaPreview from "@/components/media/FallbackMediaPreview.vue";
+import NativeMediaPreview from "@/components/media/NativeMediaPreview.vue";
+import type { PreviewMediaKind } from "@/lib/backend";
 import { cleanupFallbackPreviewFramesAsync, hasTauri } from "@/lib/backend";
 import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
 
@@ -23,6 +25,9 @@ const props = defineProps<{
   previewPath: string | null;
   /** Whether the preview is an image */
   isImage: boolean;
+  mediaKind?: PreviewMediaKind | null;
+  durationSeconds?: number | null;
+  loading?: boolean;
   /** Error message to display */
   error: string | null;
 }>();
@@ -132,10 +137,14 @@ const videoSourcePath = computed(() => {
   return previewPath.value || null;
 });
 
-const forceFallback = computed(() => !isImage.value && !!error.value);
+const resolvedKind = computed(() =>
+  props.mediaKind === undefined ? (isImage.value ? "image" : "video") : props.mediaKind,
+);
+const forceFallback = computed(() => resolvedKind.value === "video" && !!error.value);
 
 const previewSurfaceClass = computed(() => {
   const base = "mt-2 relative w-full rounded-md bg-black flex items-center justify-center overflow-x-hidden";
+  if (resolvedKind.value === "audio") return `${base} min-h-60 h-[40vh] overflow-y-auto`;
   if (forceFallback.value) {
     return `${base} h-[70vh] overflow-y-auto`;
   }
@@ -202,18 +211,23 @@ watch(
       </DialogHeader>
       <div :class="previewSurfaceClass" data-testid="expanded-preview-surface">
         <template v-if="previewUrl">
-          <img
-            v-if="isImage"
-            :src="previewUrl"
-            alt=""
-            class="w-full h-full object-contain"
-            @error="emit('imageError')"
+          <NativeMediaPreview
+            v-if="resolvedKind === 'audio' || resolvedKind === 'image'"
+            :key="previewPath ?? previewUrl"
+            :kind="resolvedKind"
+            :native-url="previewUrl"
+            :source-path="previewPath ?? ''"
+            @open-in-system-player="emit('openInSystemPlayer')"
+            @copy-path="emit('copyPath')"
           />
           <FallbackMediaPreview
-            v-else
+            v-else-if="resolvedKind === 'video'"
+            :key="previewPath ?? previewUrl"
             :native-url="previewUrl"
             :source-path="videoSourcePath"
-            :duration-seconds="job?.mediaInfo?.durationSeconds ?? null"
+            :duration-seconds="
+              durationSeconds === undefined ? (job?.mediaInfo?.durationSeconds ?? null) : durationSeconds
+            "
             :autoplay="true"
             :lazy-controls="true"
             :auto-fallback-on-native-error="false"
@@ -226,11 +240,14 @@ watch(
             @copy-path="emit('copyPath')"
           />
         </template>
+        <p v-else-if="loading" role="status" class="text-sm text-muted-foreground">
+          {{ t("previewFallback.inspecting") }}
+        </p>
         <p v-else data-testid="task-detail-expanded-fallback" class="text-[11px] text-muted-foreground">
           {{ t("jobDetail.noPreview") }}
         </p>
       </div>
-      <div v-if="error && isImage" class="mt-2 text-[11px] text-destructive">
+      <div v-if="error && resolvedKind !== 'video'" class="mt-2 text-[11px] text-destructive" role="alert">
         <p>{{ error }}</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <Button size="xs" class="h-6 px-2 text-[10px]" @click="emit('openInSystemPlayer')">

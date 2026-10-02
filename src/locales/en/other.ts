@@ -1,4 +1,5 @@
 import presets from "./presets";
+import previewFallback from "./previewFallback";
 
 const other = {
   common: {
@@ -305,16 +306,7 @@ const other = {
       unavailable: "Compare is not available for this job.",
     },
   },
-  previewFallback: {
-    title: "Native playback failed",
-    nativePlaybackFailed:
-      "WebView2 may not support this format. You can still scrub frames or open it in your system player.",
-    hint: "While dragging, the app prefers faster low-quality frames; when you release, it loads a higher-quality frame.",
-    loadingFrame: "Loading preview frame…",
-    noFrame: "No preview frame yet",
-    scrub: "Scrub",
-    openInSystemPlayer: "Open in system player",
-  },
+  previewFallback,
   presets,
   stats: {
     empty: "Run some jobs first; stats will show up here.",

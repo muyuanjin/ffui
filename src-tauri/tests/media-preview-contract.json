@@ -1,0 +1,15 @@
+{
+  "info": [
+    { "kind": "audio", "durationSeconds": 2.5 },
+    { "kind": "image", "durationSeconds": null },
+    { "kind": "video", "durationSeconds": 10.0 }
+  ],
+  "probe": {
+    "command": "probe_media_preview_info",
+    "payload": { "sourcePath": "C:\\音楽\\mixed path.mkv" }
+  },
+  "prepare": {
+    "command": "prepare_native_media_preview",
+    "payload": { "sourcePath": "C:\\音楽\\mixed path.mkv", "kind": "audio" }
+  }
+}

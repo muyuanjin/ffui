@@ -103,6 +103,31 @@ export const buildJobPreviewUrl = (path: string | null | undefined, revision?: n
 export const buildPlayableMediaUrl = buildPreviewUrl;
 
 export type FallbackFrameQuality = "low" | "high";
+export type { PreviewMediaKind, MediaPreviewInfo } from "@/lib/backend/mediaPreview";
+
+export const probeMediaPreviewInfo = async (
+  sourcePath: string,
+): Promise<import("@/lib/backend/mediaPreview").MediaPreviewInfo> => {
+  const kind = sourcePath.includes("media-preview-audio")
+    ? "audio"
+    : /\.(png|jpg|jpeg|avif|tiff)$/i.test(sourcePath)
+      ? "image"
+      : /\.(mp3|wav|m4a|flac|opus)$/i.test(sourcePath)
+        ? "audio"
+        : "video";
+  return { kind, durationSeconds: kind === "image" ? null : 120 };
+};
+
+export const prepareNativeMediaPreview = async (sourcePath: string, kind: "audio" | "image"): Promise<string> => {
+  const fixture = readEnv(
+    kind === "audio"
+      ? "VITE_DOCS_SCREENSHOT_COMPATIBLE_AUDIO_PREVIEW"
+      : "VITE_DOCS_SCREENSHOT_COMPATIBLE_IMAGE_PREVIEW",
+  );
+  if (fixture) return fixture;
+  if (kind === "image") return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+  throw new Error(`No compatible audio fixture configured for ${sourcePath}`);
+};
 
 const FALLBACK_PREVIEW_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1W2XwAAAAASUVORK5CYII=";

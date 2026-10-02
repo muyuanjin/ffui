@@ -51,6 +51,7 @@ fn queue_contract_types() -> Types {
         .register::<QueueStateLiteDelta>()
         .register::<TranscodeJob>()
         .register::<JobCompareSources>()
+        .register::<crate::ffui_core::MediaPreviewInfo>()
         .register::<QueueStartupHint>()
 }
 

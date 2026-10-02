@@ -398,6 +398,8 @@ export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest):
 
 export type { FallbackFrameQuality } from "./backend/fallbackPreview";
 export { cleanupFallbackPreviewFramesAsync, extractFallbackPreviewFrame } from "./backend/fallbackPreview";
+export { probeMediaPreviewInfo, prepareNativeMediaPreview } from "./backend/mediaPreview";
+export type { PreviewMediaKind, MediaPreviewInfo } from "./backend/mediaPreview";
 export {
   getJobCompareSources,
   extractJobCompareFrame,

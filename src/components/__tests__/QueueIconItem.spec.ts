@@ -246,6 +246,33 @@ describe("QueueIconItem", () => {
     expect(inspectEvents).toBeFalsy();
   });
 
+  it.each(["small", "medium", "large"] as const)("opens audio without cover from the %s thumbnail", async (size) => {
+    const job = makeJob({ type: "audio", filename: "song.flac", status: "completed", previewPath: undefined });
+    const wrapper = mount(QueueIconItem, {
+      props: { job, size, progressStyle: "bar", canSelect: true },
+      global: { plugins: [i18n] },
+    });
+    await wrapper.get('[data-testid="queue-audio-placeholder"]').trigger("click");
+    expect(wrapper.emitted("preview")).toEqual([[job]]);
+    expect(wrapper.emitted("inspect")).toBeUndefined();
+    expect(wrapper.emitted("toggle-select")).toBeUndefined();
+    await wrapper.get('[data-testid="queue-icon-item"]').trigger("click");
+    expect(wrapper.emitted("toggle-select")).toEqual([[job.id]]);
+    wrapper.unmount();
+  });
+
+  it("opens an image without a thumbnail from its filename placeholder", async () => {
+    const job = makeJob({ type: "image", filename: "picture.tiff", status: "completed", previewPath: undefined });
+    const wrapper = mount(QueueIconItem, {
+      props: { job, size: "medium", progressStyle: "bar" },
+      global: { plugins: [i18n] },
+    });
+    await wrapper.get('[data-testid="queue-icon-item"] > div').trigger("click");
+    expect(wrapper.emitted("preview")).toEqual([[job]]);
+    expect(wrapper.emitted("inspect")).toBeUndefined();
+    wrapper.unmount();
+  });
+
   it("auto-generates previews on mount when previewPath is missing (Tauri mode)", async () => {
     vi.useFakeTimers();
     try {

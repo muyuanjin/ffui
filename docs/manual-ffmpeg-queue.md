@@ -30,6 +30,12 @@ Audio tasks show embedded cover art when available, an audio placeholder otherwi
 
 For offset-origin audio whose probe duration may represent a timestamp endpoint rather than an elapsed span, duration and percentage remain unknown. MP3's frame-count duration supports its normal codec delay. Managed progress follows the current backend measurements without video resume extrapolation; elapsed wall time and owned temporary paths do not imply resumable media progress.
 
+### Playback and image viewing
+
+Click a queue thumbnail to preview the selected input or output. FFUI probes that file to choose audio controls, an image viewer or a video player; an audio-only MKV remains audio, and a video-to-image result uses the image viewer. Preview inspection errors do not change the task's execution result.
+
+Audio and images try native decoding first. If the WebView cannot decode them, FFmpeg prepares a separate cached preview: stereo 48 kHz AAC/M4A for audio, or a PNG fitting within 4096 × 4096 for images. Image conversion shows the first frame and preserves transparency; AVIF/HEIF with auxiliary alpha is rejected when the configured decoder cannot retain that alpha. The preview copy is not a lossless comparison of the original. Preparation has a 120-second timeout and a 256 MiB size limit. Failed preparation shows a diagnostic and a system-open action. Compatible previews never replace the selected source, task output or copy-path target. Completed cached copies share a 512 MiB budget; older copies can be evicted, including copies previously returned to a viewer. A new copy fails if sufficient space cannot be reclaimed. Seven-day expiration is applied when the cache is accessed; copies also participate in explicit preview-cache cleanup. In-flight temporary files are separate from this completed-copy budget. Video retains native playback and frame-scrubbing fallback.
+
 Legacy tasks whose preset is missing retain an invalid execution snapshot. Importing a preset later does not change that snapshot or authorize replay; enqueue a new task after configuring the preset.
 
 Terminal legacy records without an execution snapshot only clean recorded temporary paths and their associated `.noaudio.done` sidecar markers. Restarting or deleting their history does not infer video artifacts from display type or output filenames.
@@ -61,6 +67,12 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 音频任务有内嵌封面时展示封面，否则显示音频占位图，并提供探测到的时长、编码、采样率、声道和标签。元信息与封面探测是可选步骤，失败不阻止执行。保持输入时间轴的结构化托管音频任务，在单个音频流具有可用时长且 FFmpeg 提供有效已处理时间时显示实际百分比；seek、循环、自定义过滤链、工作量不明确的流、`N/A` 时间反馈及透明命令显示不定进度，并提供日志和已用时间。进度配置属于入队执行快照。运行中的百分比保持低于 100%，成功发布输出后才完成；`progress=end` 不代表任务成功。托管任务可以等待后恢复，但会**从头执行**，不保证断点续跑。透明任务不能等待，也不会在应用重启后自动恢复或重放；仅在确认重复副作用安全时显式重启。仍可取消任务。
 
 当音频输入具有非零时间起点、探测时长可能是时间戳终点而非实际跨度时，时长和百分比保持未知。MP3 按帧计数的时长支持其正常编码延迟。托管任务进度使用当前后端测量，不采用视频续跑外推；累计已用时间和临时文件归属不意味着可以从媒体断点续跑。
+
+### 播放音频与查看图片
+
+点击队列缩略图可预览选中的输入或输出。FFUI 探测当前文件，再选择音频播放控件、图片查看器或视频播放器；只有音轨的 MKV 仍按音频播放，视频转出的图片使用图片查看器。预览探测失败不改变任务的执行结果。
+
+音频和图片优先原生解码。WebView 无法解码时，FFmpeg 生成独立的缓存预览副本：音频为双声道 48 kHz AAC/M4A，图片为不超过 4096 × 4096 的 PNG。图片兼容转换显示第一帧并保留透明度；AVIF/HEIF 使用辅助 alpha 而当前解码器无法保留它时，明确拒绝兼容转换。预览副本不用于原文件的无损对比。生成过程有 120 秒超时和 256 MiB 大小限制，失败时显示诊断并提供系统打开操作。兼容预览不替换选中的源文件、任务输出或复制路径的目标。已完成的缓存副本共享 512 MiB 预算，较旧副本可能被淘汰，包括已返回给查看器的副本；无法回收足够空间时，新副本生成失败。访问缓存时应用七天过期规则，副本也纳入显式预览缓存清理。生成中的临时文件不计入已完成副本预算。视频保留原生播放与抽帧回退。
 
 旧记录缺少引用的预设时保留无效执行快照。之后导入预设不会改变该快照或授权重放；配置好预设后需要重新入队。
 

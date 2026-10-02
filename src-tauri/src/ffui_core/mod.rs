@@ -10,6 +10,7 @@ pub(crate) use engine::parse_ffmpeg_command;
 mod fallback_preview;
 mod ffprobe;
 pub(crate) mod input_expand;
+mod media_preview;
 mod monitor;
 mod monitor_activity;
 pub(crate) mod network_proxy;
@@ -54,6 +55,10 @@ pub(crate) use fallback_preview::{
     FallbackFramePosition, FallbackFrameQuality, clear_fallback_frame_cache, extract_fallback_frame,
 };
 pub(crate) use ffprobe::probe_video_duration_seconds_best_effort;
+pub(crate) use media_preview::{
+    MediaPreviewInfo, PreviewMediaKind, clear_media_preview_cache, prepare_media_preview,
+    probe_media_preview,
+};
 // Expose core monitoring snapshots and GPU sampling helper so other modules
 // (such as system_metrics) can reuse the same NVML-based logic.
 pub use monitor::{CpuUsageSnapshot, GpuUsageSnapshot, sample_gpu_usage};

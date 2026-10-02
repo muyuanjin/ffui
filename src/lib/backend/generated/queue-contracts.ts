@@ -170,6 +170,11 @@ export type MediaInfo_Serialize = {
 	sizeMB: number | null,
 };
 
+export type MediaPreviewInfo = {
+	kind: PreviewMediaKind,
+	durationSeconds: number | null,
+};
+
 export type OutputContainerPolicy =
 /**  Follow the preset (structured) or the advanced template when present. */
 { mode: "default" } |
@@ -248,6 +253,8 @@ export type PreserveFileTimesPolicy =
 boolean |
 /**  Fine-grained preservation. */
 { created?: boolean; modified?: boolean; accessed?: boolean };
+
+export type PreviewMediaKind = "audio" | "image" | "video";
 
 export type ProgressPhase = "transcoding" | "concatenating" | "audioFinalizing" | "muxing" | "completed";
 

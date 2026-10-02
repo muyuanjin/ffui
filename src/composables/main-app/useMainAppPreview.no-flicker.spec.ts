@@ -8,6 +8,7 @@ import useMainAppPreview from "@/composables/main-app/useMainAppPreview";
 
 vi.mock("@/lib/backend", () => ({
   hasTauri: () => true,
+  probeMediaPreviewInfo: vi.fn(async () => ({ kind: "video", durationSeconds: 60 })),
   buildPreviewUrl: (path: string | null) => path,
   selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
 }));

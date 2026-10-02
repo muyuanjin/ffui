@@ -55,6 +55,10 @@ vi.mock("@/lib/backend", () => {
 
   return {
     hasTauri: () => true,
+    probeMediaPreviewInfo: vi.fn(async (path: string) => ({
+      kind: /\.(png|avif|jpg)$/i.test(path) ? "image" : "video",
+      durationSeconds: 60,
+    })),
     fetchAppUpdaterCapabilities: vi.fn(async () => ({ configured: true })),
     buildPreviewUrl: (path: string | null) => path,
     buildJobPreviewUrl: (path: string | null, revision?: number | null) =>

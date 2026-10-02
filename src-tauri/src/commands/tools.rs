@@ -22,6 +22,7 @@ use crate::ffui_core::{
 use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
 pub(crate) mod fallback_preview;
+pub(crate) mod media_preview;
 pub(crate) mod playable_media;
 pub(crate) mod preview_cache;
 mod reveal;

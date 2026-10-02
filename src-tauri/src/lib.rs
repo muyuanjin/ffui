@@ -216,6 +216,8 @@ pub fn run() {
             commands::tools::open_devtools,
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
+            commands::tools::media_preview::probe_media_preview_info,
+            commands::tools::media_preview::prepare_native_media_preview,
             commands::tools::get_preview_data_url,
             commands::tools::fallback_preview::extract_fallback_preview_frame,
             commands::tools::fallback_preview::cleanup_fallback_preview_frames_async,

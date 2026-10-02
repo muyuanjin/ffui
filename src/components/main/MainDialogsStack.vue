@@ -16,6 +16,7 @@ import ImportCommandsDialog from "@/components/dialogs/ImportCommandsDialog.vue"
 import type { FFmpegPreset, TranscodeJob, QueueProgressStyle, BatchCompressConfig } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
 import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
+import type { PreviewMediaKind } from "@/lib/backend";
 
 const props = withDefaults(
   defineProps<{
@@ -39,6 +40,9 @@ const props = withDefaults(
     previewPath: string | null;
     previewSourceMode: PreviewSourceMode;
     previewIsImage: boolean;
+    previewMediaKind?: PreviewMediaKind | null;
+    previewDurationSeconds?: number | null;
+    previewLoading?: boolean;
     previewError: string | null;
     ffmpegResolvedPath: string | null;
     /** 排序比较函数，用于对批次子任务进行排序 */
@@ -52,6 +56,9 @@ const props = withDefaults(
     queueDeleteConfirmTerminalCount: 0,
     queueDeleteConfirmActiveCount: 0,
     sortCompareFn: undefined,
+    previewMediaKind: undefined,
+    previewDurationSeconds: undefined,
+    previewLoading: false,
   },
 );
 
@@ -221,6 +228,9 @@ const openCompareFromJobDetail = () => {
     :preview-url="previewUrl"
     :preview-path="previewPath"
     :is-image="previewIsImage"
+    :media-kind="props.previewMediaKind"
+    :duration-seconds="props.previewDurationSeconds"
+    :loading="props.previewLoading"
     :error="previewError"
     @update:open="
       (open) => {
