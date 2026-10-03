@@ -71,6 +71,7 @@ vi.mock("@/lib/backend", () => {
     fetchGpuUsage: vi.fn(async () => ({}) as any),
     loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadJobDetail: vi.fn(async () => null),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
     loadPresets: vi.fn(async () => []),

@@ -50,6 +50,13 @@ pub(crate) fn normalize_container_format(format: &str) -> String {
     .to_string()
 }
 
+pub(in crate::ffui_core::engine) fn is_audio_only_muxer(muxer: &str) -> bool {
+    matches!(
+        muxer,
+        "mp3" | "adts" | "wav" | "aiff" | "ac3" | "flac" | "opus"
+    )
+}
+
 /// 根据预设中的容器格式与原始输入扩展名推导输出文件扩展名。
 ///
 /// 约定：

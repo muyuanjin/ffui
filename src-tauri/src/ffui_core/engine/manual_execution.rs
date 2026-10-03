@@ -11,6 +11,9 @@ use super::ffmpeg_args::{
 };
 use super::template_args::strip_leading_ffmpeg_program;
 
+mod recovery;
+pub(super) use recovery::hydrate_legacy_job_snapshot;
+
 pub(super) fn presentation_type(input: &Path) -> JobType {
     media_type_for_extension(
         input
@@ -302,11 +305,30 @@ pub(super) fn plan_manual_execution(
             .and_then(|value| value.to_str())
             .unwrap_or(""),
     );
-    let muxer = super::ffmpeg_args::effective_output_muxer(preset, input, output, policy);
+    let muxer = effective_output_muxer(preset, input, output, policy);
+    if muxer.as_deref().is_some_and(|muxer| {
+        matches!(
+            muxer,
+            "hls"
+                | "dash"
+                | "segment"
+                | "stream_segment"
+                | "ssegment"
+                | "tee"
+                | "webm_chunk"
+                | "smoothstreaming"
+                | "hds"
+        )
+    }) {
+        return Err("Multi-file outputs require a transparent FFmpeg command".to_string());
+    }
+    if muxer.as_deref() == Some("image2") && has_image_sequence_pattern(&output.to_string_lossy()) {
+        return Err("Image sequence outputs require a transparent FFmpeg command".to_string());
+    }
     if kind == JobType::Video
-        && muxer.as_deref().is_some_and(|format| {
-            crate::ffui_core::domain::media_type_for_extension(format) == JobType::Audio
-        })
+        && muxer
+            .as_deref()
+            .is_some_and(super::ffmpeg_args::is_audio_only_muxer)
     {
         return Err("An audio-only container cannot carry this video preset; select an audio extraction preset or a compatible output format".into());
     }
@@ -318,14 +340,7 @@ pub(super) fn plan_manual_execution(
     {
         return Err("MP3 output requires an MP3 encoder; this preset selects AAC".into());
     }
-    if super::preset_output::output_type(
-        Some(preset),
-        input
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or(""),
-    ) == JobType::Video
-    {
+    if kind == JobType::Video {
         return Ok(ManualExecutionPlan {
             execution: JobExecution::Video {
                 preset: Box::new(preset.clone()),
@@ -342,33 +357,7 @@ pub(super) fn plan_manual_execution(
         .map_err(|error| format!("Cannot resolve output file address: {error}"))?;
     let working_directory = std::env::current_dir()
         .map_err(|error| format!("Cannot snapshot working directory: {error}"))?;
-    let muxer = effective_output_muxer(preset, &input, &output, policy);
-    if muxer.as_deref().is_some_and(|muxer| {
-        matches!(
-            muxer,
-            "hls"
-                | "dash"
-                | "segment"
-                | "stream_segment"
-                | "ssegment"
-                | "tee"
-                | "webm_chunk"
-                | "smoothstreaming"
-        )
-    }) {
-        return Err("Multi-file outputs require a transparent FFmpeg command".to_string());
-    }
-
     let args = build_ffmpeg_args(preset, &input, &output, true, Some(policy));
-    if muxer.as_deref() == Some("image2")
-        && output.to_string_lossy().split('%').skip(1).any(|suffix| {
-            suffix
-                .trim_start_matches(|character: char| character.is_ascii_digit())
-                .starts_with('d')
-        })
-    {
-        return Err("Image sequence outputs require a transparent FFmpeg command".to_string());
-    }
     let argument_index = u32::try_from(args.len().saturating_sub(1))
         .map_err(|_| "Too many FFmpeg arguments".to_string())?;
     let invocation = FfmpegInvocation {
@@ -385,6 +374,20 @@ pub(super) fn plan_manual_execution(
         output_path: Some(output.to_string_lossy().into_owned()),
         execution: JobExecution::Ffmpeg { invocation },
     })
+}
+
+fn has_image_sequence_pattern(path: &str) -> bool {
+    let mut characters = path.chars().peekable();
+    while let Some(character) = characters.next() {
+        if character != '%' || characters.next_if_eq(&'%').is_some() {
+            continue;
+        }
+        while characters.next_if(char::is_ascii_digit).is_some() {}
+        if characters.next_if_eq(&'d').is_some() {
+            return true;
+        }
+    }
+    false
 }
 
 fn preserves_input_duration(preset: &FFmpegPreset) -> bool {
@@ -413,11 +416,7 @@ pub(super) fn hydrate_legacy_manual_job(inner: &super::state::Inner, job_id: &st
     else {
         return;
     };
-    hydrate_legacy_job_snapshot(
-        &mut job,
-        &state.presets,
-        &state.settings.queue_output_policy,
-    );
+    hydrate_legacy_job_snapshot(&mut job, &state);
     state.jobs.insert(job_id.to_string(), job);
 }
 
@@ -445,71 +444,6 @@ pub(super) fn hydrate_legacy_jobs(inner: &super::state::Inner, job_ids: &[String
     for job_id in eligible {
         hydrate_legacy_manual_job(inner, &job_id);
     }
-}
-
-pub(super) fn hydrate_legacy_job_snapshot(
-    job: &mut crate::ffui_core::TranscodeJob,
-    presets: &[FFmpegPreset],
-    default_policy: &OutputPolicy,
-) {
-    if job.execution.is_some() || !matches!(job.source, crate::ffui_core::JobSource::Manual) {
-        return;
-    }
-    let policy = job
-        .output_policy
-        .clone()
-        .unwrap_or_else(|| default_policy.clone());
-    let preset = presets.iter().find(|preset| preset.id == job.preset_id);
-    let input = match std::path::absolute(job.input_path.as_deref().unwrap_or(&job.filename)) {
-        Ok(path) => path,
-        Err(error) => {
-            job.execution = Some(JobExecution::Invalid {
-                reason: format!("Cannot resolve legacy input file address: {error}"),
-            });
-            return;
-        }
-    };
-    let output = job
-        .output_path
-        .as_ref()
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            super::output_policy_paths::plan_video_output_path(
-                &input,
-                preset,
-                &policy,
-                |candidate| candidate.exists(),
-            )
-            .output_path
-        });
-    let output = match std::path::absolute(output) {
-        Ok(path) => path,
-        Err(error) => {
-            job.execution = Some(JobExecution::Invalid {
-                reason: format!("Cannot resolve legacy output file address: {error}"),
-            });
-            return;
-        }
-    };
-    let plan = preset.map_or_else(
-        || Err(format!("No preset found for preset id '{}'", job.preset_id)),
-        |preset| plan_manual_execution(&input, preset, &output, &policy),
-    );
-    job.output_path = plan.as_ref().ok().and_then(|plan| plan.output_path.clone());
-    let execution = plan
-        .map(|plan| plan.execution)
-        .unwrap_or_else(|reason| JobExecution::Invalid { reason });
-    if let JobExecution::Invalid { reason } = &execution {
-        job.failure_reason = Some(reason.clone());
-        super::worker_utils::append_job_log_line(job, reason.clone());
-    }
-    job.input_path = Some(input.to_string_lossy().into_owned());
-    job.output_policy = Some(policy);
-    job.execution = Some(execution);
-    super::worker_utils::append_job_log_line(
-        job,
-        "Legacy execution configuration was snapshotted before running".to_string(),
-    );
 }
 
 #[cfg(test)]

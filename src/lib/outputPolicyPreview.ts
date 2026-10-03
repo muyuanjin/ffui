@@ -175,7 +175,7 @@ function templateOutputOptions(tokens: string[], start: number, outputIndex: num
   return options;
 }
 
-function inferTemplateOutputFormat(template: string): string | null {
+function finalTemplateOutputOptions(template: string): Array<[string, string]> | null {
   const tokens = splitTemplateArgs(template.trim());
   if (/^(ffmpeg|ffmpeg\.exe)$/i.test(tokens[0] ?? "")) tokens.shift();
   const outputIndex = tokens.findIndex((token) => token === "OUTPUT");
@@ -190,7 +190,11 @@ function inferTemplateOutputFormat(template: string): string | null {
   }
 
   const start = lastInputIndex == null ? 0 : lastInputIndex + 1;
-  const options = templateOutputOptions(tokens, start, outputIndex);
+  return templateOutputOptions(tokens, start, outputIndex);
+}
+
+function inferTemplateOutputFormat(template: string): string | null {
+  const options = finalTemplateOutputOptions(template);
   if (!options) return null;
   const format = options.filter(([option]) => option === "-f").slice(-1)[0]?.[1] ?? null;
 
@@ -263,7 +267,12 @@ export function inferPresetOutputKind(
     }
   }
   if (muxer === "image2" || (muxer && outputMediaKindForExtension(muxer) === "image")) return "image";
-  if (noVideo || audioOnlyMaps(maps) || (muxer && outputMediaKindForExtension(muxer) === "audio")) return "audio";
+  if (
+    noVideo ||
+    audioOnlyMaps(maps) ||
+    (muxer && ["mp3", "aac", "adts", "wav", "aiff", "ac3", "flac", "opus"].includes(muxer.trim().toLowerCase()))
+  )
+    return "audio";
   return videoCodec ? "video" : null;
 }
 
@@ -271,26 +280,15 @@ function shouldFallbackWebmForPreview(preset: FFmpegPreset | null | undefined, i
   if (!preset) return true;
   const inputIsWebm = inputExtension.toLowerCase() === "webm";
   if (preset.advancedEnabled && preset.ffmpegTemplate?.trim()) {
-    const tokens = splitTemplateArgs(preset.ffmpegTemplate);
-    const outputIndex = tokens.indexOf("OUTPUT");
-    if (outputIndex < 0) return false;
-    let start = 0;
-    for (let index = 0; index + 1 < outputIndex; index += 1) {
-      if (tokens[index] === "-i") {
-        start = index + 2;
-        index += 1;
-      }
-    }
+    const options = finalTemplateOutputOptions(preset.ffmpegTemplate);
+    if (!options) return false;
     let video: string | null = null;
     let audio: string | null = null;
-    for (let index = start; index + 1 < outputIndex; index += 1) {
-      if (tokens[index] === "-c:v") {
-        video = tokens[index + 1].trim().toLowerCase();
-        index += 1;
-      } else if (tokens[index] === "-c:a") {
-        audio = tokens[index + 1].trim().toLowerCase();
-        index += 1;
-      }
+    for (const [option, value] of options) {
+      const codec = value.trim().toLowerCase();
+      if (["-c", "-codec"].includes(option)) video = audio = codec;
+      else if (["-vcodec", "-c:v", "-codec:v", "-c:v:0", "-codec:v:0"].includes(option)) video = codec;
+      else if (["-acodec", "-c:a", "-codec:a", "-c:a:0", "-codec:a:0"].includes(option)) audio = codec;
     }
     if (!video || !audio) return false;
     const videoOk =

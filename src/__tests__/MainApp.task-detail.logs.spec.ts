@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick, defineComponent, inject, provide, ref, h } from "vue";
 import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
@@ -40,6 +40,7 @@ vi.mock("@/lib/backend", () => {
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadJobDetail: vi.fn(async () => null),
+    cleanupFallbackPreviewFramesAsync: vi.fn(async () => true),
     loadSmartDefaultPresets: vi.fn(async () => []),
     loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
@@ -170,11 +171,118 @@ describe("MainApp task detail surface - logs", () => {
   beforeEach(() => {
     (window as any).__TAURI_IPC__ = {};
     vi.mocked(hasTauri).mockReturnValue(false);
-    vi.mocked(loadJobDetail).mockResolvedValue(null);
+    vi.mocked(loadJobDetail).mockReset().mockResolvedValue(null);
     (navigator as any).clipboard = {
       writeText: vi.fn().mockResolvedValue(undefined),
     };
   });
+
+  it("shows read failures, keeps terminal reopen retryable, and renders successful empty logs", async () => {
+    vi.mocked(hasTauri).mockReturnValue(true);
+    vi.mocked(loadJobDetail).mockClear();
+    vi.mocked(loadJobDetail).mockRejectedValue(new Error("get_job_detail transport failed"));
+    const job: TranscodeJob = {
+      id: "failed-log-read",
+      filename: "music.wav",
+      type: "audio",
+      source: "manual",
+      originalSizeMB: 1,
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+    };
+    const wrapper = mountMainApp();
+    const vm = withMainAppVmCompat(wrapper);
+    setJobsOnVm(vm, [job]);
+    vm.dialogManager.openJobDetail(job);
+    await flushPromises();
+    const error = () => document.querySelector('[data-testid="task-detail-log-error"]');
+    expect(error()?.textContent).toContain("Unable to load logs");
+    expect(error()?.textContent).toContain("get_job_detail transport failed");
+    expect(document.querySelector('[data-testid="task-detail-log-empty"]')).toBeNull();
+    vm.dialogManager.jobDetailOpen.value = false;
+    await nextTick();
+    vm.dialogManager.jobDetailOpen.value = true;
+    await flushPromises();
+    expect(loadJobDetail).toHaveBeenCalledTimes(2);
+    vi.mocked(loadJobDetail).mockResolvedValue({ ...job, logs: [] });
+    const retry = document.querySelector('[data-testid="task-detail-log-retry"]') as HTMLButtonElement;
+    retry.click();
+    await flushPromises();
+    expect(loadJobDetail).toHaveBeenCalledTimes(3);
+    expect(error()).toBeNull();
+    expect(document.querySelector('[data-testid="task-detail-log-empty"]')?.textContent).toContain("No logs recorded");
+    wrapper.unmount();
+  });
+
+  it.each([
+    ["completed", false],
+    ["failed", false],
+    ["completed", true],
+    ["failed", true],
+  ] as const)(
+    "displays and copies final %s run logs after a delayed live snapshot, reopened=%s",
+    async (status, reopened) => {
+      vi.mocked(hasTauri).mockReturnValue(true);
+      const liveJob: TranscodeJob = {
+        id: "terminal-log-refresh",
+        filename: "music.wav",
+        type: "audio",
+        source: "manual",
+        originalSizeMB: 1,
+        presetId: "p1",
+        status: "processing",
+        progress: 50,
+        logs: [],
+      };
+      const staleDetail = { ...liveJob, runs: [{ command: "ffmpeg first", logs: ["start"] }] };
+      const finalJob = { ...liveJob, status, progress: 100 };
+      const finalDetail = {
+        ...finalJob,
+        runs: [
+          { command: "ffmpeg first", logs: ["start"] },
+          { command: "ffmpeg retry", logs: ["FINAL STDERR"] },
+        ],
+      };
+      let resolveRead!: (detail: TranscodeJob) => void;
+      vi.mocked(loadJobDetail)
+        .mockImplementationOnce(
+          () =>
+            new Promise<TranscodeJob>((resolve) => {
+              resolveRead = resolve;
+            }),
+        )
+        .mockResolvedValue(finalDetail);
+      const wrapper = mountMainApp();
+      const vm = withMainAppVmCompat(wrapper);
+      setJobsOnVm(vm, [liveJob]);
+      vm.dialogManager.openJobDetail(liveJob);
+      await flushPromises();
+      if (reopened) {
+        vm.dialogManager.jobDetailOpen.value = false;
+        await nextTick();
+      }
+      setJobsOnVm(vm, [finalJob]);
+      if (reopened) {
+        vm.dialogManager.selectedJob.value.status = status;
+        await nextTick();
+        vm.dialogManager.jobDetailOpen.value = true;
+      } else vm.selectedJobForDetail = finalJob;
+      await nextTick();
+      expect(loadJobDetail).toHaveBeenCalledTimes(1);
+      resolveRead(staleDetail);
+      await flushPromises();
+      expect(loadJobDetail).toHaveBeenCalledTimes(2);
+      expect(document.querySelector('[data-testid="task-detail-log"]')?.textContent).toContain("FINAL STDERR");
+      expect(document.querySelector('[data-testid="task-detail-log-error"]')).toBeNull();
+      const copyButton = document.querySelector('[data-testid="task-detail-copy-logs"]') as HTMLButtonElement;
+      copyButton.click();
+      await flushPromises();
+      expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("start\nFINAL STDERR");
+      wrapper.unmount();
+    },
+  );
 
   it("highlights command and logs while preserving exact text and copy semantics", async () => {
     const rawCommand = 'ffmpeg -i "in" -vf scale=1280:-2 -c:v libx264 out';

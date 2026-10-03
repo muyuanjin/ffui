@@ -328,6 +328,18 @@ fn media_preview_avif_container_brand_survives_an_unknown_extension() {
 fn media_preview_wire_contract_matches_frontend_fixture() {
     let fixture: Value =
         serde_json::from_str(include_str!("../../../tests/media-preview-contract.json")).unwrap();
+    for case in fixture["classification"]
+        .as_array()
+        .expect("classification cases")
+    {
+        let info = parse_preview_info(&case["probe"]).expect("playable probe");
+        assert_eq!(
+            serde_json::to_value(info.kind).expect("kind"),
+            case["kind"],
+            "{}",
+            case["path"]
+        );
+    }
     for value in fixture["info"].as_array().unwrap() {
         let info: MediaPreviewInfo = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(info).unwrap(), *value);

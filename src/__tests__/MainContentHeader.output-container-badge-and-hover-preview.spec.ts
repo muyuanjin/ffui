@@ -8,6 +8,7 @@ import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { OutputPolicy } from "@/types";
+import contract from "../../src-tauri/tests/output-media-policy-contract.json";
 
 const i18n = createI18n({
   legacy: false,
@@ -19,6 +20,49 @@ const i18n = createI18n({
 });
 
 describe("MainContentHeader output container badge + hover preview", () => {
+  it.each(contract.webmCases.filter((entry) => "declared" in entry))(
+    "shows final-output codec semantics in the hover preview: $template",
+    (entry) => {
+      const wrapper = mount(MainContentHeader, {
+        props: {
+          activeTab: "queue",
+          currentTitle: "Queue",
+          currentSubtitle: "",
+          jobsLength: 0,
+          completedCount: 0,
+          manualJobPresetId: "advanced",
+          queueViewModeModel: "detail",
+          queueOutputPolicy: {
+            container: { mode: "byMedia", video: "webm" },
+            directory: { mode: "sameAsInput" },
+            filename: { suffix: ".compressed" },
+          },
+          presets: [
+            {
+              id: "advanced",
+              name: "Advanced",
+              advancedEnabled: true,
+              outputKind: "video",
+              ffmpegTemplate: "template" in entry ? entry.template : undefined,
+            },
+          ] as any,
+        },
+        global: {
+          plugins: [i18n],
+          stubs: {
+            HoverCard: { template: "<div><slot /></div>" },
+            HoverCardTrigger: { template: "<div><slot /></div>" },
+            HoverCardContent: { template: "<div><slot /></div>" },
+            Dialog: true,
+          },
+        },
+      });
+      expect(wrapper.get('[data-testid="ffui-queue-output-settings-hover-preview"]').text()).toContain(
+        `input.compressed.${entry.extension}`,
+      );
+      wrapper.unmount();
+    },
+  );
   it("does not present the unified preset container as a universal default when input routes differ", () => {
     const wrapper = mount(MainContentHeader, {
       props: {

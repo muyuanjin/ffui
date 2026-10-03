@@ -137,8 +137,7 @@ fn legacy_template_only_records_an_explicit_output_binding() {
         job.execution = None;
         super::super::super::manual_execution::hydrate_legacy_job_snapshot(
             &mut job,
-            &[preset],
-            &crate::ffui_core::domain::OutputPolicy::default(),
+            &runtime.inner.state.lock_unpoisoned(),
         );
         assert_eq!(job.output_path, bound);
         assert_eq!(job.output_path.is_some(), template.ends_with(" OUTPUT"));

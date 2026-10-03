@@ -11,6 +11,46 @@
     { "input": "C:\\素材\\Data", "type": "other", "extension": "mp4", "muxer": null }
   ],
   "webmCases": [
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -codec:v libx264 -codec:a aac OUTPUT",
+      "declared": "video",
+      "extension": "mkv"
+    },
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -c:v libx264 -c:a aac side.mp4 OUTPUT",
+      "declared": "video",
+      "extension": "webm"
+    },
+    {
+      "input": "input.webm",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -codec libx264 -codec:v:0 libvpx-vp9 -codec:a:0 libopus OUTPUT",
+      "declared": "video",
+      "extension": "webm"
+    },
+    {
+      "input": "input.webm",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -vcodec libvpx-vp9 -acodec libopus -codec libx264 OUTPUT",
+      "declared": "video",
+      "extension": "mkv"
+    },
+    {
+      "input": "input.mp4",
+      "videoCodec": "libx264",
+      "audioCodec": "copy",
+      "template": "ffmpeg -i INPUT -metadata title=-c:v -codec:v libvpx-vp9 -codec:a libopus -- side.webm OUTPUT",
+      "declared": "video",
+      "extension": "webm"
+    },
     { "input": "input.mp4", "videoCodec": "libx264", "audioCodec": "aac", "extension": "mkv" },
     { "input": "input.webm", "videoCodec": "copy", "audioCodec": "copy", "extension": "webm" },
     { "input": "input.mp4", "videoCodec": "copy", "audioCodec": "copy", "extension": "mkv" },

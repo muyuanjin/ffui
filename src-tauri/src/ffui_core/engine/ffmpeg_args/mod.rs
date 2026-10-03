@@ -19,7 +19,9 @@ pub(super) use builder_tail::{
     apply_audio_args, apply_audio_filter_args, apply_container_args, apply_global_args,
     apply_mapping_disposition_and_metadata_args,
 };
-pub(super) use container::{infer_output_extension, normalize_container_format};
+pub(super) use container::{
+    infer_output_extension, is_audio_only_muxer, normalize_container_format,
+};
 #[cfg(test)]
 pub(super) use detect::parse_ffprobe_frame_rate;
 pub(super) use detect::{

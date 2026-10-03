@@ -9,6 +9,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { OutputPolicy, FFmpegPreset } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import contract from "../../../src-tauri/tests/output-media-policy-contract.json";
 
 const backendMocks = vi.hoisted(() => ({
   previewOutputPath: vi.fn(),
@@ -57,6 +58,30 @@ const makePolicy = (container: OutputPolicy["container"]): OutputPolicy => ({
 });
 
 describe("OutputPolicyEditor preview", () => {
+  it.each(contract.webmCases.filter((entry) => "declared" in entry))(
+    "retains the matching local WebM preview when IPC fails: $template",
+    async (entry) => {
+      backendMocks.previewOutputPath.mockRejectedValue(new Error("preview IPC failed"));
+      const wrapper = mount(OutputPolicyEditor, {
+        props: {
+          modelValue: makePolicy({ mode: "byMedia", video: "webm" }),
+          previewPresetId: "advanced",
+          previewPreset: {
+            id: "advanced",
+            advancedEnabled: true,
+            outputKind: "video",
+            ffmpegTemplate: "template" in entry ? entry.template : undefined,
+          } as FFmpegPreset,
+        },
+        global: { plugins: [makeI18n()] },
+      });
+      await vi.advanceTimersByTimeAsync(250);
+      expect(wrapper.get('[data-testid="output-policy-preview-output"]').text()).toContain(
+        `.compressed.${entry.extension}`,
+      );
+      wrapper.unmount();
+    },
+  );
   it("preserves a unified format selector without converting it to per-output mode", async () => {
     const wrapper = mount(OutputPolicyEditor, {
       props: { modelValue: makePolicy({ mode: "force", format: "mp3" }) },

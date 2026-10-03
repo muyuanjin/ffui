@@ -27,12 +27,10 @@ export type ShellDomain = ReturnType<typeof useMainAppShell> & {
   currentSubtitle: ComputedRef<string>;
 };
 
-export type DialogsDomain = ReturnType<typeof useMainAppDialogs> & {
-  batchCompress: ReturnType<typeof useMainAppBatchCompress>;
-  jobDetailJob: ReturnType<typeof useJobLog>["jobDetailJob"];
-  jobDetailLogText: ReturnType<typeof useJobLog>["jobDetailLogText"];
-  highlightedLogHtml: ReturnType<typeof useJobLog>["highlightedLogHtml"];
-};
+export type DialogsDomain = ReturnType<typeof useMainAppDialogs> &
+  ReturnType<typeof useJobLog> & {
+    batchCompress: ReturnType<typeof useMainAppBatchCompress>;
+  };
 
 export type QueueDomain = UseMainAppQueueReturn & {
   selectionBarPinned: ComputedRef<boolean>;

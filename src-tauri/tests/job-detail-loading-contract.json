@@ -1,0 +1,15 @@
+{
+  "command": "get_job_detail",
+  "payload": { "jobId": "历史-音频" },
+  "job": {
+    "id": "历史-音频",
+    "filename": "C:\\音乐\\track.wav",
+    "type": "audio",
+    "source": "manual",
+    "originalSizeMB": 1.0,
+    "presetId": "audio",
+    "status": "completed",
+    "progress": 100.0,
+    "logs": []
+  }
+}

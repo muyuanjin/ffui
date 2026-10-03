@@ -107,4 +107,21 @@ describe("parseFfprobeJson", () => {
     expect(result.file).toBeNull();
     expect(result.raw).toBeNull();
   });
+
+  it("retains cover and still-image dispositions without promoting absent flags", () => {
+    const result = parseFfprobeJson(
+      JSON.stringify({
+        streams: [
+          { codec_type: "video", disposition: { attached_pic: 1 } },
+          { codec_type: "video", disposition: { still_image: 1 } },
+          { codec_type: "video" },
+        ],
+      }),
+    );
+    expect(result.streams.map(({ attachedPic, stillImage }) => ({ attachedPic, stillImage }))).toEqual([
+      { attachedPic: true, stillImage: false },
+      { attachedPic: false, stillImage: true },
+      { attachedPic: false, stillImage: false },
+    ]);
+  });
 });

@@ -23,6 +23,68 @@ fn generate_video_with_audio(input: &Path) {
 }
 
 #[test]
+fn managed_image_copy_publishes_literal_escaped_percent_filenames() {
+    let directory = tempfile::tempdir().expect("directory");
+    let input = directory.path().join("input.png");
+    generate(
+        &["-f", "lavfi", "-i", "color=c=red:s=16x16", "-frames:v", "1"],
+        &input,
+    );
+    for (index, prefix) in ["frame%%d-", "frame%%03d-"].into_iter().enumerate() {
+        let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("image");
+        preset.video.encoder = EncoderType::Copy;
+        preset.container = Some(ContainerConfig {
+            format: Some("png".into()),
+            movflags: None,
+        });
+        let runtime = engine(preset);
+        runtime
+            .inner
+            .state
+            .lock_unpoisoned()
+            .settings
+            .queue_output_policy
+            .filename
+            .prefix = Some(prefix.into());
+        let job = runtime.enqueue_transcode_job(
+            input.to_string_lossy().into_owned(),
+            JobType::Image,
+            JobSource::Manual,
+            0.0,
+            None,
+            "image".into(),
+        );
+        assert!(
+            matches!(job.execution, Some(JobExecution::Ffmpeg { ref invocation }) if matches!(invocation.output, FfmpegOutput::ManagedFile { .. }))
+        );
+        process(&runtime, &job.id);
+        let stored = runtime.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+        assert_eq!(
+            stored.status,
+            JobStatus::Completed,
+            "{:?}",
+            stored.failure_reason
+        );
+        let output = Path::new(stored.output_path.as_deref().expect("output"));
+        assert!(
+            output
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("filename")
+                .starts_with(prefix)
+        );
+        assert_eq!(
+            fs::read(output).expect("output"),
+            fs::read(&input).expect("input")
+        );
+        assert_eq!(
+            fs::read_dir(directory.path()).expect("files").count(),
+            index + 2
+        );
+    }
+}
+
+#[test]
 fn implicit_or_matching_muxers_still_reject_known_image_and_audio_codec_conflicts() {
     for (template, kind, format) in [
         (
@@ -421,4 +483,77 @@ fn mapped_structured_audio_from_video_uses_managed_execution_without_video_resum
         JobStatus::Completed
     );
     assert!(Path::new(job.output_path.as_deref().expect("output")).exists());
+}
+
+#[test]
+fn structured_video_copy_publishes_ogg_without_using_audio_display_classification() {
+    for forced in [false, true] {
+        let directory = tempfile::tempdir().expect("directory");
+        let input = directory.path().join("theora.mkv");
+        generate(
+            &[
+                "-f",
+                "lavfi",
+                "-i",
+                "color=c=red:s=32x32:d=0.2",
+                "-c:v",
+                "libtheora",
+            ],
+            &input,
+        );
+        let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("ogg");
+        preset.video.encoder = EncoderType::Copy;
+        if !forced {
+            preset.container = Some(ContainerConfig {
+                format: Some("ogg".into()),
+                movflags: None,
+            });
+        }
+        let runtime = engine(preset);
+        if forced {
+            runtime
+                .inner
+                .state
+                .lock_unpoisoned()
+                .settings
+                .queue_output_policy
+                .container = OutputContainerPolicy::Force {
+                format: "ogg".into(),
+            };
+        }
+        let job = runtime.enqueue_transcode_job(
+            input.to_string_lossy().into_owned(),
+            JobType::Video,
+            JobSource::Manual,
+            0.0,
+            None,
+            "ogg".into(),
+        );
+        assert!(matches!(job.execution, Some(JobExecution::Video { .. })));
+        process(&runtime, &job.id);
+        let completed = runtime.inner.state.lock_unpoisoned().jobs[&job.id].clone();
+        assert_eq!(
+            completed.status,
+            JobStatus::Completed,
+            "{:?}",
+            completed.failure_reason
+        );
+        let output = Path::new(completed.output_path.as_deref().expect("output"));
+        assert_eq!(output.extension().unwrap(), "ogg");
+        let bytes = fs::read(output).expect("Ogg video");
+        assert!(bytes.starts_with(b"OggS"));
+        assert!(bytes.windows(7).any(|window| window == b"\x80theora"));
+        let decoded = Command::new(ffmpeg_program())
+            .args(["-v", "error", "-i"])
+            .arg(output)
+            .args(["-map", "0:v:0", "-f", "null", "-"])
+            .stdin(Stdio::null())
+            .output()
+            .expect("decode video output");
+        assert!(
+            decoded.status.success(),
+            "{}",
+            String::from_utf8_lossy(&decoded.stderr)
+        );
+    }
 }

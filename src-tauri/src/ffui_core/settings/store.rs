@@ -179,11 +179,14 @@ impl SettingsStore {
             bail!("Current settings file is read-only");
         }
         let mut raw = envelope(&latest.raw)?;
-        let incoming = envelope(&decoded.raw)?;
-        merge_import(&mut raw, &incoming);
-        if decoded.legacy {
-            migrate_legacy_containers(&mut raw, &decoded)?;
+        if latest.legacy {
+            migrate_legacy_containers(&mut raw, &latest)?;
         }
+        let mut incoming = envelope(&decoded.raw)?;
+        if decoded.legacy {
+            migrate_legacy_containers(&mut incoming, &decoded)?;
+        }
+        merge_import(&mut raw, &incoming);
         self.write(raw)
     }
 

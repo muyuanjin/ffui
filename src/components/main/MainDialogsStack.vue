@@ -36,6 +36,9 @@ const props = withDefaults(
     jobDetailJob?: TranscodeJob | null;
     jobDetailLogText: string;
     highlightedLogHtml: string;
+    jobDetailLogLoading?: boolean;
+    jobDetailLogError?: string | null;
+    jobDetailLogLoaded?: boolean;
     previewUrl: string | null;
     previewPath: string | null;
     previewSourceMode: PreviewSourceMode;
@@ -51,6 +54,9 @@ const props = withDefaults(
   }>(),
   {
     jobDetailJob: null,
+    jobDetailLogLoading: false,
+    jobDetailLogError: null,
+    jobDetailLogLoaded: false,
     presetsPendingBatchDelete: () => [],
     queueDeleteConfirmOpen: false,
     queueDeleteConfirmSelectedCount: 0,
@@ -104,6 +110,7 @@ const emit = defineEmits<{
   (e: "confirmQueueDeleteTerminalOnly"): void;
   (e: "cancelQueueDelete"): void;
   (e: "closeJobDetail"): void;
+  (e: "retryJobDetailLog"): void;
   (e: "handleJobDetailExpandPreview"): void;
   (e: "measureJobVmaf", payload: { jobId: string; trimSeconds: number | null }): void;
   (e: "copyToClipboard", value: string): void;
@@ -190,6 +197,9 @@ const openCompareFromJobDetail = () => {
     :preset="selectedJobPreset"
     :job-detail-log-text="jobDetailLogText"
     :highlighted-log-html="highlightedLogHtml"
+    :log-loading="props.jobDetailLogLoading"
+    :log-error="props.jobDetailLogError"
+    :log-loaded="props.jobDetailLogLoaded"
     :ffmpeg-resolved-path="ffmpegResolvedPath"
     @update:open="
       (val) => {
@@ -200,6 +210,7 @@ const openCompareFromJobDetail = () => {
     @compare="openCompareFromJobDetail"
     @copy-command="emit('copyToClipboard', dialogManager.selectedJob.value?.ffmpegCommand || '')"
     @measure-vmaf="emit('measureJobVmaf', $event)"
+    @retry-log="emit('retryJobDetailLog')"
   />
 
   <BatchDetailDialog

@@ -198,8 +198,29 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
 }
 
 fn classify_job(state: &EngineState, job: &TranscodeJob) -> ParallelismClass {
+    match &job.execution {
+        Some(crate::ffui_core::JobExecution::Video { preset }) => return classify_preset(preset),
+        Some(crate::ffui_core::JobExecution::Ffmpeg { invocation }) => {
+            return classify_args(&invocation.args);
+        }
+        Some(crate::ffui_core::JobExecution::Invalid { .. }) => return ParallelismClass::Cpu,
+        None => {}
+    }
     let preset = state.presets.iter().find(|p| p.id == job.preset_id);
     preset.map_or(ParallelismClass::Cpu, classify_preset)
+}
+
+fn classify_args(args: &[String]) -> ParallelismClass {
+    if args.windows(2).any(|pair| {
+        (matches!(pair[0].as_str(), "-c" | "-codec" | "-vcodec" | "-acodec")
+            || pair[0].starts_with("-c:")
+            || pair[0].starts_with("-codec:"))
+            && is_hardware_encoder_name(&pair[1])
+    }) {
+        ParallelismClass::Hardware
+    } else {
+        ParallelismClass::Cpu
+    }
 }
 
 fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {

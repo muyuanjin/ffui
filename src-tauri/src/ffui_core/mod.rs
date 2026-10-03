@@ -44,7 +44,7 @@ pub(crate) use data_root::{
     set_desired_mode as set_data_root_mode, tools_dir, ui_fonts_dir,
 };
 #[cfg(test)]
-pub(crate) use data_root::{override_data_root_dir_for_tests, presets_path};
+pub(crate) use data_root::{override_data_root_dir_for_tests, presets_path, settings_path};
 pub use domain::*;
 #[cfg(test)]
 pub(crate) use engine::lock_persist_test_mutex_for_tests;

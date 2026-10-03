@@ -178,7 +178,7 @@ impl Default for OutputFilenamePolicy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Type, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum PreserveFileTimesPolicy {
     /// Backward-compatible mode: true = preserve all, false = preserve none.
@@ -192,6 +192,52 @@ pub enum PreserveFileTimesPolicy {
         #[serde(default)]
         accessed: bool,
     },
+}
+
+impl<'de> Deserialize<'de> for PreserveFileTimesPolicy {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        struct PolicyVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for PolicyVisitor {
+            type Value = PreserveFileTimesPolicy;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a boolean or file time preservation options")
+            }
+
+            fn visit_bool<Error>(self, value: bool) -> Result<Self::Value, Error> {
+                Ok(PreserveFileTimesPolicy::Bool(value))
+            }
+
+            fn visit_map<Map>(self, map: Map) -> Result<Self::Value, Map::Error>
+            where
+                Map: serde::de::MapAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                struct Options {
+                    #[serde(default)]
+                    created: bool,
+                    #[serde(default)]
+                    modified: bool,
+                    #[serde(default)]
+                    accessed: bool,
+                }
+
+                let options =
+                    Options::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                Ok(PreserveFileTimesPolicy::Detailed {
+                    created: options.created,
+                    modified: options.modified,
+                    accessed: options.accessed,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(PolicyVisitor)
+    }
 }
 
 impl Default for PreserveFileTimesPolicy {

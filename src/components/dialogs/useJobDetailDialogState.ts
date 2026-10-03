@@ -27,6 +27,9 @@ export type JobDetailDialogProps = {
   preset: FFmpegPreset | null;
   jobDetailLogText: string;
   highlightedLogHtml: string;
+  logLoading?: boolean;
+  logError?: string | null;
+  logLoaded?: boolean;
   /**
    * Resolved FFmpeg executable path from backend/tool status (if known).
    * Used to expand bare `ffmpeg` program tokens into the concrete path in

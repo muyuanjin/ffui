@@ -1,4 +1,4 @@
-import { computed, ref, type Ref, watch } from "vue";
+import { computed, onScopeDispose, ref, type Ref, watch } from "vue";
 import type { JobLogLineLike, TranscodeJob } from "@/types";
 import { hasTauri, loadJobDetail } from "@/lib/backend";
 import { parseAndHighlightLog } from "@/composables/jobLogHighlight";
@@ -74,6 +74,15 @@ export interface UseJobLogReturn {
   jobDetailJob: Ref<TranscodeJob | null>;
   /** Highlighted HTML output for rendering in the UI. */
   highlightedLogHtml: Ref<string>;
+  jobDetailLogLoading: Ref<boolean>;
+  jobDetailLogError: Ref<string | null>;
+  jobDetailLogLoaded: Ref<boolean>;
+  retryJobDetailLog: () => Promise<void>;
+}
+
+interface PendingHydration {
+  started: boolean;
+  promise: Promise<void>;
 }
 
 /**
@@ -97,31 +106,55 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   // keep high-frequency updates cheap, so UI must not treat `selectedJob.logs`
   // as authoritative in Tauri mode.
   const hydratedDetailById = ref<Record<string, TranscodeJob | undefined>>({});
-  const hydrationInFlightById = new Map<string, Promise<void>>();
+  const hydrationInFlightById = new Map<string, PendingHydration>();
+  const hydrationRefreshPendingById = new Set<string>();
+  onScopeDispose(() => hydrationRefreshPendingById.clear(), true);
+  const loadStateById = ref<Record<string, { status: "loading" | "loaded" } | { status: "failed"; error: string }>>({});
 
-  const maybeHydrateFromBackend = async (job: TranscodeJob | null, options?: { force?: boolean }) => {
+  const maybeHydrateFromBackend = async (
+    job: TranscodeJob | null,
+    request?: { force?: boolean; refreshAfterPending?: boolean },
+  ): Promise<void> => {
     if (!job) return;
     if (!hasTauri()) return;
     if (!job.id) return;
-    if (!options?.force && hydratedDetailById.value[job.id]) return;
+    if (!request?.force && hydratedDetailById.value[job.id]) return;
     const existingInFlight = hydrationInFlightById.get(job.id);
     if (existingInFlight) {
-      return;
+      if (request?.refreshAfterPending && existingInFlight.started) hydrationRefreshPendingById.add(job.id);
+      return existingInFlight.promise;
     }
 
-    try {
-      const inFlight = (async () => {
-        const full = await loadJobDetail(job.id);
-        if (!full) return;
-        hydratedDetailById.value = { ...hydratedDetailById.value, [job.id]: full };
-      })();
-      hydrationInFlightById.set(job.id, inFlight);
-      await inFlight;
-    } catch (error) {
-      console.error("Failed to load job detail from backend", error);
-    } finally {
-      hydrationInFlightById.delete(job.id);
-    }
+    loadStateById.value[job.id] = { status: "loading" };
+    const inFlight: PendingHydration = {
+      started: false,
+      promise: Promise.resolve()
+        .then(() => {
+          inFlight.started = true;
+          return loadJobDetail(job.id);
+        })
+        .then((full) => {
+          if (!full) throw new Error("Job detail is unavailable");
+          hydratedDetailById.value = { ...hydratedDetailById.value, [job.id]: full };
+          loadStateById.value[job.id] = { status: "loaded" };
+        })
+        .catch((error: unknown) => {
+          loadStateById.value[job.id] = {
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+          };
+        })
+        .finally(() => {
+          hydrationInFlightById.delete(job.id);
+          const refreshRequested = hydrationRefreshPendingById.delete(job.id);
+          const current = selectedJob.value;
+          if (refreshRequested && options.detailOpen?.value && current?.id === job.id) {
+            return maybeHydrateFromBackend(current, { force: true });
+          }
+        }),
+    };
+    hydrationInFlightById.set(job.id, inFlight);
+    return inFlight.promise;
   };
 
   watch(
@@ -139,13 +172,16 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
       jobStatus: selectedJob.value?.status ?? null,
       intervalMs: getPollIntervalMs(),
     }),
-    ({ open, jobId, jobStatus, intervalMs }, _prev, onCleanup) => {
+    ({ open, jobId, jobStatus, intervalMs }, previous, onCleanup) => {
       if (!hasTauri()) return;
       if (!open) return;
       if (!jobId) return;
+      void maybeHydrateFromBackend(selectedJob.value, {
+        force: true,
+        refreshAfterPending:
+          previous !== undefined && (!previous.open || previous.jobId !== jobId || previous.jobStatus !== jobStatus),
+      });
       if (!jobStatus || TERMINAL_STATUSES.has(jobStatus)) return;
-
-      void maybeHydrateFromBackend(selectedJob.value, { force: true });
 
       const timer = setInterval(() => {
         const current = selectedJob.value;
@@ -225,10 +261,24 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
     return parseAndHighlightLog(jobDetailLogText.value);
   });
 
+  const selectedLoadState = computed(() => (selectedJob.value ? loadStateById.value[selectedJob.value.id] : undefined));
+  const jobDetailLogLoading = computed(() => selectedLoadState.value?.status === "loading");
+  const jobDetailLogError = computed(() =>
+    selectedLoadState.value?.status === "failed" ? selectedLoadState.value.error : null,
+  );
+  const jobDetailLogLoaded = computed(() =>
+    hasTauri() ? selectedLoadState.value?.status === "loaded" : selectedJob.value !== null,
+  );
+  const retryJobDetailLog = () => maybeHydrateFromBackend(selectedJob.value, { force: true });
+
   return {
     jobDetailLogText,
     jobDetailJob,
     highlightedLogHtml,
+    jobDetailLogLoading,
+    jobDetailLogError,
+    jobDetailLogLoaded,
+    retryJobDetailLog,
   };
 }
 

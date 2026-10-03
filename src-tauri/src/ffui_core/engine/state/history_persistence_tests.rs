@@ -2,6 +2,63 @@ use super::*;
 use crate::ffui_core::engine::{TranscodingEngine, state_persist};
 use crate::test_support::make_transcode_job_for_tests;
 
+#[test]
+fn legacy_restore_persists_invalid_capability_without_replacing_unavailable_output_defaults() {
+    let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+    state_persist::reset_queue_persist_state_for_tests();
+    let directory = tempfile::tempdir().expect("directory");
+    let _data_root =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = directory.path().join("ffui.queue-state.json");
+    let _sidecar = crate::ffui_core::override_queue_state_sidecar_path_for_tests(path.clone());
+    let contract: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/manual-recovery-capability-contract.json"
+    ))
+    .expect("contract");
+    let mut legacy = make_transcode_job_for_tests("legacy", JobStatus::Queued, 0.0, None);
+    legacy.filename = directory
+        .path()
+        .join("input.mp4")
+        .to_string_lossy()
+        .into_owned();
+    let mut valid = legacy.clone();
+    valid.id = "valid-policy".into();
+    valid.output_policy = Some(Default::default());
+    let snapshot = QueueStateLite {
+        snapshot_revision: 1,
+        jobs: vec![(&legacy).into(), (&valid).into()],
+    };
+    std::fs::write(&path, serde_json::to_vec(&snapshot).expect("snapshot")).expect("history");
+    for _ in 0..2 {
+        let engine = TranscodingEngine::new_for_tests();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.presets =
+                std::sync::Arc::new(vec![crate::test_support::make_ffmpeg_preset_for_tests(
+                    "preset-1",
+                )]);
+            state.settings.queue_persistence_mode = QueuePersistenceMode::CrashRecoveryLite;
+            state.unavailable_settings =
+                vec![serde_json::from_value(contract["unavailable"].clone()).expect("capability")];
+        }
+        restore_jobs_from_persisted_queue(&engine.inner);
+        assert!(engine.queue_restore_error().is_none());
+        let restored = engine.job_detail(&legacy.id).expect("restored legacy job");
+        assert_eq!(
+            serde_json::to_value(restored.execution).expect("execution"),
+            contract["invalidExecution"]
+        );
+        assert!(restored.output_policy.is_none());
+        assert!(matches!(
+            engine.job_detail(&valid.id).expect("valid job").execution,
+            Some(crate::ffui_core::JobExecution::Video { .. })
+        ));
+        engine
+            .force_persist_queue_state_lite_now()
+            .expect("persist capability");
+    }
+}
+
 fn write_history(path: &std::path::Path) -> Vec<TranscodeJob> {
     let jobs: Vec<_> = [
         JobStatus::Completed,

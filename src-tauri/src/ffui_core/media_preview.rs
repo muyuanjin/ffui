@@ -317,18 +317,16 @@ fn prepare_in_cache_with_limits(
     let publication_lock = cache::lock(root);
     {
         let _guard = publication_lock.lock_unpoisoned();
+        cache::reclaim(root, Some(&final_path), limits.cache_bytes)?;
         if is_non_empty_regular_file(&final_path) {
             if file_fingerprint(source) != (size, modified) {
                 bail!("preview source changed while selecting cached media; reopen the preview");
             }
-            cache::reclaim(root, Some(&final_path), limits.cache_bytes)?;
             return Ok(final_path);
         }
     }
-    let temporary = tempfile::Builder::new()
-        .suffix(".part")
-        .tempfile_in(&frames)?;
-    let args = conversion_args(source, kind, temporary.path(), limits.output_bytes)?;
+    let temporary = cache::TemporaryPreview::new(&frames)?;
+    let args = conversion_args(source, kind, &temporary.path(), limits.output_bytes)?;
     let output = run_preview_command(Command::new(ffmpeg).args(args), limits.timeout)?;
     if !output.status.success() {
         bail!(
@@ -352,9 +350,7 @@ fn prepare_in_cache_with_limits(
         .checked_sub(length)
         .context("media preview exceeds cache capacity")?;
     cache::reclaim(root, None, available)?;
-    temporary
-        .persist(&final_path)
-        .map_err(|error| error.error)?;
+    temporary.publish(&final_path)?;
     Ok(final_path)
 }
 

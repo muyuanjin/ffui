@@ -20,7 +20,7 @@ export interface UseMainAppDialogsDomainOptions {
 export function useMainAppDialogsDomain(options: UseMainAppDialogsDomainOptions): DialogsDomain {
   const { dialogs, batchCompress, settings } = options;
   const { dialogManager } = dialogs;
-  const { jobDetailLogText, jobDetailJob, highlightedLogHtml } = useJobLog({
+  const jobLog = useJobLog({
     selectedJob: dialogManager.selectedJob,
     detailOpen: dialogManager.jobDetailOpen,
     pollIntervalMs: settings.progressUpdateIntervalMs,
@@ -29,8 +29,6 @@ export function useMainAppDialogsDomain(options: UseMainAppDialogsDomainOptions)
   return {
     ...dialogs,
     batchCompress: useBatchCompressSettingsCoordinator(batchCompress, settings),
-    jobDetailJob,
-    jobDetailLogText,
-    highlightedLogHtml,
+    ...jobLog,
   };
 }

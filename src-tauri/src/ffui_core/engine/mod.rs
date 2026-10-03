@@ -287,6 +287,14 @@ impl TranscodingEngine {
         let state = self.inner.state.lock_unpoisoned();
         state.presets.clone()
     }
+    fn persist_presets_locked(
+        state: &mut state::EngineState,
+        next: Vec<FFmpegPreset>,
+    ) -> Result<Arc<Vec<FFmpegPreset>>> {
+        settings::save_presets(&next)?;
+        state.presets = Arc::new(next);
+        Ok(state.presets.clone())
+    }
     /// Save or update a preset.
     pub fn save_preset(&self, mut preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -311,26 +319,21 @@ impl TranscodingEngine {
             }
             next_presets.push(preset);
         }
-        settings::save_presets(&next_presets)?;
-        state.presets = Arc::new(next_presets);
-        Ok(state.presets.clone())
+        Self::persist_presets_locked(&mut state, next_presets)
     }
 
     /// Replace the full preset list with the provided snapshot.
     pub fn replace_presets(&self, next: Vec<FFmpegPreset>) -> Result<Arc<Vec<FFmpegPreset>>> {
         let mut state = self.inner.state.lock_unpoisoned();
-        state.presets = Arc::new(next);
-        settings::save_presets(&state.presets)?;
-        Ok(state.presets.clone())
+        Self::persist_presets_locked(&mut state, next)
     }
 
     /// Delete a preset by ID.
     pub fn delete_preset(&self, preset_id: &str) -> Result<Arc<Vec<FFmpegPreset>>> {
         let mut state = self.inner.state.lock_unpoisoned();
-        let presets = Arc::make_mut(&mut state.presets);
+        let mut presets = (*state.presets).clone();
         presets.retain(|p| p.id != preset_id);
-        settings::save_presets(presets)?;
-        Ok(state.presets.clone())
+        Self::persist_presets_locked(&mut state, presets)
     }
 
     /// Reorder presets according to the provided list of IDs.
@@ -339,7 +342,7 @@ impl TranscodingEngine {
     /// not present in the slice are appended at the end in their original order.
     pub fn reorder_presets(&self, ordered_ids: &[String]) -> Result<Arc<Vec<FFmpegPreset>>> {
         let mut state = self.inner.state.lock_unpoisoned();
-        let presets = Arc::make_mut(&mut state.presets);
+        let mut presets = (*state.presets).clone();
 
         // Build index map for O(1) lookup
         let id_to_index: std::collections::HashMap<&str, usize> = ordered_ids
@@ -357,8 +360,7 @@ impl TranscodingEngine {
             idx_a.cmp(&idx_b)
         });
 
-        settings::save_presets(presets)?;
-        Ok(state.presets.clone())
+        Self::persist_presets_locked(&mut state, presets)
     }
 
     /// Get the current application settings.

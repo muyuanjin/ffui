@@ -151,6 +151,71 @@ describe("manual media defaults persistence", () => {
     wrapper.unmount();
   });
 
+  it("keeps an idle window open with a visible settings diagnostic until close can be confirmed", async () => {
+    let disk = makeSettings();
+    let fail = true;
+    useBackendMock({
+      get_app_settings: () => structuredClone(disk),
+      get_presets: () => presets,
+      save_app_settings: ({ settings } = {}) => {
+        if (fail) throw new Error("atomic replacement denied");
+        disk = structuredClone(settings as AppSettings);
+        return disk;
+      },
+    });
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    await flushPromises();
+    const vm = withMainAppVmCompat(wrapper);
+    vm.appSettings.previewCapturePercent = 40;
+    await nextTick();
+    invokeMock.mockClear();
+    expect(await emitWindowCloseRequested()).toBe(true);
+    await nextTick();
+    expect(invokeMock.mock.calls.some(([command]) => command === "request_app_close")).toBe(false);
+    expect(wrapper.get("[data-testid='global-alerts']").text()).toContain("atomic replacement denied");
+    expect(disk.previewCapturePercent).toBe(25);
+    expect(vm.appSettings.previewCapturePercent).toBe(40);
+    fail = false;
+    expect(await emitWindowCloseRequested()).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith("request_app_close", undefined);
+    expect(disk.previewCapturePercent).toBe(40);
+    wrapper.unmount();
+  });
+
+  it("keeps an idle window open after a timeout and does not close when the pending save finishes", async () => {
+    let disk = makeSettings();
+    let finishSave!: () => void;
+    useBackendMock({
+      get_app_settings: () => structuredClone(disk),
+      get_presets: () => presets,
+      save_app_settings: async ({ settings } = {}) => {
+        await new Promise<void>((resolve) => {
+          finishSave = resolve;
+        });
+        disk = structuredClone(settings as AppSettings);
+        return disk;
+      },
+    });
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    await flushPromises();
+    const vm = withMainAppVmCompat(wrapper);
+    vm.appSettings.previewCapturePercent = 40;
+    await nextTick();
+    invokeMock.mockClear();
+    expect(await emitWindowCloseRequested()).toBe(true);
+    await nextTick();
+    expect(invokeMock.mock.calls.some(([command]) => command === "request_app_close")).toBe(false);
+    expect(wrapper.get("[data-testid='global-alerts']").text()).toContain("timeout");
+    expect(disk.previewCapturePercent).toBe(25);
+    finishSave();
+    await flushPromises();
+    expect(invokeMock.mock.calls.some(([command]) => command === "request_app_close")).toBe(false);
+    expect(await emitWindowCloseRequested()).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith("request_app_close", undefined);
+    expect(disk.previewCapturePercent).toBe(40);
+    wrapper.unmount();
+  });
+
   it("shows a settings failure and refuses to enqueue against an unsaved policy until retry succeeds", async () => {
     let disk = makeSettings();
     let fail = false;

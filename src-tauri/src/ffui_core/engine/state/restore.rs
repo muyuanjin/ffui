@@ -194,11 +194,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                     JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
                 )
             {
-                super::super::manual_execution::hydrate_legacy_job_snapshot(
-                    &mut job,
-                    &state.presets,
-                    &state.settings.queue_output_policy,
-                );
+                super::super::manual_execution::hydrate_legacy_job_snapshot(&mut job, &state);
             }
             let id = job.id.clone();
             let processing_on_auto_wait_exit = auto_wait_processing_ids.contains(&id);

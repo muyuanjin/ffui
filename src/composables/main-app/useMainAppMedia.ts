@@ -2,7 +2,7 @@ import { ref, type Ref } from "vue";
 import type { ParsedMediaAnalysis } from "@/lib/mediaInfo";
 import { parseFfprobeJsonAsyncLite } from "@/lib/asyncJson";
 import { EXTENSIONS } from "@/constants";
-import { mediaKindForPath, type MediaKind } from "@/lib/mediaKind";
+import { mediaKindForAnalysis, type MediaKind } from "@/lib/mediaKind";
 import { buildPreviewUrl, hasTauri, inspectMedia } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { MainAppTab } from "./useMainAppShell";
@@ -62,7 +62,8 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
       inspectedRawJson.value = json;
       inspectedAnalysis.value = await parseFfprobeJsonAsyncLite(json);
 
-      const kind = mediaKindForPath(path);
+      const kind = mediaKindForAnalysis(inspectedAnalysis.value);
+      if (kind === null) return;
       inspectedMediaKind.value = kind;
       inspectedIsImage.value = kind === "image";
 

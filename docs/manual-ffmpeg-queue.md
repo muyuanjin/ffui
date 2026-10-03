@@ -20,9 +20,9 @@ Default-preset mode, the unified preset and the per-input preset IDs are saved i
 
 Output editing becomes available after settings load; load errors do not authorize saving default settings over an unreadable file. Manual enqueue also waits for the backend preset list and rejects missing configured IDs instead of substituting another preset.
 
-Preset sorting, direction, view and selection-bar pin preferences also restore on startup. Batch Compress retains its last submitted configuration independently of manual queue output settings. Normal window close attempts a bounded settings flush, then asks the backend to apply the active-task exit policy; confirmed exit flushes settings again and remains cancellable if that flush fails or times out. Forced termination, an unavailable data directory or a failed/timed-out close flush cannot guarantee the latest edits reach disk. Unsaved preset-editor changes, command-dialog drafts, open popovers and preview playback positions are session state, not saved presets or application settings.
+Preset sorting, direction, view and selection-bar pin preferences also restore on startup. Batch Compress retains its last submitted configuration independently of manual queue output settings. Normal window close waits for a bounded settings flush; failure or timeout keeps the window open with a diagnostic for retry. After successful saving, the backend applies the active-task exit policy; confirmed exit flushes settings again and remains cancellable if that flush fails or times out. Forced termination or an unavailable data directory cannot guarantee the latest edits reach disk. Unsaved preset-editor changes, command-dialog drafts, open popovers and preview playback positions are session state, not saved presets or application settings.
 
-Queue history follows **Queue persistence** in application settings: **Restore queue** retains finished tasks, while **Unfinished only** deliberately excludes them. Settings and history must load before queue persistence may replace an existing snapshot. A history read or decode failure preserves the file and reports its diagnostic; repair the file and restart to retry. Valid JSON with unsupported settings is rejected rather than replaced by older last-good preferences. Last-good recovery remains available for malformed settings JSON.
+Queue history follows **Queue persistence** in application settings: **Restore queue** retains finished tasks, while **Unfinished only** deliberately excludes them. Settings and history must load before queue persistence may replace an existing snapshot. A history read or decode failure preserves the file and reports its diagnostic; repair the file and restart to retry. Unsupported settings remain unavailable; malformed settings JSON and read failures report errors without replacing preferences with defaults or automatically restoring a backup. Existing backups remain untouched. Ordinary saves preserve unknown object fields and reject replacements that would discard them. Configuration imports interpret each document using its own schema before merging, so absent output preferences retain their meaning.
 
 ### Preset targets and output formats
 
@@ -62,9 +62,17 @@ For offset-origin audio whose probe duration may represent a timestamp endpoint 
 
 Click a queue thumbnail to preview the selected input or output. FFUI probes that file to choose audio controls, an image viewer or a video player; an audio-only MKV remains audio, and a video-to-image result uses the image viewer. Preview inspection errors do not change the task's execution result.
 
+Media Info also chooses its preview from probed streams and container metadata, ignoring embedded cover art as a timeline video stream. Task detail distinguishes loading, empty logs and failed log reads; a failed read can be retried in place or by reopening the detail view.
+
 Audio and images try native decoding first. If the WebView cannot decode them, FFmpeg prepares a separate cached preview: stereo 48 kHz AAC/M4A for audio, or a PNG fitting within 4096 × 4096 for images. Image conversion shows the first frame and preserves transparency; AVIF/HEIF with auxiliary alpha is rejected when the configured decoder cannot retain that alpha. The preview copy is not a lossless comparison of the original. Preparation has a 120-second timeout and a 256 MiB size limit. Failed preparation shows a diagnostic and a system-open action. Compatible previews never replace the selected source, task output or copy-path target. Completed cached copies share a 512 MiB budget; older copies can be evicted, including copies previously returned to a viewer. A new copy fails if sufficient space cannot be reclaimed. Seven-day expiration is applied when the cache is accessed; copies also participate in explicit preview-cache cleanup. In-flight temporary files are separate from this completed-copy budget. Video retains native playback and frame-scrubbing fallback.
 
-Legacy tasks whose preset is missing retain an invalid execution snapshot. Importing a preset later does not change that snapshot or authorize replay; enqueue a new task after configuring the preset.
+Concurrency classification follows each task's saved execution recipe rather than the current preset list. Editing or deleting a preset cannot move saved hardware-encoding jobs into CPU slots. Transparent calls with explicit hardware codec arguments conservatively occupy a hardware slot, including multi-output calls.
+
+Once a managed process observes a wait request, that stop reason survives a rapid Continue action: the task is queued to execute from the beginning, not treated as a failed conversion. Cancellation still prevents this automatic continuation. Transparent calls are not automatically replayed.
+
+Compatible preview conversion holds an exclusive lease on an application-owned temporary workspace. Cache access and explicit cleanup reclaim abandoned workspaces after process termination while preserving active conversions and directories containing unrecognized files. Unmarked temporary files, including legacy bare `.part` files, are not deleted because ownership cannot be established.
+
+Legacy tasks whose preset is missing, or which need an unavailable global output policy because they have no task-level snapshot, retain an invalid execution snapshot with a diagnostic. Existing valid execution or output-policy snapshots remain authoritative. Importing a preset or fixing settings later does not change an invalid snapshot or authorize replay; enqueue a new task after configuring the preset and output policy.
 
 Terminal legacy records without an execution snapshot only clean recorded temporary paths and their associated `.noaudio.done` sidecar markers. Restarting or deleting their history does not infer video artifacts from display type or output filenames.
 
@@ -90,9 +98,9 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 
 输出设置加载完成后才允许编辑；加载错误不会授权用默认设置覆盖不可读取的文件。手动入队也会等待后端预设列表，配置引用缺失时明确报错，不替换成其他预设。
 
-预设排序、方向、视图和选择栏固定偏好也会在启动时恢复。Batch Compress 保留最近提交的配置，与手动队列的输出设置独立。正常关闭窗口会在限定时间内尝试保存，再由后端执行活动任务的退出策略；确认退出时再次保存设置，保存失败或超时可取消退出。强制终止、数据目录不可用、关闭保存失败或超时，都无法保证最新修改落盘。尚未保存的预设编辑、命令弹窗草稿、弹层展开状态和预览播放位置属于会话状态，不属于已保存预设或应用设置。
+预设排序、方向、视图和选择栏固定偏好也会在启动时恢复。Batch Compress 保留最近提交的配置，与手动队列的输出设置独立。正常关闭窗口会在限定时间内等待保存，失败或超时保留窗口并显示可重试诊断；保存成功后由后端执行活动任务的退出策略，确认退出时再次保存设置，保存失败或超时可取消退出。强制终止或数据目录不可用时，无法保证最新修改落盘。尚未保存的预设编辑、命令弹窗草稿、弹层展开状态和预览播放位置属于会话状态，不属于已保存预设或应用设置。
 
-任务历史由应用设置中的 **任务队列持久化** 决定：**恢复队列** 保留已结束任务，**仅恢复未完成** 明确不保留这些任务。设置及历史加载完成前，队列保存不得替换已有快照。历史读取或解析失败时保留原文件并显示诊断；修复文件后重启可重试。有效 JSON 中不支持的设置会报错，不用较旧的 last-good 偏好替换；损坏的设置 JSON 仍可从 last-good 恢复。
+任务历史由应用设置中的 **任务队列持久化** 决定：**恢复队列** 保留已结束任务，**仅恢复未完成** 明确不保留这些任务。设置及历史加载完成前，队列保存不得替换已有快照。历史读取或解析失败时保留原文件并显示诊断；修复文件后重启可重试。不支持的设置保持不可用；设置 JSON 损坏或读取失败时明确报错，不用默认值替换偏好，也不自动恢复备份。已有备份保持不变。普通保存保留未知对象字段，拒绝会丢失这些字段的整体替换。配置导入分别按各文档自己的 schema 解释后合并，未导入的输出偏好保持原有语义。
 
 ### 预设目标与输出格式
 
@@ -128,9 +136,17 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 
 点击队列缩略图可预览选中的输入或输出。FFUI 探测当前文件，再选择音频播放控件、图片查看器或视频播放器；只有音轨的 MKV 仍按音频播放，视频转出的图片使用图片查看器。预览探测失败不改变任务的执行结果。
 
+媒体信息页也使用探测到的媒体流与容器元信息选择预览，内嵌封面不算时间轴视频流。任务详情区分加载中、空日志及读取失败；读取失败可以就地重试，也可以重新打开详情重试。
+
 音频和图片优先原生解码。WebView 无法解码时，FFmpeg 生成独立的缓存预览副本：音频为双声道 48 kHz AAC/M4A，图片为不超过 4096 × 4096 的 PNG。图片兼容转换显示第一帧并保留透明度；AVIF/HEIF 使用辅助 alpha 而当前解码器无法保留它时，明确拒绝兼容转换。预览副本不用于原文件的无损对比。生成过程有 120 秒超时和 256 MiB 大小限制，失败时显示诊断并提供系统打开操作。兼容预览不替换选中的源文件、任务输出或复制路径的目标。已完成的缓存副本共享 512 MiB 预算，较旧副本可能被淘汰，包括已返回给查看器的副本；无法回收足够空间时，新副本生成失败。访问缓存时应用七天过期规则，副本也纳入显式预览缓存清理。生成中的临时文件不计入已完成副本预算。视频保留原生播放与抽帧回退。
 
-旧记录缺少引用的预设时保留无效执行快照。之后导入预设不会改变该快照或授权重放；配置好预设后需要重新入队。
+并发分类使用每个任务保存的执行配方，不读取当前预设列表。编辑或删除预设不会把已保存的硬件编码任务移入 CPU 槽位。透明调用含有明确的硬件编码参数时，保守占用硬件槽位，包括多输出调用。
+
+托管进程一旦观察到等待请求，停止原因不会因快速点击继续而丢失：任务会从头排队执行，不会被判为转码失败。取消仍会阻止这一自动继续。透明调用不会自动重放。
+
+兼容预览转换在应用拥有的临时工作目录上持有独占租约。访问缓存及主动清理会回收进程终止后遗留的工作目录，保留活动转换及含有未知文件的目录。无法证明归属的临时文件，包括旧版裸 `.part` 文件，不会被删除。
+
+旧记录缺少引用的预设，或缺少任务级快照且所需全局输出策略不可用时，保留无效执行快照及诊断。已有合法执行或输出策略快照仍为权威。之后导入预设或修复设置不会改变无效快照或授权重放；配置好预设及输出策略后需要重新入队。
 
 缺少执行快照的终态旧记录仅清理记录的临时路径及其关联的 `.noaudio.done` 标记文件。重启任务或删除历史记录时，不根据展示类型或输出文件名推测视频产物。
 

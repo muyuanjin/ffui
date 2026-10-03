@@ -1,4 +1,62 @@
 {
+  "classification": [
+    {
+      "path": "C:/音乐/audio-only.mkv",
+      "probe": {
+        "format": { "format_name": "matroska,webm", "duration": "2.5" },
+        "streams": [{ "codec_type": "audio", "codec_name": "flac" }]
+      },
+      "kind": "audio"
+    },
+    {
+      "path": "C:/video.mkv",
+      "probe": {
+        "format": { "format_name": "matroska,webm" },
+        "streams": [{ "codec_type": "video", "codec_name": "h264" }, { "codec_type": "audio" }]
+      },
+      "kind": "video"
+    },
+    {
+      "path": "C:/cover.mkv",
+      "probe": {
+        "format": { "format_name": "matroska,webm" },
+        "streams": [
+          { "codec_type": "video", "codec_name": "mjpeg", "disposition": { "attached_pic": 1 } },
+          { "codec_type": "audio", "codec_name": "flac" }
+        ]
+      },
+      "kind": "audio"
+    },
+    {
+      "path": "C:/photo.unknown",
+      "probe": { "format": { "format_name": "png_pipe" }, "streams": [{ "codec_type": "video", "codec_name": "png" }] },
+      "kind": "image"
+    },
+    {
+      "path": "C:/still.mkv",
+      "probe": {
+        "format": { "format_name": "matroska,webm" },
+        "streams": [{ "codec_type": "video", "codec_name": "png", "disposition": { "still_image": 1 } }]
+      },
+      "kind": "image"
+    },
+    {
+      "path": "C:/still-with-audio.mkv",
+      "probe": {
+        "format": { "format_name": "matroska,webm" },
+        "streams": [{ "codec_type": "video", "disposition": { "still_image": 1 } }, { "codec_type": "audio" }]
+      },
+      "kind": "video"
+    },
+    {
+      "path": "C:/image.bin",
+      "probe": {
+        "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "tags": { "major_brand": "avif" } },
+        "streams": [{ "codec_type": "video", "codec_name": "av1" }]
+      },
+      "kind": "image"
+    }
+  ],
   "info": [
     { "kind": "audio", "durationSeconds": 2.5 },
     { "kind": "image", "durationSeconds": null },

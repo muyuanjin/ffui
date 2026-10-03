@@ -124,6 +124,12 @@ describe("backend data root contract", () => {
     unsubscribe();
   });
 
+  it("propagates failed configuration import without a fallback result", async () => {
+    invokeMock.mockRejectedValueOnce(new Error("failed to atomically replace presets"));
+    await expect(importConfigBundle("D:/configuration.json")).rejects.toThrow("failed to atomically replace presets");
+    expect(invokeMock).toHaveBeenCalledWith("import_config_bundle", { sourcePath: "D:/configuration.json" });
+  });
+
   it("clears app data via clear_all_app_data", async () => {
     invokeMock.mockResolvedValueOnce(settingsSnapshot(buildWebFallbackAppSettings()));
 

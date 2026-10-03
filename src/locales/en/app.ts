@@ -173,6 +173,7 @@ const app = {
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
+    closeSaveError: "Closing was cancelled because settings could not be confirmed. Resolve the error and try again.",
     compatibilityWarning:
       "Some settings require a newer application version. Their values are preserved; affected settings and operations are unavailable.",
     appUpdateTitle: "App updates",

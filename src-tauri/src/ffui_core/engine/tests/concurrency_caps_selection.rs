@@ -1,6 +1,112 @@
 use super::*;
 
 #[test]
+fn worker_split_caps_use_saved_video_recipes_for_active_and_queued_jobs() {
+    for remove in [false, true] {
+        let mut preset = make_test_preset();
+        preset.video.encoder = EncoderType::H264Nvenc;
+        let settings = AppSettings {
+            parallelism_mode: Some(crate::ffui_core::settings::TranscodeParallelismMode::Split),
+            max_parallel_cpu_jobs: Some(4),
+            max_parallel_hw_jobs: Some(1),
+            ..Default::default()
+        };
+        let engine = TranscodingEngine {
+            inner: Arc::new(Inner::new(vec![preset.clone()], settings)),
+        };
+        let jobs: Vec<_> = (0..4)
+            .map(|index| {
+                engine.enqueue_transcode_job(
+                    format!("saved-{index}.mp4"),
+                    JobType::Video,
+                    JobSource::Manual,
+                    1.0,
+                    None,
+                    preset.id.clone(),
+                )
+            })
+            .collect();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        assert_eq!(
+            next_job_for_worker_locked(&mut state),
+            Some(jobs[0].id.clone())
+        );
+        if remove {
+            state.presets = Arc::new(vec![]);
+        } else {
+            Arc::make_mut(&mut state.presets)[0].video.encoder = EncoderType::Libx264;
+        }
+        assert!(next_job_for_worker_locked(&mut state).is_none());
+        state.active_jobs.clear();
+        state.active_inputs.clear();
+        assert_eq!(
+            next_job_for_worker_locked(&mut state),
+            Some(jobs[1].id.clone())
+        );
+        assert!(next_job_for_worker_locked(&mut state).is_none());
+    }
+}
+
+#[test]
+fn generic_commands_classify_ordered_codec_arguments_without_consulting_presets() {
+    for option in ["-c:v", "-c:v:0", "-codec:v:1", "-c:0", "-vcodec"] {
+        let engine = make_engine_with_preset();
+        let first = engine
+            .enqueue_ffmpeg_job(crate::ffui_core::domain::FfmpegJobRequest {
+                name: "hardware command".into(),
+                args: vec![option.into(), "h264_nvenc".into(), "one.mkv".into()],
+                working_directory: None,
+            })
+            .expect("first");
+        engine
+            .enqueue_ffmpeg_job(crate::ffui_core::domain::FfmpegJobRequest {
+                name: "second command".into(),
+                args: vec![option.into(), "hevc_nvenc".into(), "two.mkv".into()],
+                working_directory: None,
+            })
+            .expect("second");
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings.parallelism_mode =
+            Some(crate::ffui_core::settings::TranscodeParallelismMode::Split);
+        state.settings.max_parallel_cpu_jobs = Some(4);
+        state.settings.max_parallel_hw_jobs = Some(1);
+        state.presets = Arc::new(vec![]);
+        assert_eq!(next_job_for_worker_locked(&mut state), Some(first.id));
+        assert!(next_job_for_worker_locked(&mut state).is_none(), "{option}");
+    }
+}
+
+#[test]
+fn generic_metadata_does_not_consume_a_hardware_slot() {
+    let engine = make_engine_with_preset();
+    let jobs: Vec<_> = (0..2)
+        .map(|index| {
+            engine
+                .enqueue_ffmpeg_job(crate::ffui_core::domain::FfmpegJobRequest {
+                    name: format!("cpu command {index}"),
+                    args: vec![
+                        "-metadata".into(),
+                        "encoder=h264_nvenc".into(),
+                        "-c:v".into(),
+                        "libx264".into(),
+                        format!("cpu-{index}.mkv"),
+                    ],
+                    working_directory: None,
+                })
+                .expect("enqueue")
+        })
+        .collect();
+    let mut state = engine.inner.state.lock_unpoisoned();
+    state.settings.parallelism_mode =
+        Some(crate::ffui_core::settings::TranscodeParallelismMode::Split);
+    state.settings.max_parallel_cpu_jobs = Some(2);
+    state.settings.max_parallel_hw_jobs = Some(1);
+    for job in jobs {
+        assert_eq!(next_job_for_worker_locked(&mut state), Some(job.id));
+    }
+}
+
+#[test]
 fn worker_selection_stops_during_shutdown_and_settings_load_failure() {
     let engine = make_engine_with_preset();
     let job = engine.enqueue_transcode_job(

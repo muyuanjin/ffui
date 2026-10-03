@@ -14,6 +14,8 @@ export interface MediaStreamSummary {
   codecType?: string;
   codecName?: string;
   codecLongName?: string;
+  attachedPic?: boolean;
+  stillImage?: boolean;
   width?: number;
   height?: number;
   frameRate?: number;
@@ -188,6 +190,8 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
       codecType,
       codecName,
       codecLongName,
+      attachedPic: isRecord(stream.disposition) && stream.disposition.attached_pic === 1,
+      stillImage: isRecord(stream.disposition) && stream.disposition.still_image === 1,
       width: widthVal,
       height: heightVal,
       frameRate: frameRateVal,

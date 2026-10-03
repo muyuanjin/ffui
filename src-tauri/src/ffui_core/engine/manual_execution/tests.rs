@@ -1,5 +1,7 @@
 use super::*;
 
+mod recovery;
+
 #[test]
 fn complete_command_input_contract_preserves_argv_and_reports_invalid_syntax() {
     let contract: serde_json::Value = serde_json::from_str(include_str!(
@@ -183,24 +185,40 @@ fn literal_percent_paths_are_not_mistaken_for_image_sequences() {
         format: Some("png".into()),
         movflags: None,
     });
-    assert!(
-        plan_manual_execution(
-            Path::new("input.png"),
-            &preset,
-            Path::new("100% complete.png"),
-            &OutputPolicy::default()
-        )
-        .is_ok()
-    );
-    assert!(
-        plan_manual_execution(
-            Path::new("input.png"),
-            &preset,
-            Path::new("frame%03d.png"),
-            &OutputPolicy::default()
-        )
-        .is_err()
-    );
+    for output in [
+        "100% complete.png",
+        "frame%%d.png",
+        "frame%%03d.png",
+        "frame%%%%d.png",
+    ] {
+        assert!(
+            plan_manual_execution(
+                Path::new("input.png"),
+                &preset,
+                Path::new(output),
+                &OutputPolicy::default()
+            )
+            .is_ok(),
+            "{output}"
+        );
+    }
+    for output in [
+        "frame%d.png",
+        "frame%03d.png",
+        "frame%%%03d.png",
+        "frame%%%%%d.png",
+    ] {
+        assert!(
+            plan_manual_execution(
+                Path::new("input.png"),
+                &preset,
+                Path::new(output),
+                &OutputPolicy::default()
+            )
+            .is_err(),
+            "{output}"
+        );
+    }
 }
 
 #[test]
@@ -248,6 +266,99 @@ fn managed_output_uses_effective_muxer_instead_of_raw_preset_text() {
             )
             .is_err()
         );
+    }
+}
+
+#[test]
+fn video_ownership_rejects_multi_file_muxers_before_granting_replay() {
+    use crate::ffui_core::domain::{ContainerConfig, OutputContainerPolicy};
+    let mut preset = crate::test_support::make_ffmpeg_preset_for_tests("video");
+    for format in [
+        " HLS ",
+        " DASH ",
+        "m3u8",
+        "mpd",
+        "segment",
+        "stream_segment",
+        "ssegment",
+        "tee",
+        "webm_chunk",
+        "smoothstreaming",
+        " HDS ",
+    ] {
+        preset.container = Some(ContainerConfig {
+            format: Some(format.into()),
+            movflags: None,
+        });
+        let error = plan_manual_execution(
+            Path::new("input.mp4"),
+            &preset,
+            Path::new("output.mp4"),
+            &OutputPolicy::default(),
+        )
+        .err()
+        .expect("multi-file recipe");
+        assert!(error.contains("Multi-file"), "{format}: {error}");
+        let policy = OutputPolicy {
+            container: OutputContainerPolicy::Force {
+                format: "mp4".into(),
+            },
+            ..Default::default()
+        };
+        let plan = plan_manual_execution(
+            Path::new("input.mp4"),
+            &preset,
+            Path::new("output.mp4"),
+            &policy,
+        )
+        .expect("single-file override");
+        assert!(matches!(plan.execution, JobExecution::Video { .. }));
+    }
+    preset.container = None;
+    for format in ["hls", "dash", "hds", "image2"] {
+        let policy = OutputPolicy {
+            container: OutputContainerPolicy::Force {
+                format: format.into(),
+            },
+            ..Default::default()
+        };
+        assert!(
+            plan_manual_execution(
+                Path::new("input.mp4"),
+                &preset,
+                Path::new("frame%03d.png"),
+                &policy,
+            )
+            .is_err()
+        );
+    }
+    let policy = OutputPolicy {
+        container: OutputContainerPolicy::Force {
+            format: "png".into(),
+        },
+        ..Default::default()
+    };
+    assert!(
+        plan_manual_execution(
+            Path::new("input.mp4"),
+            &preset,
+            Path::new("100% complete.png"),
+            &policy,
+        )
+        .is_ok()
+    );
+    preset.advanced_enabled = Some(true);
+    for muxer in ["hls", "hds"] {
+        preset.ffmpeg_template = Some(format!("ffmpeg -i INPUT -f {muxer} OUTPUT"));
+        let plan = plan_manual_execution(
+            Path::new("input.mp4"),
+            &preset,
+            Path::new("output.m3u8"),
+            &OutputPolicy::default(),
+        )
+        .expect("transparent multi-file recipe");
+        assert!(matches!(plan.execution, JobExecution::Ffmpeg { invocation }
+            if invocation.output == FfmpegOutput::Transparent));
     }
 }
 

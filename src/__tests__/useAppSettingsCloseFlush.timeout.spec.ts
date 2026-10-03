@@ -34,7 +34,12 @@ describe("installAppSettingsCloseFlush", () => {
     const wrapper = mount(
       defineComponent({
         setup() {
-          ({ cleanup } = installAppSettingsCloseFlush({ enabled: () => true, persistNow, closeWindow }));
+          ({ cleanup } = installAppSettingsCloseFlush({
+            enabled: () => true,
+            persistNow,
+            closeWindow,
+            onFlushError: vi.fn(),
+          }));
           return {};
         },
         template: "<div />",
@@ -65,54 +70,70 @@ describe("installAppSettingsCloseFlush", () => {
     vi.useRealTimers();
   });
 
-  it("still closes the window when persistNow never resolves", async () => {
-    await vi.resetModules();
+  it.each(["timeout", "rejection"])(
+    "keeps the window open after a flush %s and allows another close attempt",
+    async (failure) => {
+      await vi.resetModules();
 
-    const close = vi.fn(async () => {});
-    let closeRequestedHandler: ((event: { preventDefault: () => void }) => Promise<void>) | null = null;
+      const close = vi.fn(async () => {});
+      let closeRequestedHandler: ((event: { preventDefault: () => void }) => Promise<void>) | null = null;
 
-    vi.doMock("@tauri-apps/api/window", () => ({
-      getCurrentWindow: async () => ({
-        onCloseRequested: async (handler: any) => {
-          closeRequestedHandler = handler;
-          return () => {
-            if (closeRequestedHandler === handler) {
-              closeRequestedHandler = null;
-            }
-          };
+      vi.doMock("@tauri-apps/api/window", () => ({
+        getCurrentWindow: async () => ({
+          onCloseRequested: async (handler: any) => {
+            closeRequestedHandler = handler;
+            return () => {
+              if (closeRequestedHandler === handler) {
+                closeRequestedHandler = null;
+              }
+            };
+          },
+          close,
+        }),
+      }));
+
+      const persistNow = vi
+        .fn<() => Promise<void>>()
+        .mockImplementationOnce(() =>
+          failure === "timeout" ? new Promise<void>(() => {}) : Promise.reject(new Error("atomic replacement denied")),
+        )
+        .mockResolvedValue(undefined);
+      const onFlushError = vi.fn();
+      const { installAppSettingsCloseFlush } = await import("@/composables/useAppSettingsCloseFlush");
+
+      const TestHarness = defineComponent({
+        setup() {
+          installAppSettingsCloseFlush({ enabled: () => true, persistNow, closeWindow: close, onFlushError });
+          return {};
         },
-        close,
-      }),
-    }));
+        template: "<div />",
+      });
 
-    const persistNow = vi.fn(() => new Promise<void>(() => {}));
-    const { installAppSettingsCloseFlush } = await import("@/composables/useAppSettingsCloseFlush");
+      const wrapper = mount(TestHarness);
+      await Promise.resolve();
+      await Promise.resolve();
 
-    const TestHarness = defineComponent({
-      setup() {
-        installAppSettingsCloseFlush({ enabled: () => true, persistNow, closeWindow: close });
-        return {};
-      },
-      template: "<div />",
-    });
+      expect(typeof closeRequestedHandler).toBe("function");
 
-    const wrapper = mount(TestHarness);
-    await Promise.resolve();
-    await Promise.resolve();
+      const preventDefault = vi.fn();
+      const handlerPromise = (closeRequestedHandler as any)({ preventDefault });
 
-    expect(typeof closeRequestedHandler).toBe("function");
+      // Test env uses a short timeout (see CLOSE_FLUSH_TIMEOUT_MS).
+      await vi.advanceTimersByTimeAsync(60);
+      await handlerPromise;
 
-    const preventDefault = vi.fn();
-    const handlerPromise = (closeRequestedHandler as any)({ preventDefault });
+      expect(preventDefault).toHaveBeenCalled();
+      expect(persistNow).toHaveBeenCalledTimes(1);
+      expect(close).not.toHaveBeenCalled();
+      expect(onFlushError).toHaveBeenCalledTimes(1);
+      expect(onFlushError.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({ message: failure === "timeout" ? "timeout" : "atomic replacement denied" }),
+      );
+      await (closeRequestedHandler as any)({ preventDefault });
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(persistNow).toHaveBeenCalledTimes(2);
 
-    // Test env uses a short timeout (see CLOSE_FLUSH_TIMEOUT_MS).
-    await vi.advanceTimersByTimeAsync(60);
-    await handlerPromise;
-
-    expect(preventDefault).toHaveBeenCalled();
-    expect(persistNow).toHaveBeenCalledTimes(1);
-    expect(close).toHaveBeenCalledTimes(1);
-
-    wrapper.unmount();
-  });
+      wrapper.unmount();
+    },
+  );
 });

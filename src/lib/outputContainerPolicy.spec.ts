@@ -12,6 +12,7 @@ describe("media-scoped output container contract", () => {
       audio: { codec: entry.audioCodec },
       advancedEnabled: "template" in entry,
       ffmpegTemplate: "template" in entry ? entry.template : undefined,
+      outputKind: "declared" in entry ? entry.declared : undefined,
     } as any;
     const policy = {
       ...DEFAULT_OUTPUT_POLICY,

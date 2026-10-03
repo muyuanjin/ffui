@@ -1,0 +1,11 @@
+{
+  "unavailable": {
+    "path": "/queueOutputPolicy/container",
+    "reason": "Unsupported output mode"
+  },
+  "invalidExecution": {
+    "kind": "invalid",
+    "reason": "Cannot restore legacy execution: Setting /queueOutputPolicy/container is unavailable: Unsupported output mode"
+  },
+  "executionMode": "invalid"
+}

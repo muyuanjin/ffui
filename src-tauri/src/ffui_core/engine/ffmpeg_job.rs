@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::process::ExitStatus;
 
 use anyhow::{Context, Result};
 use tempfile::TempPath;
@@ -13,6 +12,7 @@ use super::state::{Inner, notify_queue_listeners};
 use super::worker_utils::{append_job_log_line, current_time_millis};
 
 mod process;
+use process::{ProcessOutcome, StopReason};
 
 struct ManagedTemporary {
     path: TempPath,
@@ -21,6 +21,23 @@ struct ManagedTemporary {
 
 fn current_attempt(job: &crate::ffui_core::domain::TranscodeJob, attempt: usize) -> bool {
     job.status == JobStatus::Processing && job.runs.len() == attempt
+}
+
+fn requested_stop(inner: &Inner, job_id: &str, attempt: usize) -> Option<StopReason> {
+    let state = inner.state.lock_unpoisoned();
+    if state.cancelled_jobs.contains(job_id) {
+        Some(StopReason::Cancelled)
+    } else if state.wait_requests.contains(job_id) {
+        Some(StopReason::Wait)
+    } else if !state
+        .jobs
+        .get(job_id)
+        .is_some_and(|job| current_attempt(job, attempt))
+    {
+        Some(StopReason::Superseded)
+    } else {
+        None
+    }
 }
 
 pub(super) fn process_ffmpeg_job(
@@ -79,17 +96,8 @@ pub(super) fn process_ffmpeg_job(
             }
         }
         let mut args = invocation.args.clone();
-        {
-            let state = inner.state.lock_unpoisoned();
-            if state.cancelled_jobs.contains(job_id)
-                || state.wait_requests.contains(job_id)
-                || !state
-                    .jobs
-                    .get(job_id)
-                    .is_some_and(|job| current_attempt(job, attempt))
-            {
-                anyhow::bail!("FFmpeg command stopped during preparation");
-            }
+        if let Some(reason) = requested_stop(inner, job_id, attempt) {
+            return Ok(ProcessOutcome::Stopped(reason));
         }
         if let FfmpegOutput::ManagedFile {
             path,
@@ -162,15 +170,7 @@ pub(super) fn process_ffmpeg_job(
             &program,
             &invocation,
             &args,
-            || {
-                let state = inner.state.lock_unpoisoned();
-                state.cancelled_jobs.contains(job_id)
-                    || state.wait_requests.contains(job_id)
-                    || !state
-                        .jobs
-                        .get(job_id)
-                        .is_some_and(|job| current_attempt(job, attempt))
-            },
+            || requested_stop(inner, job_id, attempt),
             |line| {
                 super::job_runner::update_ffmpeg_job_progress(
                     inner,
@@ -205,7 +205,7 @@ fn finish_run(
     attempt: usize,
     output: &FfmpegOutput,
     temporary: Option<ManagedTemporary>,
-    result: Result<ExitStatus>,
+    result: Result<ProcessOutcome>,
 ) {
     let mut state = inner.state.lock_unpoisoned();
     if !state
@@ -215,8 +215,12 @@ fn finish_run(
     {
         return;
     }
+    let stopped = match &result {
+        Ok(ProcessOutcome::Stopped(reason)) => Some(*reason),
+        _ => None,
+    };
     let restart = state.restart_requests.remove(job_id);
-    let cancelled = state.cancelled_jobs.remove(job_id);
+    let cancelled = state.cancelled_jobs.remove(job_id) || stopped == Some(StopReason::Cancelled);
     let waited = state.wait_requests.remove(job_id);
     let job = state.jobs.get_mut(job_id).expect("checked command job");
     let now = current_time_millis();
@@ -233,13 +237,21 @@ fn finish_run(
         job.wait_metadata = None;
     }
     job.failure_reason = None;
-    if restart {
+    let resumed_wait = stopped == Some(StopReason::Wait)
+        && !waited
+        && matches!(output, FfmpegOutput::ManagedFile { .. });
+    if restart || (resumed_wait && !cancelled) {
         job.status = JobStatus::Queued;
         job.progress = 0.0;
         job.end_time = None;
         append_job_log_line(
             job,
-            "Restart requested; command will re-run from the beginning".to_string(),
+            if restart {
+                "Restart requested; command will re-run from the beginning"
+            } else {
+                "Resume requested after command stop; command will re-run from the beginning"
+            }
+            .to_string(),
         );
         if !state.queue.iter().any(|id| id == job_id) {
             state.queue.push_back(job_id.to_string());
@@ -265,7 +277,10 @@ fn finish_run(
         );
         return;
     }
-    let published = result.and_then(|status| {
+    let published = result.and_then(|outcome| {
+        let ProcessOutcome::Exited(status) = outcome else {
+            anyhow::bail!("FFmpeg command stopped without an executable continuation");
+        };
         if !status.success() {
             anyhow::bail!(
                 "FFmpeg exited with {status}: {}",

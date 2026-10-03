@@ -1,4 +1,30 @@
 use super::*;
+
+#[test]
+fn job_detail_loading_contract_distinguishes_empty_logs_from_missing_jobs() {
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/job-detail-loading-contract.json"
+    ))
+    .expect("detail contract");
+    let job: TranscodeJob = serde_json::from_value(fixture["job"].clone()).expect("job");
+    let engine = make_engine_with_preset();
+    engine
+        .inner
+        .state
+        .lock_unpoisoned()
+        .jobs
+        .insert(job.id.clone(), job);
+    let detail = engine
+        .job_detail(fixture["payload"]["jobId"].as_str().expect("jobId"))
+        .expect("detail");
+    assert!(detail.logs.is_empty());
+    let wire = serde_json::to_value(detail).expect("wire detail");
+    for (key, expected) in fixture["job"].as_object().expect("wire fields") {
+        assert_eq!(&wire[key], expected, "{key}");
+    }
+    assert!(engine.job_detail("missing").is_none());
+    assert_eq!(fixture["command"], "get_job_detail");
+}
 #[test]
 fn queue_listener_observes_enqueue_and_cancel() {
     let dir = env::temp_dir();

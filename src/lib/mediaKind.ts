@@ -1,4 +1,5 @@
 import { EXTENSIONS } from "@/constants";
+import type { ParsedMediaAnalysis } from "@/lib/mediaInfo";
 
 /** 媒体信息面板能展示的媒体种类。 */
 export type MediaKind = "video" | "audio" | "image";
@@ -14,6 +15,22 @@ export function mediaKindForPath(path: string | null | undefined): MediaKind {
   if (EXTENSIONS.images.some((ext) => lower.endsWith(ext))) return "image";
   if (EXTENSIONS.audios.some((ext) => lower.endsWith(ext))) return "audio";
   return "video";
+}
+
+export function mediaKindForAnalysis(analysis: ParsedMediaAnalysis): MediaKind | null {
+  const hasAudio = analysis.streams.some((stream) => stream.codecType === "audio");
+  const video = analysis.streams.find((stream) => stream.codecType === "video" && !stream.attachedPic);
+  const imageFormat =
+    ["avif", "avis", "heic", "heix", "hevc", "hevx", "mif1", "msf1"].includes(
+      analysis.format?.tags?.major_brand ?? "",
+    ) ||
+    (analysis.format?.formatName ?? "")
+      .split(",")
+      .some((name) => name.endsWith("_pipe") || ["image2", "image2pipe", "avif", "ico", "gif", "apng"].includes(name));
+  if (video) return !hasAudio && (imageFormat || video.stillImage) ? "image" : "video";
+  if (hasAudio) return "audio";
+  if (imageFormat && analysis.streams.some((stream) => stream.codecType === "video")) return "image";
+  return null;
 }
 
 /** 媒体种类对应的 i18n 键（面板只做映射，分类逻辑在上面一处）。 */

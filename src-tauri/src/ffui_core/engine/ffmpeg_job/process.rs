@@ -9,6 +9,18 @@ use crate::ffui_core::domain::FfmpegInvocation;
 
 use super::super::ffmpeg_args::{assign_child_to_job, configure_background_command};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StopReason {
+    Wait,
+    Cancelled,
+    Superseded,
+}
+
+pub(super) enum ProcessOutcome {
+    Exited(ExitStatus),
+    Stopped(StopReason),
+}
+
 struct RunningChild(Child);
 
 impl Drop for RunningChild {
@@ -24,11 +36,11 @@ pub(super) fn run(
     program: &str,
     invocation: &FfmpegInvocation,
     args: &[String],
-    mut should_stop: impl FnMut() -> bool,
+    mut requested_stop: impl FnMut() -> Option<StopReason>,
     mut on_line: impl FnMut(&str),
-) -> Result<ExitStatus> {
-    if should_stop() {
-        anyhow::bail!("FFmpeg command stopped before launch");
+) -> Result<ProcessOutcome> {
+    if let Some(reason) = requested_stop() {
+        return Ok(ProcessOutcome::Stopped(reason));
     }
     let mut command = Command::new(program);
     configure_background_command(&mut command);
@@ -58,12 +70,16 @@ pub(super) fn run(
     });
     let result = (|| {
         loop {
-            if should_stop() {
+            if let Some(reason) = requested_stop() {
                 drop(child.0.kill());
-                break child.0.wait().context("failed to wait for stopped FFmpeg");
+                break child
+                    .0
+                    .wait()
+                    .context("failed to wait for stopped FFmpeg")
+                    .map(|_| ProcessOutcome::Stopped(reason));
             }
             if let Some(status) = child.0.try_wait().context("failed to poll FFmpeg")? {
-                break Ok(status);
+                break Ok(ProcessOutcome::Exited(status));
             }
             match receiver.recv_timeout(Duration::from_millis(50)) {
                 Ok(line) => on_line(&line),

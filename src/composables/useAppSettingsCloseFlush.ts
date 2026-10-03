@@ -29,6 +29,7 @@ export type InstallAppSettingsCloseFlushOptions = {
   enabled: () => boolean;
   persistNow: () => Promise<void>;
   closeWindow: () => Promise<void>;
+  onFlushError: (error: unknown) => void;
 };
 
 export type AppSettingsCloseFlushHandle = {
@@ -38,7 +39,7 @@ export type AppSettingsCloseFlushHandle = {
 export const installAppSettingsCloseFlush = (
   options: InstallAppSettingsCloseFlushOptions,
 ): AppSettingsCloseFlushHandle => {
-  const { enabled, persistNow, closeWindow } = options;
+  const { enabled, persistNow, closeWindow, onFlushError } = options;
   let unlisten: (() => void) | undefined;
   let flushInProgress = false;
   let disposed = false;
@@ -55,9 +56,13 @@ export const installAppSettingsCloseFlush = (
         try {
           await flushAppSettingsForClose(persistNow);
         } catch (error) {
-          if (!isTestEnv) {
-            console.error("Failed to flush app settings on close request", error);
-          }
+          flushInProgress = false;
+          onFlushError(error);
+          return;
+        }
+        if (disposed) {
+          flushInProgress = false;
+          return;
         }
 
         try {

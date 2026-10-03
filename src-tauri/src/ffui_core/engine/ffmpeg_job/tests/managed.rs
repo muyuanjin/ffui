@@ -1,7 +1,7 @@
 use super::*;
 use std::time::{Duration, Instant};
 
-fn managed_job(engine: &TranscodingEngine, output: &Path, realtime: bool) -> String {
+pub(super) fn managed_job(engine: &TranscodingEngine, output: &Path, realtime: bool) -> String {
     let mut args: Vec<String> = [
         "-f",
         "lavfi",

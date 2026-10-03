@@ -76,6 +76,13 @@ pub fn import_config_bundle(
     }
 
     let bundle = read_config_bundle(path).map_err(|e| e.to_string())?;
+    import_bundle(&engine, bundle)
+}
+
+fn import_bundle(
+    engine: &TranscodingEngine,
+    bundle: ConfigBundle,
+) -> Result<ConfigBundleImportResult, String> {
     let ConfigBundle {
         schema_version,
         app_version,
@@ -117,3 +124,6 @@ pub fn clear_all_app_data(
     drop(engine.replace_presets(presets).map_err(|e| e.to_string())?);
     Ok(saved_settings)
 }
+
+#[cfg(test)]
+mod tests;

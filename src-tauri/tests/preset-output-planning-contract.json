@@ -2,6 +2,20 @@
   "selection": { "mode": "byMedia", "video": "extract-audio", "audio": "audio", "image": "image" },
   "cases": [
     {
+      "input": "movie.mkv",
+      "template": "ffmpeg -i INPUT -c:v copy -c:a copy -f ogg OUTPUT",
+      "kind": "video",
+      "extension": "mkv",
+      "defaultExtension": "ogg"
+    },
+    {
+      "input": "movie.mkv",
+      "template": "ffmpeg -i INPUT -vn -c:a libvorbis -f ogg OUTPUT",
+      "kind": "audio",
+      "extension": "mp3",
+      "defaultExtension": "ogg"
+    },
+    {
       "input": "movie.mp4",
       "template": "ffmpeg -i INPUT -vn -c:a aac -f mp4 -- side.mp4 -vn -c:a libmp3lame -f mp3 OUTPUT",
       "kind": "other",

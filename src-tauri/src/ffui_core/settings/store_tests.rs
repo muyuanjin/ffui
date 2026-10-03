@@ -2,6 +2,8 @@ use super::{AppSettings, SettingsStore};
 use serde_json::{Value, json};
 use std::fs;
 
+mod compatibility;
+
 fn seed(raw: &Value) {
     fs::write(
         super::super::data_root::settings_path().expect("path"),

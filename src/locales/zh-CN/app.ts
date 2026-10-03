@@ -165,6 +165,7 @@ const app = {
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",
+    closeSaveError: "无法确认设置已保存，已取消关闭。请解决错误后重试。",
     compatibilityWarning: "部分设置需要更新版本才能使用。原值已保留，相关设置和操作暂不可用。",
     appUpdateTitle: "应用更新",
     appUpdateDescription: "从 GitHub Releases 检查 FFUI 新版本。",

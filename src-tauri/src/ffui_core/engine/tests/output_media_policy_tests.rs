@@ -23,6 +23,9 @@ fn webm_media_policy_previews_match_compatible_templates_and_structured_fallback
             serde_json::from_value(case["audioCodec"].clone()).expect("audio codec");
         preset.advanced_enabled = Some(case["template"].is_string());
         preset.ffmpeg_template = case["template"].as_str().map(str::to_string);
+        preset.output_kind = case
+            .get("declared")
+            .map(|kind| serde_json::from_value(kind.clone()).expect("declared output"));
         let plan = super::super::output_policy_paths::preview_video_output_path(
             input,
             Some(&preset),

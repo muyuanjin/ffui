@@ -75,6 +75,9 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     enabled: hasTauri,
     persistNow: flushSettings,
     closeWindow: () => requestAppClose(),
+    onFlushError: (error) => {
+      settingsSaveError.value = `${t("app.settings.closeSaveError")} ${error instanceof Error ? error.message : String(error)}`;
+    },
   });
   // Keep AppSettings.defaultQueuePresetId in sync when the user changes the
   // queue header preset selector. This ensures the next launch restores the

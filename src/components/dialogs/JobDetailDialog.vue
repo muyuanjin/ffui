@@ -18,6 +18,7 @@ const emit = defineEmits<{
   expandPreview: [];
   compare: [];
   copyCommand: [command: string];
+  retryLog: [];
   measureVmaf: [payload: { jobId: string; trimSeconds: number | null }];
 }>();
 
@@ -383,7 +384,7 @@ const requestMeasureVmaf = () => {
 
             <!-- Logs -->
             <div
-              v-if="displayedLogText"
+              v-if="displayedLogText || logLoading || logError || logLoaded"
               class="space-y-2 rounded-md border border-border bg-background px-3 py-3"
               data-testid="task-detail-log"
             >
@@ -418,12 +419,49 @@ const requestMeasureVmaf = () => {
                   size="xs"
                   class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
                   data-testid="task-detail-copy-logs"
+                  :disabled="!displayedLogText"
                   @click="copyToClipboard(displayedLogText)"
                 >
                   {{ t("taskDetail.copyLogs") }}
                 </Button>
               </div>
-              <div class="rounded-md bg-muted/40 border border-border/60" data-testid="task-detail-log">
+              <p
+                v-if="logLoading"
+                role="status"
+                class="text-xs text-muted-foreground"
+                data-testid="task-detail-log-loading"
+              >
+                {{ t("taskDetail.logsLoading") }}
+              </p>
+              <div
+                v-if="logError"
+                role="alert"
+                class="space-y-2 text-xs text-destructive"
+                data-testid="task-detail-log-error"
+              >
+                <p>{{ t("taskDetail.logsLoadError") }} {{ logError }}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="logLoading"
+                  data-testid="task-detail-log-retry"
+                  @click="emit('retryLog')"
+                >
+                  {{ t("taskDetail.logsRetry") }}
+                </Button>
+              </div>
+              <p
+                v-else-if="logLoaded && !displayedLogText"
+                class="text-xs text-muted-foreground"
+                data-testid="task-detail-log-empty"
+              >
+                {{ t("taskDetail.logsEmpty") }}
+              </p>
+              <div
+                v-if="displayedLogText"
+                class="rounded-md bg-muted/40 border border-border/60"
+                data-testid="task-detail-log"
+              >
                 <div
                   class="max-h-64 overflow-y-auto px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
                 >

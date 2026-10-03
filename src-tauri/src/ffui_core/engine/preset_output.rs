@@ -95,7 +95,11 @@ pub(super) fn output_type(preset: Option<&FFmpegPreset>, input_extension: &str) 
     }
     if no_video
         || audio_only_maps(maps.iter().copied())
-        || muxer.is_some_and(|format| media_type_for_extension(format) == JobType::Audio)
+        || muxer.is_some_and(|format| {
+            super::ffmpeg_args::is_audio_only_muxer(
+                &super::ffmpeg_args::normalize_container_format(format),
+            )
+        })
     {
         return JobType::Audio;
     }
