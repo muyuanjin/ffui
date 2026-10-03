@@ -5,6 +5,7 @@ import { reactiveOmit } from "@vueuse/core";
 import { X } from "lucide-vue-next";
 import { DialogClose, DialogContent, DialogOverlay, DialogPortal, useForwardPropsEmits } from "reka-ui";
 import { cn } from "@/lib/utils";
+import { provideNestedSelectDismissal } from "./useNestedSelectDismissal";
 
 defineOptions({ inheritAttrs: false });
 
@@ -38,9 +39,13 @@ const delegatedProps = reactiveOmit(
 );
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+const isNestedSelectDismissal = provideNestedSelectDismissal();
 
-const handlePointerDownOutside = (event: Event) => {
-  if (!props.overlayClosable) event.preventDefault();
+const handlePointerDownOutside = (event: DialogContentEmits["pointerDownOutside"][0]) => {
+  if (!props.overlayClosable || isNestedSelectDismissal(event.detail.originalEvent)) event.preventDefault();
+};
+const handleEscapeKeyDown = (event: KeyboardEvent) => {
+  if (isNestedSelectDismissal(event)) event.preventDefault();
 };
 </script>
 
@@ -64,6 +69,7 @@ const handlePointerDownOutside = (event: Event) => {
         )
       "
       @pointer-down-outside="handlePointerDownOutside"
+      @escape-key-down="handleEscapeKeyDown"
     >
       <slot />
 

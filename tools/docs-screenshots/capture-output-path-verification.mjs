@@ -25,8 +25,7 @@ const verifyWarmAccent = async (locator) => {
   const channels = await backgroundChannels(locator);
   assert.ok(channels[0] > channels[2] + 30 && channels[1] > channels[2] + 15, `Expected warm: ${channels}`);
 };
-const verifyNestedFormatDismissal = async (page, dialog, kind, method, touch = false) => {
-  const selector = dialog.getByTestId(`output-policy-${kind}-format`).getByRole("combobox");
+const verifyNestedSelectDismissal = async (page, dialog, selector, method, touch = false) => {
   const original = await selector.textContent();
   const dialogBounds = method === "blank" ? await dialog.boundingBox() : null;
   if (method === "blank") assert.ok(dialogBounds);
@@ -53,7 +52,7 @@ const verifyNestedFormatDismissal = async (page, dialog, kind, method, touch = f
           candidate.y < menuBounds.y ||
           candidate.y > menuBounds.y + menuBounds.height,
       );
-      assert.ok(blankPoint, `No blank dialog point outside ${kind} menu`);
+      assert.ok(blankPoint, "No blank dialog point outside dropdown");
       point = blankPoint;
     }
     if (touch) await page.touchscreen.tap(point.x, point.y);
@@ -63,6 +62,16 @@ const verifyNestedFormatDismissal = async (page, dialog, kind, method, touch = f
   assert.equal(await dialog.isVisible(), true);
   assert.equal(await selector.textContent(), original);
   assert.equal(await selector.evaluate((element) => element === document.activeElement), true);
+};
+const verifyPolicySelectDismissals = async (page, dialog, touch = false) => {
+  await dialog.waitFor({ state: "visible" });
+  const selectors = await dialog.getByRole("combobox").all();
+  assert.ok(selectors.length >= 2, "Output settings must expose format and directory dropdowns");
+  for (const selector of selectors) {
+    for (const method of ["overlay", "blank", "escape"]) {
+      await verifyNestedSelectDismissal(page, dialog, selector, method, touch);
+    }
+  }
 };
 const withScreenshotApp = async (capture) => {
   process.env.VITE_DOCS_SCREENSHOT_HAS_TAURI = "1";
@@ -228,6 +237,7 @@ await withScreenshotApp(async ({ baseUrl }) => {
     await page.goto(`${baseUrl}?ffuiLocale=zh-CN`, { waitUntil: "commit" });
     await page.getByTestId("ffui-sidebar").waitFor();
     const setPresetMode = async (mode, locale) => {
+      assert.equal(await page.getByRole("dialog").isVisible(), false, await page.getByRole("dialog").allTextContents());
       if (!(await page.getByTestId("queue-preset-settings").isVisible())) {
         await page.mouse.move(0, 0);
         await page.getByTestId("queue-preset-summary").hover();
@@ -330,10 +340,8 @@ await withScreenshotApp(async ({ baseUrl }) => {
         await mode.click();
         await page.getByRole("option", { name: force, exact: true }).click();
       }
+      await verifyPolicySelectDismissals(page, dialog);
       for (const kind of ["video", "audio", "image"]) {
-        for (const method of ["overlay", "blank", "escape"]) {
-          await verifyNestedFormatDismissal(page, dialog, kind, method);
-        }
         await dialog.screenshot({ path: path.join(output, `cancelled-format-${kind}-${locale}.png`) });
       }
       for (const [format, label, kind] of [
@@ -420,7 +428,8 @@ await withScreenshotApp(async ({ baseUrl }) => {
       await unifiedFormat.click();
       await page.getByRole("option").filter({ hasText: "MP3 (.mp3)" }).click();
       assert.ok((await unifiedFormat.textContent()).includes("MP3 (.mp3)"));
-      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await verifyPolicySelectDismissals(page, dialog);
+      await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "hidden" });
       assert.equal(await badges.count(), 1);
       assert.ok((await badges.textContent()).includes("mp3"));
@@ -433,7 +442,8 @@ await withScreenshotApp(async ({ baseUrl }) => {
         })
         .click();
       assert.equal(await dialog.getByTestId("output-policy-audio-format").count(), 0);
-      await dialog.getByRole("button", { name: "Close", exact: true }).click();
+      await verifyPolicySelectDismissals(page, dialog);
+      await page.mouse.click(6, 6);
       await dialog.waitFor({ state: "hidden" });
       await page.mouse.move(0, 0);
       assert.equal(await badges.count(), 1);
@@ -534,9 +544,10 @@ await withScreenshotApp(async ({ baseUrl }) => {
     const touchDialog = touchPage.getByRole("dialog");
     await touchDialog.getByTestId("output-policy-container-mode-trigger").tap();
     await touchPage.getByRole("option", { name: "Specify formats by output type", exact: true }).tap();
-    for (const kind of ["video", "audio", "image"]) {
-      await verifyNestedFormatDismissal(touchPage, touchDialog, kind, "overlay", true);
-    }
+    await verifyPolicySelectDismissals(touchPage, touchDialog, true);
+    await touchDialog.getByTestId("output-policy-container-mode-trigger").tap();
+    await touchPage.getByRole("option", { name: "Unified format", exact: true }).tap();
+    await verifyPolicySelectDismissals(touchPage, touchDialog, true);
     await touchPage.touchscreen.tap(6, 6);
     await touchDialog.waitFor({ state: "hidden" });
     await touchPage.close();
@@ -561,7 +572,7 @@ await withScreenshotApp(async ({ baseUrl }) => {
           longPresetNames: "complete wrapped names in panel; bounded summaries at 1100 and 1600 pixels",
           touch: "button tap opens and a second tap closes",
           outputFormatDismissal:
-            "video/audio/image menus cancel on overlay, blank-content and Escape without closing settings or changing values; touch tap cancels only the menu; focus returns to its trigger",
+            "all format, format-mode and directory-mode menus cancel on overlay, blank-content and Escape without closing settings or changing values, for mouse and touch; focus returns to the trigger; a subsequent independent Escape or overlay click closes settings",
           queuedStatusCenter: centerDifference,
           queuedStatusAccessibility: statusSnapshots,
           knownOutputCopied: true,

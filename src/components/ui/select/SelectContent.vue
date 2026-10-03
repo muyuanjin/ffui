@@ -2,9 +2,10 @@
 import type { SelectContentEmits, SelectContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import { reactiveOmit } from "@vueuse/core";
-import { SelectContent, SelectPortal, SelectViewport, useForwardPropsEmits } from "reka-ui";
+import { SelectContent, SelectPortal, SelectViewport, injectSelectRootContext, useForwardPropsEmits } from "reka-ui";
 import { cn } from "@/lib/utils";
 import { SelectScrollDownButton, SelectScrollUpButton } from ".";
+import { registerNestedSelect } from "@/components/ui/dialog/useNestedSelectDismissal";
 
 defineOptions({
   inheritAttrs: false,
@@ -19,6 +20,8 @@ const emits = defineEmits<SelectContentEmits>();
 const delegatedProps = reactiveOmit(props, "class");
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+const select = injectSelectRootContext();
+registerNestedSelect(() => select.open.value);
 </script>
 
 <template>
