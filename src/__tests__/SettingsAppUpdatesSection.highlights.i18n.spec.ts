@@ -5,9 +5,11 @@ import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
 import SettingsAppUpdatesSection from "@/components/panels/SettingsAppUpdatesSection.vue";
+import { extractReleaseHighlights } from "@/lib/releaseNotes";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings } from "@/types";
+import releaseNotes from "../../releases/v0.3.6.md?raw";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
@@ -27,6 +29,17 @@ const makeI18n = () =>
   });
 
 describe("SettingsAppUpdatesSection localized highlights", () => {
+  it("extracts the v0.3.6 release highlights from the selected language section", () => {
+    const zhHighlights = extractReleaseHighlights(releaseNotes, "zh-CN");
+    const enHighlights = extractReleaseHighlights(releaseNotes, "en");
+
+    expect(zhHighlights[0]).toContain("音频和图片可直接添加或拖入队列");
+    expect(enHighlights[0]).toContain("Add or drop audio and images directly into the queue");
+    expect(zhHighlights).toHaveLength(enHighlights.length);
+    expect(zhHighlights.every((highlight) => /[\u4e00-\u9fff]/.test(highlight))).toBe(true);
+    expect(enHighlights.every((highlight) => !/[\u4e00-\u9fff]/.test(highlight))).toBe(true);
+  });
+
   it("renders localized highlights and updates immediately when locale changes", async () => {
     const i18n = makeI18n();
     const body = `# FFUI v0.2.1
