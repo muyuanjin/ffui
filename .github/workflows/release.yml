@@ -182,7 +182,7 @@ jobs:
           npm_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('package.json','utf8')).version)")"
           # Rust 侧也必须是同一个版本：tag、装配版本与 crate 版本漂移会让产物的自述版本对不上。
           cargo_version="$(node -e "const fs = require('node:fs'); const m = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
-          lock_version="$(node -e "const fs = require('node:fs'); const blocks = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').split(/\n\[\[package\]\]\n/); const ffui = blocks.find((b) => /^name = \"ffui\"\n/m.test(b)) || ''; const m = ffui.match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
+          lock_version="$(node -e "const fs = require('node:fs'); const blocks = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').split(/\r?\n\[\[package\]\]\r?\n/); const ffui = blocks.find((b) => /^name = \"ffui\"\r?$/m.test(b)) || ''; const m = ffui.match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
 
           if [ "$cargo_version" != "$tauri_version" ] || [ "$lock_version" != "$tauri_version" ] ; then
             echo "Cargo version mismatch: Cargo.toml=$cargo_version, Cargo.lock=$lock_version, tauri.conf.json=$tauri_version" >&2

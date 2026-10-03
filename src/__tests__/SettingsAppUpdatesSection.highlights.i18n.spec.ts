@@ -10,6 +10,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings } from "@/types";
 import releaseNotes from "../../releases/v0.3.6.md?raw";
+import releaseNotes037 from "../../releases/v0.3.7.md?raw";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
@@ -29,9 +30,13 @@ const makeI18n = () =>
   });
 
 describe("SettingsAppUpdatesSection localized highlights", () => {
-  it("extracts the v0.3.6 release highlights from the selected language section", () => {
-    const zhHighlights = extractReleaseHighlights(releaseNotes, "zh-CN");
-    const enHighlights = extractReleaseHighlights(releaseNotes, "en");
+  it.each([
+    ["v0.3.6", releaseNotes],
+    ["v0.3.7", releaseNotes037],
+  ])("extracts the %s release highlights from the selected language section", (version, notes) => {
+    expect(notes).toMatch(new RegExp(`^# FFUI ${version.replace(/\./g, "\\.")}`));
+    const zhHighlights = extractReleaseHighlights(notes, "zh-CN");
+    const enHighlights = extractReleaseHighlights(notes, "en");
 
     expect(zhHighlights[0]).toContain("音频和图片可直接添加或拖入队列");
     expect(enHighlights[0]).toContain("Add or drop audio and images directly into the queue");
