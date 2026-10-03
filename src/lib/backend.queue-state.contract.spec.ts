@@ -18,6 +18,12 @@ describe("backend queue state contract", () => {
     invokeMock.mockReset();
   });
 
+  it("rejects queue recovery diagnostics instead of turning them into an empty history", async () => {
+    invokeMock.mockRejectedValueOnce("Failed to decode queue history; original file preserved");
+    await expect(loadQueueStateLite()).rejects.toBe("Failed to decode queue history; original file preserved");
+    expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
+  });
+
   it("loadQueueStateLite preserves queueOrder field values", async () => {
     const fake = {
       snapshotRevision: 1,

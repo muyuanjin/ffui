@@ -6,6 +6,64 @@ use tempfile::tempdir;
 use super::*;
 
 #[test]
+fn missing_settings_file_loads_explicit_default_preferences() {
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    assert_eq!(
+        load_settings()
+            .expect("missing settings defaults")
+            .queue_persistence_mode,
+        QueuePersistenceMode::None
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_settings_path_is_not_treated_as_missing_preferences() {
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
+    std::os::unix::fs::symlink(&path, &path).expect("unreadable symlink cycle");
+    assert!(!path.exists());
+    let read_error = fs::read(&path).expect_err("settings path must fail to read");
+    assert_ne!(read_error.kind(), std::io::ErrorKind::NotFound);
+    let error = load_settings().expect_err("unreadable settings require a diagnostic");
+    assert!(format!("{error:#}").contains("failed to read settings file"));
+    assert!(path.is_symlink());
+}
+
+#[test]
+fn incompatible_settings_preserve_primary_and_do_not_apply_last_good_preferences() {
+    let data_dir = tempdir().expect("data directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
+    save_settings(&AppSettings::default()).expect("last-good settings");
+    let incompatible = json!({
+        "version": 2,
+        "settings": {
+            "queuePersistenceMode": "crashRecoveryLite",
+            "queuePresetSelection": {"mode": "future-mode"}
+        }
+    })
+    .to_string();
+    fs::write(&path, &incompatible).expect("primary settings");
+    let error = load_settings().expect_err("incompatible settings require a diagnostic");
+    assert!(format!("{error:#}").contains("future-mode"));
+    assert_eq!(
+        fs::read_to_string(&path).expect("preserved primary"),
+        incompatible
+    );
+    let last_good: Value = serde_json::from_slice(
+        &fs::read(data_dir.path().join("ffui.settings.last-good.json")).expect("last good"),
+    )
+    .expect("JSON");
+    assert_eq!(last_good["settings"]["queuePersistenceMode"], "none");
+}
+
+#[test]
 fn load_settings_backs_up_corrupt_json_and_returns_defaults() {
     let data_dir = tempdir().expect("temp data dir");
     let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(

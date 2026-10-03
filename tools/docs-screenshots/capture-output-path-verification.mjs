@@ -219,8 +219,19 @@ await withScreenshotApp(async ({ baseUrl }) => {
         await page.keyboard.press("Escape");
         await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       }
+      assert.equal(
+        await page
+          .getByTestId("ffui-queue-default-preset-trigger")
+          .textContent()
+          .then((text) => text.trim()),
+        locale === "zh-CN" ? "参数设置" : "Parameter settings",
+      );
+      const settingsLabel = locale === "zh-CN" ? "参数设置" : "Parameter settings";
+      assert.equal(await page.getByTestId("ffui-queue-default-preset-trigger").getAttribute("title"), settingsLabel);
       await verifyPresetHover(page);
       await setPresetMode("byMedia", locale);
+      assert.equal((await page.getByTestId("queue-preset-settings-title").textContent()).trim(), settingsLabel);
+      assert.equal(await page.getByTestId("queue-preset-selection-mode").getAttribute("aria-label"), settingsLabel);
       for (const kind of ["video", "audio", "image"]) {
         const trigger = page.getByTestId(`queue-preset-${kind}-trigger`);
         assert.ok((await trigger.textContent()).includes(locale === "zh-CN" ? "跟随统一预设" : "Follow unified"));

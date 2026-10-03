@@ -101,7 +101,11 @@ impl TranscodingEngine {
         hydrate_remote_version_cache_from_settings(&settings.tools);
         hydrate_probe_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
-        inner.state.lock_unpoisoned().settings_load_error = settings_load_error;
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            state.settings_load_error = settings_load_error;
+            state.queue_recovery_pending = true;
+        }
         {
             let previous = read_shutdown_marker();
             {
@@ -144,14 +148,16 @@ impl TranscodingEngine {
                 .name("ffui-queue-recovery".to_string())
                 .spawn(move || {
                     restore_jobs_from_persisted_queue(&inner_clone);
-                    inner_clone
-                        .queue_recovery_done
-                        .store(true, std::sync::atomic::Ordering::Release);
-                    inner_clone.cv.notify_all();
                 })
                 .map(|_| ());
 
             if let Err(err) = result {
+                {
+                    let mut state = inner.state.lock_unpoisoned();
+                    state.queue_recovery_pending = false;
+                    state.queue_restore_error =
+                        Some(format!("Failed to start queue recovery: {err}"));
+                }
                 // Ensure callers waiting on crash recovery do not hang forever
                 // if spawning the recovery worker fails.
                 inner
@@ -177,6 +183,14 @@ impl TranscodingEngine {
     /// Get a snapshot of the current queue state.
     pub fn queue_state(&self) -> QueueState {
         snapshot_queue_state(&self.inner)
+    }
+
+    pub fn queue_restore_error(&self) -> Option<String> {
+        self.inner
+            .state
+            .lock_unpoisoned()
+            .queue_restore_error
+            .clone()
     }
     /// Get a lightweight snapshot of the current queue state for high-
     /// frequency updates and startup payloads.
@@ -209,6 +223,9 @@ impl TranscodingEngine {
     pub fn force_persist_queue_state_lite_now(&self) -> anyhow::Result<()> {
         let mode = {
             let state = self.inner.state.lock_unpoisoned();
+            if let Some(error) = state.queue_persistence_error() {
+                anyhow::bail!("Cannot save queue history: {error}");
+            }
             state.settings.queue_persistence_mode
         };
 

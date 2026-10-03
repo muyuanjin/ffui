@@ -8,11 +8,11 @@ Add files or folders to use a preset. Regular files are accepted without an exte
 
 1. Configure and save a preset in **Parameter presets**. For AAC audio, use the audio tab to select AAC and the container tab to select MP4/M4A. Audio encoding is independent of the video encoder, including video Copy.
 2. For other codecs or media recipes, save a custom **command template** in the preset editor, for example `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`. Specify the output muxer with `-f` when changing formats. Under the default output policy it also determines the planned `OUTPUT` extension; output policy overrides can change the planned address, but not the template's parameters.
-3. Open **Default preset** in the task queue to select **Unified preset** or **By input type**, then drop files/folders or click **Add files** / **Add folder**. The toolbar shows one preset summary in unified mode or three input-specific summaries beside the same button. Unified mode applies one preset to every file, including extracting audio from video. Per-input mode selects separate presets for video, audio and image inputs; unset and unknown types follow the unified preset, which is also configurable in the popover. Missing configured presets produce diagnostics before the selection is enqueued, not silent replacements. Expanded file order is preserved. Incompatible inputs fail with diagnostics.
+3. Open **Parameter settings** in the task queue to select **Unified preset** or **By input type**, then drop files/folders or click **Add files** / **Add folder**. The toolbar shows one preset summary in unified mode or three input-specific summaries beside the same button. Unified mode applies one preset to every file, including extracting audio from video. Per-input mode selects separate presets for video, audio and image inputs; unset and unknown types follow the unified preset, which is also configurable in the popover. Missing configured presets produce diagnostics before the selection is enqueued, not silent replacements. Expanded file order is preserved. Incompatible inputs fail with diagnostics.
 
 You do not need the **Add command** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
 
-Hover over the default-preset button or its summaries to see the full preset names in a compact settings panel without moving keyboard focus. Move into the panel to change selections. Clicking the button or interacting with the panel keeps it open; Escape, an outside click or another button click closes it. Keyboard and touch users can open it with the button. The preset and output controls share the same capsule style; long toolbar summaries truncate while their full names remain visible in the panel.
+Hover over the parameter-settings button or its summaries to see the full preset names in a compact settings panel without moving keyboard focus. Move into the panel to change selections. Clicking the button or interacting with the panel keeps it open; Escape, an outside click or another button click closes it. Keyboard and touch users can open it with the button. The preset and output controls share the same capsule style; long toolbar summaries truncate while their full names remain visible in the panel.
 
 ### Saved preferences
 
@@ -21,6 +21,8 @@ Default-preset mode, the unified preset and the per-input preset IDs are saved i
 Output editing becomes available after settings load; load errors do not authorize saving default settings over an unreadable file. Manual enqueue also waits for the backend preset list and rejects missing configured IDs instead of substituting another preset.
 
 Preset sorting, direction, view and selection-bar pin preferences also restore on startup. Batch Compress retains its last submitted configuration independently of manual queue output settings. Normal window close attempts a bounded settings flush, then asks the backend to apply the active-task exit policy; confirmed exit flushes settings again and remains cancellable if that flush fails or times out. Forced termination, an unavailable data directory or a failed/timed-out close flush cannot guarantee the latest edits reach disk. Unsaved preset-editor changes, command-dialog drafts, open popovers and preview playback positions are session state, not saved presets or application settings.
+
+Queue history follows **Queue persistence** in application settings: **Restore queue** retains finished tasks, while **Unfinished only** deliberately excludes them. Settings and history must load before queue persistence may replace an existing snapshot. A history read or decode failure preserves the file and reports its diagnostic; repair the file and restart to retry. Valid JSON with unsupported settings is rejected rather than replaced by older last-good preferences. Last-good recovery remains available for malformed settings JSON.
 
 ### Preset targets and output formats
 
@@ -74,11 +76,11 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 
 1. 在 **参数预设** 中配置并保存预设。转为 AAC 音频时，在音频页选择 AAC，在封装页选择 MP4/M4A。音频编码独立于视频编码器，视频选直拷贝也可转码音频。
 2. 其他编码器或媒体处理方案可在预设编辑器中保存自定义 **命令模板**，例如 `ffmpeg -i INPUT -vn -c:a libmp3lame -b:a 192k -f mp3 OUTPUT`。转换格式时用 `-f` 指定输出封装；默认输出策略下，它也决定规划的 `OUTPUT` 扩展名。输出策略覆盖可改变规划地址，但不改写模板参数。
-3. 点击转码任务页面的 **默认预设**，在弹层中选择 **统一预设** 或 **按输入类型**，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。工具栏在同一个按钮左侧显示统一预设摘要，或三个按输入类型划分的摘要。统一模式对所有文件使用同一预设，支持从视频提取音频等跨类型处理。分类模式为视频、音频、图片输入分别选择预设；未指定及未知类型跟随统一预设，统一预设也可在该弹层内调整。明确配置但已缺失的预设，在本次选择入队前给出诊断，不静默替换。展开后的文件顺序保持不变；不兼容输入会给出失败诊断。
+3. 点击转码任务页面的 **参数设置**，在弹层中选择 **统一预设** 或 **按输入类型**，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。工具栏在同一个按钮左侧显示统一预设摘要，或三个按输入类型划分的摘要。统一模式对所有文件使用同一预设，支持从视频提取音频等跨类型处理。分类模式为视频、音频、图片输入分别选择预设；未指定及未知类型跟随统一预设，统一预设也可在该弹层内调整。明确配置但已缺失的预设，在本次选择入队前给出诊断，不静默替换。展开后的文件顺序保持不变；不兼容输入会给出失败诊断。
 
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
 
-鼠标悬浮在默认预设按钮或摘要上，即可在紧凑的设置面板内查看完整预设名称，不会抢走键盘焦点。移入面板可修改选择；点击按钮或操作面板后，面板保持打开，按 Escape、点击外部或再次点击按钮关闭。键盘和触屏用户可通过按钮打开。预设与输出控件使用相同的胶囊样式，工具栏的长摘要截断显示，面板内保留完整名称。
+鼠标悬浮在参数设置按钮或摘要上，即可在紧凑的设置面板内查看完整预设名称，不会抢走键盘焦点。移入面板可修改选择；点击按钮或操作面板后，面板保持打开，按 Escape、点击外部或再次点击按钮关闭。键盘和触屏用户可通过按钮打开。预设与输出控件使用相同的胶囊样式，工具栏的长摘要截断显示，面板内保留完整名称。
 
 ### 设置保存
 
@@ -87,6 +89,8 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 输出设置加载完成后才允许编辑；加载错误不会授权用默认设置覆盖不可读取的文件。手动入队也会等待后端预设列表，配置引用缺失时明确报错，不替换成其他预设。
 
 预设排序、方向、视图和选择栏固定偏好也会在启动时恢复。Batch Compress 保留最近提交的配置，与手动队列的输出设置独立。正常关闭窗口会在限定时间内尝试保存，再由后端执行活动任务的退出策略；确认退出时再次保存设置，保存失败或超时可取消退出。强制终止、数据目录不可用、关闭保存失败或超时，都无法保证最新修改落盘。尚未保存的预设编辑、命令弹窗草稿、弹层展开状态和预览播放位置属于会话状态，不属于已保存预设或应用设置。
+
+任务历史由应用设置中的 **任务队列持久化** 决定：**恢复队列** 保留已结束任务，**仅恢复未完成** 明确不保留这些任务。设置及历史加载完成前，队列保存不得替换已有快照。历史读取或解析失败时保留原文件并显示诊断；修复文件后重启可重试。有效 JSON 中不支持的设置会报错，不用较旧的 last-good 偏好替换；损坏的设置 JSON 仍可从 last-good 恢复。
 
 ### 预设目标与输出格式
 

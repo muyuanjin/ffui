@@ -25,22 +25,35 @@ fn startup_hint_for_ui(engine: &TranscodingEngine) -> Option<QueueStartupHint> {
 
 /// Get the current state of the transcoding queue.
 #[tauri::command]
-pub fn get_queue_state(engine: State<'_, TranscodingEngine>) -> QueueState {
-    engine.queue_state()
+pub fn get_queue_state(engine: State<'_, TranscodingEngine>) -> Result<QueueState, String> {
+    if let Some(error) = engine.queue_restore_error() {
+        return Err(error);
+    }
+    Ok(engine.queue_state())
 }
 
 /// Get a lightweight snapshot of the transcoding queue without heavy fields
 /// such as the full logs vector. This is intended for startup and frequent
 /// updates where payload size matters more than full detail.
 #[tauri::command]
-pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateUiLite {
-    engine.queue_state_ui_lite()
+pub fn get_queue_state_lite(
+    engine: State<'_, TranscodingEngine>,
+) -> Result<QueueStateUiLite, String> {
+    if let Some(error) = engine.queue_restore_error() {
+        return Err(error);
+    }
+    Ok(engine.queue_state_ui_lite())
 }
 
 #[tauri::command]
-pub fn get_queue_startup_hint(engine: State<'_, TranscodingEngine>) -> Option<QueueStartupHint> {
+pub fn get_queue_startup_hint(
+    engine: State<'_, TranscodingEngine>,
+) -> Result<Option<QueueStartupHint>, String> {
     wait_for_queue_recovery(&engine);
-    startup_hint_for_ui(&engine)
+    if let Some(error) = engine.queue_restore_error() {
+        return Err(error);
+    }
+    Ok(startup_hint_for_ui(&engine))
 }
 
 #[tauri::command]

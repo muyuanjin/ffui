@@ -308,7 +308,7 @@ const app = {
     cancel: "Cancel",
   },
   queueDefaultPresetLabel: "Default preset for new jobs",
-  queuePresetSettings: "Default preset",
+  queuePresetSettings: "Parameter settings",
   queueDefaultPresetPlaceholder: "Select preset used when adding jobs",
   queuePresetSelection: {
     subtitle: "Used for newly added jobs",

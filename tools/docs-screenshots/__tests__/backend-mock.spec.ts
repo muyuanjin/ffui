@@ -10,9 +10,13 @@ import {
   expandManualJobInputs,
   loadSmartDefaultPresets,
   previewOutputPath,
+  requestAppClose,
 } from "../mocks/backend";
 
 describe("docs screenshots backend mock", () => {
+  it("provides the application close boundary without closing the screenshot runner", async () => {
+    await expect(requestAppClose()).resolves.toBeUndefined();
+  });
   it.each(commandInputContract.valid)(
     "uses the fixed $id parser contract for command UI screenshots",
     async ({ command, args }) => {

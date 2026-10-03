@@ -25,7 +25,14 @@ describe("queue default preset selection", () => {
       },
       global: { plugins: [i18n], stubs: { PopoverContent: { template: "<div><slot /></div>" } } },
     });
-    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').text()).toBe("Default preset");
+    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').text()).toBe("Parameter settings");
+    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').attributes("title")).toBe(
+      "Parameter settings",
+    );
+    expect(wrapper.get('[data-testid="queue-preset-settings-title"]').text()).toBe("Parameter settings");
+    expect(wrapper.get('[data-testid="queue-preset-selection-mode"]').attributes("aria-label")).toBe(
+      "Parameter settings",
+    );
     expect(wrapper.get('[data-testid="queue-preset-summary-badge"]').text()).toBe("H264");
     expect(wrapper.get('[data-testid="queue-preset-mode-unified"]').classes()).toContain(
       "data-[state=checked]:bg-sky-700/90",
@@ -53,7 +60,10 @@ describe("queue default preset selection", () => {
     expect(wrapper.get('[data-testid="queue-preset-selection-mode"]').text()).toContain("按输入类型");
     expect(wrapper.get('[data-testid="queue-preset-audio-trigger"]').text()).toContain("预设已缺失：deleted");
     expect(wrapper.get('[data-testid="queue-preset-image-trigger"]').text()).toContain("跟随统一预设：H264");
-    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').text()).toBe("默认预设");
+    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').text()).toBe("参数设置");
+    expect(wrapper.get('[data-testid="ffui-queue-default-preset-trigger"]').attributes("title")).toBe("参数设置");
+    expect(wrapper.get('[data-testid="queue-preset-settings-title"]').text()).toBe("参数设置");
+    expect(wrapper.get('[data-testid="queue-preset-selection-mode"]').attributes("aria-label")).toBe("参数设置");
     expect(wrapper.findAll('[data-testid="queue-preset-summary-badge"]')[2].attributes("title")).toContain(
       "跟随统一预设",
     );

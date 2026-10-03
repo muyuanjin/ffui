@@ -165,12 +165,16 @@ fn decode_settings_file_json(value: Value) -> Result<(AppSettings, bool)> {
 
 pub fn load_settings() -> Result<AppSettings> {
     let path = settings_path()?;
-    if !path.exists() {
-        return Ok(AppSettings::default());
-    }
-
-    let raw_bytes = fs::read(&path)
-        .with_context(|| format!("failed to read settings file {}", path.display()))?;
+    let raw_bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(AppSettings::default());
+        }
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("failed to read settings file {}", path.display()));
+        }
+    };
     let raw: Value = match serde_json::from_slice(&raw_bytes) {
         Ok(value) => value,
         Err(err) => {
@@ -190,9 +194,6 @@ pub fn load_settings() -> Result<AppSettings> {
         Err(err) => {
             let _ = backup_unreadable_settings_file(&path, &raw_bytes, "decode failure");
             crate::debug_eprintln!("failed to decode settings file {}: {err:#}", path.display());
-            if let Some(recovered) = recover_from_last_good(&path) {
-                return Ok(recovered);
-            }
             return Err(err)
                 .with_context(|| format!("failed to decode settings file {}", path.display()));
         }

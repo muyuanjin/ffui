@@ -37,7 +37,14 @@ export function useQueueStartupToast(options: UseQueueStartupToastOptions) {
       // Startup-only: run exactly once after the first queue snapshot lands.
       checked = true;
 
-      const hint = await getQueueStartupHint();
+      let hint: Awaited<ReturnType<typeof getQueueStartupHint>>;
+      try {
+        hint = await getQueueStartupHint();
+      } catch (error) {
+        console.error("Failed to read queue recovery result:", error);
+        await refreshQueueFromBackend();
+        return;
+      }
       if (!hint || hint.autoPausedJobCount <= 0) return;
 
       const kind: QueueStartupHintKind = hint.kind;

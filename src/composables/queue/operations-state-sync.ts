@@ -458,7 +458,8 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
       }
     } catch (error) {
       console.error("Failed to refresh queue state", error);
-      const loadFailedText = deps.t?.("queue.error.loadFailed") ?? "";
+      const diagnostic = error instanceof Error ? error.message : String(error);
+      const loadFailedText = `${deps.t?.("queue.error.loadFailed") ?? ""}: ${diagnostic}`;
       deps.queueError.value = loadFailedText;
       loadFailedErrorByQueueErrorRef.set(deps.queueError as unknown as object, loadFailedText);
     }

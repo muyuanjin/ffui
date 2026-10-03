@@ -1064,6 +1064,7 @@ export const readPresetsBundle = async (_sourcePath: string): Promise<PresetBund
 };
 
 export const resetExitPrompt = async (): Promise<void> => {};
+export const requestAppClose = async (): Promise<void> => {};
 export const exitAppNow = async (): Promise<void> => {};
 export const exitAppWithAutoWait = async (): Promise<ExitAutoWaitOutcome> => {
   return {

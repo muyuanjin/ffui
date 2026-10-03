@@ -14,7 +14,7 @@ enum ParallelismClass {
 pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
     state: &mut EngineState,
 ) -> Option<String> {
-    if state.shutting_down || state.settings_load_error.is_some() {
+    if state.shutting_down || state.queue_persistence_error().is_some() {
         return None;
     }
     let mode = state.settings.parallelism_mode();

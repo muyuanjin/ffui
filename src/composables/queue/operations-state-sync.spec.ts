@@ -448,7 +448,7 @@ describe("queue operations state sync", () => {
 
     await refreshQueueFromBackend(deps);
 
-    expect(deps.queueError.value).toBe("Failed to load queue");
+    expect(deps.queueError.value).toBe("Failed to load queue: first load failed");
 
     locale = "zh";
     loadQueueStateMock.mockResolvedValueOnce({ jobs: [] });
@@ -456,6 +456,27 @@ describe("queue operations state sync", () => {
     await refreshQueueFromBackend(deps);
 
     expect(deps.queueError.value).toBeNull();
+  });
+
+  it("keeps visible history and shows the backend recovery diagnostic when loading fails", async () => {
+    const jobs = ref<TranscodeJob[]>([
+      {
+        id: "history",
+        filename: "audio.mp3",
+        type: "audio",
+        source: "manual",
+        originalSizeMB: 1,
+        presetId: "audio",
+        status: "completed",
+        progress: 100,
+      },
+    ]);
+    const deps = makeDeps({ jobs, t: () => "Failed to load queue" });
+    const previousJobs = deps.jobs.value;
+    loadQueueStateMock.mockRejectedValueOnce("Queue history is unreadable; original file preserved");
+    await refreshQueueFromBackend(deps);
+    expect(deps.jobs.value).toBe(previousJobs);
+    expect(deps.queueError.value).toBe("Failed to load queue: Queue history is unreadable; original file preserved");
   });
 
   it("refreshQueueFromBackend does not clear a different queue error after load failure", async () => {

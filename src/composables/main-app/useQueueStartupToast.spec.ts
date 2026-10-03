@@ -42,6 +42,30 @@ describe("useQueueStartupToast", () => {
     dismissQueueStartupHintMock.mockReset();
   });
 
+  it("refreshes the queue diagnostic without a success toast when recovery fails", async () => {
+    getQueueStartupHintMock.mockRejectedValueOnce("Failed to decode queue history; original file preserved");
+    const refreshQueueFromBackend = vi.fn(async () => {});
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueStartupToast({
+          enabled: true,
+          t: (key: string) => key,
+          jobs: ref([]),
+          lastQueueSnapshotRevision: ref(0),
+          refreshQueueFromBackend,
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+    const wrapper = mount(TestHarness);
+    await nextTick();
+    await flushPromises();
+    expect(refreshQueueFromBackend).toHaveBeenCalledOnce();
+    expect(toastMessageMock).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
   it("shows a corner toast after the first queue snapshot is loaded", async () => {
     resumeStartupQueueMock.mockResolvedValueOnce(2);
     getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pauseOnExit", autoPausedJobCount: 2 });

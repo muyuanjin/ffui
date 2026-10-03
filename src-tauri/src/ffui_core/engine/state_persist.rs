@@ -71,20 +71,19 @@ pub(super) fn decode_persisted_queue_state_bytes_for_bench(data: &[u8]) -> Optio
     persisted_queue_state::decode_persisted_queue_state_bytes_for_bench(data)
 }
 
-pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
-    let path = queue_state_sidecar_path_result().ok()?;
-    if !path.exists() {
-        return None;
-    }
+pub(super) struct LoadedQueueState {
+    pub(super) snapshot: QueueState,
+    pub(super) snapshot_revision: u64,
+}
 
+pub(super) fn load_persisted_queue_state() -> Result<Option<LoadedQueueState>> {
+    let path = queue_state_sidecar_path_result()?;
     let data = match fs::read(&path) {
         Ok(data) => data,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(err) => {
-            crate::debug_eprintln!(
-                "failed to read persisted queue state {}: {err:#}",
-                path.display()
-            );
-            return None;
+            return Err(err)
+                .with_context(|| format!("Failed to read queue history {}", path.display()));
         }
     };
     let mut rewrite = false;
@@ -126,11 +125,10 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
             }
         }
         None => {
-            crate::debug_eprintln!(
-                "failed to parse persisted queue state from {}: unable to decode as v1, full, or lite schema",
+            anyhow::bail!(
+                "Failed to decode queue history {}; the original file has been preserved",
                 path.display()
             );
-            return None;
         }
     };
 
@@ -138,11 +136,15 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
         crate::debug_eprintln!("failed to rewrite persisted queue state: {err:#}");
     }
 
+    let snapshot_revision = lite.snapshot_revision;
     let mut snapshot = QueueState::from(lite);
     for job in &mut snapshot.jobs {
         job.ensure_run_history_from_legacy();
     }
-    Some(snapshot)
+    Ok(Some(LoadedQueueState {
+        snapshot,
+        snapshot_revision,
+    }))
 }
 
 /// Actual on-disk writer for queue state snapshots. This performs a single
@@ -154,14 +156,23 @@ fn remove_temp_queue_state_file_best_effort(path: &Path) {
     }
 }
 
-fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) -> Result<()> {
+fn persist_queue_state_inner(epoch: u64) -> Result<()> {
+    let _write_guard = QUEUE_PERSIST_WRITE_MUTEX.lock_unpoisoned();
     if should_abort_queue_persist_write_for_tests(epoch) {
         return Ok(());
     }
+    let snapshot = {
+        let state = QUEUE_PERSIST.state.lock_unpoisoned();
+        if state.last_snapshot_epoch != epoch {
+            return Ok(());
+        }
+        let Some(snapshot) = state.last_snapshot.clone() else {
+            return Ok(());
+        };
+        snapshot
+    };
 
     let path = queue_state_sidecar_path_result()?;
-
-    let _write_guard = QUEUE_PERSIST_WRITE_MUTEX.lock_unpoisoned();
 
     if let Some(parent) = path.parent()
         && let Err(err) = fs::create_dir_all(parent)
@@ -349,7 +360,7 @@ fn ensure_worker_thread_started() {
         .name("ffui-queue-persist".to_string())
         .spawn(|| {
             loop {
-                let maybe_snapshot = {
+                let maybe_epoch = {
                     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
                     loop {
                         let Some(deadline) = state.next_flush_at else {
@@ -368,20 +379,19 @@ fn ensure_worker_thread_started() {
                     }
 
                     if state.dirty_since_write {
-                        let snapshot = state.last_snapshot.clone();
                         let epoch = state.last_snapshot_epoch;
                         state.last_write_at = Some(Instant::now());
                         state.dirty_since_write = false;
                         state.next_flush_at = None;
-                        snapshot.map(|snapshot| (epoch, snapshot))
+                        Some(epoch)
                     } else {
                         state.next_flush_at = None;
                         None
                     }
                 };
 
-                if let Some((epoch, snapshot)) = maybe_snapshot
-                    && let Err(err) = persist_queue_state_inner(&snapshot, epoch)
+                if let Some(epoch) = maybe_epoch
+                    && let Err(err) = persist_queue_state_inner(epoch)
                 {
                     crate::debug_eprintln!("failed to persist queue state: {err:#}");
                 }
@@ -412,16 +422,30 @@ pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) -> R
 
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     let epoch = current_queue_persist_epoch();
-    state.last_snapshot = Some(snapshot.clone());
-    state.last_snapshot_epoch = epoch;
+    if !is_stale_queue_snapshot(&state, snapshot, epoch) {
+        state.last_snapshot = Some(snapshot.clone());
+        state.last_snapshot_epoch = epoch;
+    }
     state.last_write_at = Some(Instant::now());
     state.dirty_since_write = false;
     state.next_flush_at = None;
     drop(state);
 
-    persist_queue_state_inner(snapshot, epoch)?;
+    persist_queue_state_inner(epoch)?;
     QUEUE_PERSIST.cv.notify_all();
     Ok(())
+}
+
+fn is_stale_queue_snapshot(
+    state: &QueuePersistState,
+    snapshot: &QueueStateLite,
+    epoch: u64,
+) -> bool {
+    state.last_snapshot_epoch == epoch
+        && state
+            .last_snapshot
+            .as_ref()
+            .is_some_and(|previous| previous.snapshot_revision > snapshot.snapshot_revision)
 }
 
 /// Persist the given snapshot to disk using a debounced writer. The first
@@ -437,6 +461,9 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     let now = Instant::now();
     let epoch = current_queue_persist_epoch();
+    if is_stale_queue_snapshot(&state, snapshot, epoch) {
+        return;
+    }
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);
     state.last_snapshot = Some(snapshot.clone());
     state.last_snapshot_epoch = epoch;
@@ -449,12 +476,8 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
             state.last_write_at = Some(now);
             state.dirty_since_write = false;
             state.next_flush_at = None;
-            let to_write = state
-                .last_snapshot
-                .clone()
-                .unwrap_or_else(|| snapshot.clone());
             drop(state);
-            if let Err(err) = persist_queue_state_inner(&to_write, epoch) {
+            if let Err(err) = persist_queue_state_inner(epoch) {
                 crate::debug_eprintln!("failed to persist queue state: {err:#}");
             }
         }
@@ -464,12 +487,8 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                 state.last_write_at = Some(now);
                 state.dirty_since_write = false;
                 state.next_flush_at = None;
-                let to_write = state
-                    .last_snapshot
-                    .clone()
-                    .unwrap_or_else(|| snapshot.clone());
                 drop(state);
-                if let Err(err) = persist_queue_state_inner(&to_write, epoch) {
+                if let Err(err) = persist_queue_state_inner(epoch) {
                     crate::debug_eprintln!("failed to persist queue state: {err:#}");
                 }
                 QUEUE_PERSIST.cv.notify_all();

@@ -53,6 +53,8 @@ pub(crate) struct EngineState {
     pub(crate) presets: Arc<Vec<FFmpegPreset>>,
     pub(crate) settings: AppSettings,
     pub(crate) settings_load_error: Option<String>,
+    pub(crate) queue_restore_error: Option<String>,
+    pub(crate) queue_recovery_pending: bool,
     pub(crate) shutting_down: bool,
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
@@ -103,11 +105,22 @@ pub(crate) struct EngineState {
 }
 
 impl EngineState {
+    pub(crate) fn queue_persistence_error(&self) -> Option<&str> {
+        if self.queue_recovery_pending {
+            return Some("Queue recovery is still in progress; existing history is protected");
+        }
+        self.settings_load_error
+            .as_deref()
+            .or(self.queue_restore_error.as_deref())
+    }
+
     pub(crate) fn new(presets: Vec<FFmpegPreset>, settings: AppSettings) -> Self {
         Self {
             presets: Arc::new(presets),
             settings,
             settings_load_error: None,
+            queue_restore_error: None,
+            queue_recovery_pending: false,
             shutting_down: false,
             jobs: HashMap::new(),
             queue: VecDeque::new(),
@@ -321,6 +334,9 @@ pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
 pub(super) fn persist_queue_state_lite_best_effort(inner: &Inner) {
     let (lite_snapshot, persistence_mode) = {
         let mut state = inner.state.lock_unpoisoned();
+        if state.queue_persistence_error().is_some() {
+            return;
+        }
         (
             snapshot_queue_state_lite_from_locked_state(&mut state),
             state.settings.queue_persistence_mode,
@@ -359,7 +375,14 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     let lite_listeners = inner.queue_lite_listeners.lock_unpoisoned().clone();
     let ui_lite_listeners = inner.queue_ui_lite_listeners.lock_unpoisoned().clone();
 
-    let (lite_snapshot, ui_lite_snapshot, full_snapshot, persistence_mode, retention) = {
+    let (
+        lite_snapshot,
+        ui_lite_snapshot,
+        full_snapshot,
+        persistence_mode,
+        retention,
+        persistence_ready,
+    ) = {
         let mut state = inner.state.lock_unpoisoned();
         state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
         repair_queue_invariants_locked(&mut state);
@@ -379,6 +402,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
             full,
             state.settings.queue_persistence_mode,
             state.settings.crash_recovery_log_retention,
+            state.queue_persistence_error().is_none(),
         )
     };
 
@@ -401,7 +425,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
         }
     };
 
-    if let Some(snapshot) = persist_snapshot {
+    if let Some(snapshot) = persist_snapshot.filter(|_| persistence_ready) {
         #[cfg(test)]
         let _persist_guard = super::state_persist::queue_state_sidecar_path_overridden_for_tests()
             .then(crate::ffui_core::lock_persist_test_mutex_for_tests);
@@ -511,3 +535,6 @@ pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Pa
 }
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod history_persistence_tests;

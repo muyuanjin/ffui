@@ -37,7 +37,10 @@ fn queue_state_lite_persists_first_real_command_for_restart() {
     let lite = make_state_lite(vec![job]);
     persist_queue_state_lite(&lite);
 
-    let restored = load_persisted_queue_state().expect("load persisted queue state");
+    let restored = load_persisted_queue_state()
+        .expect("load persisted queue state")
+        .expect("snapshot")
+        .snapshot;
     let restored_job = restored
         .jobs
         .into_iter()
@@ -64,6 +67,66 @@ fn make_state_lite(jobs: Vec<TranscodeJob>) -> QueueStateLite {
             .map(|job| TranscodeJobLite::from(&job))
             .collect(),
     }
+}
+
+#[test]
+fn older_structural_snapshots_cannot_replace_newer_jobs_or_schedule_a_flush() {
+    let _guard = lock_persist_test_mutex_for_tests();
+    reset_queue_persist_state_for_tests();
+    let directory = tempfile::tempdir().expect("queue directory");
+    let path = directory.path().join("queue.json");
+    let _path_guard = override_queue_state_sidecar_path_for_tests(path.clone());
+    let mut newer = make_state_lite(vec![
+        make_job("history", JobStatus::Completed),
+        make_job("new-job", JobStatus::Paused),
+    ]);
+    newer.snapshot_revision = 12;
+    persist_queue_state_lite(&newer);
+    let original = fs::read(&path).expect("newer snapshot");
+    let mut older = make_state_lite(vec![make_job("history", JobStatus::Completed)]);
+    older.snapshot_revision = 11;
+    persist_queue_state_lite(&older);
+    persist_queue_state_lite_immediate(&older).expect("stale shutdown snapshot ignored");
+    let state = QUEUE_PERSIST.state.lock_unpoisoned();
+    assert_eq!(
+        serde_json::to_value(state.last_snapshot.as_ref().expect("accepted snapshot"))
+            .expect("accepted JSON"),
+        serde_json::to_value(&newer).expect("newer JSON")
+    );
+    assert!(!state.dirty_since_write);
+    assert!(state.next_flush_at.is_none());
+    drop(state);
+    assert_eq!(fs::read(&path).expect("preserved snapshot"), original);
+}
+
+#[test]
+fn delayed_writers_cannot_overwrite_newer_snapshots_or_same_revision_progress() {
+    let _guard = lock_persist_test_mutex_for_tests();
+    reset_queue_persist_state_for_tests();
+    let directory = tempfile::tempdir().expect("queue directory");
+    let path = directory.path().join("queue.json");
+    let _path_guard = override_queue_state_sidecar_path_for_tests(path.clone());
+    let mut older = make_state_lite(vec![make_job("job", JobStatus::Processing)]);
+    older.snapshot_revision = 20;
+    persist_queue_state_lite_immediate(&older).expect("original snapshot");
+    let epoch = current_queue_persist_epoch();
+    let mut progress = older.clone();
+    progress.jobs[0].progress = 75.0;
+    persist_queue_state_lite_immediate(&progress).expect("same revision progress");
+    let latest = fs::read(&path).expect("progress snapshot");
+    persist_queue_state_inner(epoch).expect("delayed writer uses latest progress");
+    assert_eq!(fs::read(&path).expect("preserved progress"), latest);
+
+    let mut newer = progress.clone();
+    newer.snapshot_revision = 21;
+    newer.jobs.push(TranscodeJobLite::from(&make_job(
+        "new-job",
+        JobStatus::Paused,
+    )));
+    persist_queue_state_lite_immediate(&newer).expect("newer snapshot");
+    let latest = fs::read(&path).expect("new job snapshot");
+    persist_queue_state_inner(epoch).expect("delayed progress flush uses latest jobs");
+    assert_eq!(fs::read(&path).expect("preserved new job"), latest);
 }
 
 #[test]
@@ -202,7 +265,10 @@ fn load_persisted_queue_state_accepts_lite_schema() {
     )
     .expect("write persisted lite state");
 
-    let loaded = load_persisted_queue_state().expect("expected to load persisted lite state");
+    let loaded = load_persisted_queue_state()
+        .expect("expected to load persisted lite state")
+        .expect("snapshot")
+        .snapshot;
     assert_eq!(loaded.jobs.len(), 1);
     assert!(
         loaded.jobs[0].logs.is_empty(),
@@ -233,7 +299,10 @@ fn load_persisted_queue_state_migrates_legacy_waiting_status_to_queued() {
     let legacy = br#"{"snapshotRevision":0,"jobs":[{"id":"job-1","filename":"C:/videos/legacy.mp4","type":"video","source":"manual","originalSizeMB":1.0,"presetId":"preset-1","status":"waiting","progress":0}]}"#;
     fs::write(&tmp, legacy).expect("write persisted legacy lite state");
 
-    let loaded = load_persisted_queue_state().expect("expected to load persisted legacy state");
+    let loaded = load_persisted_queue_state()
+        .expect("expected to load persisted legacy state")
+        .expect("snapshot")
+        .snapshot;
     assert_eq!(loaded.jobs.len(), 1);
     assert_eq!(loaded.jobs[0].status, JobStatus::Queued);
 
@@ -267,7 +336,10 @@ fn load_persisted_queue_state_backfills_first_run_command_from_ffmpeg_command() 
     let legacy = br#"{"snapshotRevision":0,"jobs":[{"id":"job-1","filename":"C:/videos/legacy.mp4","type":"video","source":"manual","originalSizeMB":1.0,"presetId":"preset-1","status":"paused","progress":10,"ffmpegCommand":"ffmpeg -i in.mp4 out.mp4"}]}"#;
     fs::write(&tmp, legacy).expect("write persisted legacy lite state");
 
-    let loaded = load_persisted_queue_state().expect("expected to load persisted legacy state");
+    let loaded = load_persisted_queue_state()
+        .expect("expected to load persisted legacy state")
+        .expect("snapshot")
+        .snapshot;
     assert_eq!(loaded.jobs.len(), 1);
     assert!(
         !loaded.jobs[0].runs.is_empty(),

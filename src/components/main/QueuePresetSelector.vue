@@ -125,7 +125,7 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
           variant="presetSettings"
           size="sm"
           :class="triggerClass"
-          :title="t('app.queueDefaultPresetLabel')"
+          :title="t('app.queuePresetSettings')"
           @click.capture="triggerClick = true"
         >
           {{ t("app.queuePresetSettings") }}
@@ -156,7 +156,9 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
       <div class="mb-3 flex items-center gap-2.5">
         <Layers class="h-4 w-4 shrink-0 text-sky-400" aria-hidden="true" />
         <div>
-          <div class="text-sm font-semibold">{{ t("app.queueDefaultPresetLabel") }}</div>
+          <div class="text-sm font-semibold" data-testid="queue-preset-settings-title">
+            {{ t("app.queuePresetSettings") }}
+          </div>
           <div class="mt-0.5 text-[11px] text-muted-foreground">{{ t("app.queuePresetSelection.subtitle") }}</div>
         </div>
       </div>
@@ -165,7 +167,7 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
         orientation="horizontal"
         class="mb-3 flex rounded-full border border-border/60 bg-background/30 p-0.5"
         data-testid="queue-preset-selection-mode"
-        :aria-label="t('app.queueDefaultPresetLabel')"
+        :aria-label="t('app.queuePresetSettings')"
         @update:model-value="
           (value) => emit('update:selection', value === 'byMedia' ? { mode: 'byMedia' } : { mode: 'unified' })
         "

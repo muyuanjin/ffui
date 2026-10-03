@@ -7,16 +7,41 @@ use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 use std::collections::{HashSet, VecDeque};
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
+    let result = try_restore_jobs_from_persisted_queue(inner);
+    let restored = result.is_ok();
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.queue_recovery_pending = false;
+        state.queue_restore_error = result.err().map(|error| format!("{error:#}"));
+    }
+    inner
+        .queue_recovery_done
+        .store(true, std::sync::atomic::Ordering::Release);
+    inner.cv.notify_all();
+    if restored {
+        super::notify_queue_listeners(inner);
+    }
+}
+
+fn try_restore_jobs_from_persisted_queue(inner: &Inner) -> anyhow::Result<()> {
     let (mode, retention) = {
         let state = inner.state.lock_unpoisoned();
+        if let Some(error) = &state.settings_load_error {
+            anyhow::bail!("Cannot restore queue history before settings load: {error}");
+        }
         (
             state.settings.queue_persistence_mode,
             state.settings.crash_recovery_log_retention,
         )
     };
-    let Some(snapshot) = load_persisted_queue_state() else {
-        return;
+    let Some(loaded) = load_persisted_queue_state()? else {
+        return Ok(());
     };
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.queue_snapshot_revision = state.queue_snapshot_revision.max(loaded.snapshot_revision);
+    }
+    let snapshot = loaded.snapshot;
     let mut snapshot = match mode {
         QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull => {
             snapshot
@@ -33,7 +58,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
                 )
             });
             if snapshot.jobs.is_empty() {
-                return;
+                return Ok(());
             }
             snapshot
         }
@@ -101,7 +126,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
         // Do not infer startup auto-paused jobs from any "Paused" status:
         // users can pause jobs manually, and that must not trigger (or be resumed by)
         // the startup recovery prompt.
-        return;
+        return Ok(());
     }
 
     let previous_marker = inner.previous_shutdown_marker.lock_unpoisoned().clone();
@@ -116,6 +141,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
         auto_paused_job_count: auto_paused_count,
     };
     *inner.queue_startup_hint.lock_unpoisoned() = Some(hint);
+    Ok(())
 }
 
 pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
