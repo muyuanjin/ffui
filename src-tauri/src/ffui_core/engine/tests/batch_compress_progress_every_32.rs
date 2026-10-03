@@ -3,6 +3,7 @@ use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_progress_every_32");
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create test dir");

@@ -7,8 +7,28 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
+import { settingsSnapshot } from "./helpers/settingsSnapshot";
+import { flushPromises } from "@vue/test-utils";
 
 describe("MainApp global alerts", () => {
+  it("shows persistent compatibility diagnostics and disables affected parameter settings", async () => {
+    const snapshot = settingsSnapshot({ ...defaultAppSettings(), onboardingCompleted: true });
+    snapshot.unavailableSettings = [{ path: "/queuePresetSelection", reason: "Unsupported selection mode" }];
+    useBackendMock({
+      get_app_settings: () => snapshot,
+      save_app_settings: ({ settings } = {}) => ({ ...snapshot, settings }),
+    });
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    await flushPromises();
+    await nextTick();
+    expect(wrapper.get("[data-testid='global-alerts']").text()).toContain("Unsupported selection mode");
+    expect(wrapper.find("[data-testid='global-alert-dismiss-settings-compatibility']").exists()).toBe(false);
+    expect(wrapper.get("[data-testid='ffui-queue-default-preset-trigger']").attributes("disabled")).toBeDefined();
+    const vm = withMainAppVmCompat(wrapper);
+    expect(vm.settingsSaveError).toBeNull();
+    await vm.flushSettings();
+    wrapper.unmount();
+  });
   it("does not surface a global error when delete requires confirmation", async () => {
     const jobs: TranscodeJob[] = [
       {

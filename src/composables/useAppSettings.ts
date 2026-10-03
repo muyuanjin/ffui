@@ -1,12 +1,7 @@
-import { onMounted, onUnmounted, ref, shallowRef, watch, type Ref } from "vue";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  ExternalToolStatus,
-  BatchCompressConfig,
-  Translate,
-} from "@/types";
+import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
+import type { UseAppSettingsOptions, UseAppSettingsReturn } from "./useAppSettings.types";
+export type { UseAppSettingsOptions, UseAppSettingsReturn } from "./useAppSettings.types";
 import {
   hasTauri,
   loadAppSettings,
@@ -21,6 +16,8 @@ import { perfLog } from "@/lib/perfLog";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 import { normalizeLoadedAppSettings } from "./appSettingsNormalize";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
+import { rebaseAppSettings } from "@/lib/appSettingsChanges";
+import { settingsAvailability, subscribeSettingsReplacement, type UnavailableSetting } from "@/lib/backend.settings";
 import {
   externalToolCustomPath,
   externalToolDisplayName,
@@ -36,67 +33,6 @@ let loggedToolStatusLoad = false;
 
 // ----- Composable -----
 
-export interface UseAppSettingsOptions {
-  /** Smart config ref (to restore from settings). */
-  smartConfig?: Ref<BatchCompressConfig>;
-  /** Manual job preset ID ref (to restore from settings). */
-  manualJobPresetId?: Ref<string | null>;
-  /** Optional i18n translation function for user-facing messages. */
-  t?: Translate;
-}
-
-export interface UseAppSettingsReturn {
-  // ----- State -----
-  /** App settings. */
-  appSettings: Ref<AppSettings | null>;
-  /** Whether settings are being saved. */
-  isSavingSettings: Ref<boolean>;
-  /** Settings save error message. */
-  settingsSaveError: Ref<string | null>;
-  /** External tool statuses. */
-  toolStatuses: Ref<ExternalToolStatus[]>;
-  /** Whether tool statuses have been refreshed at least once this session. */
-  toolStatusesFresh: Ref<boolean>;
-
-  // ----- Methods -----
-  /** Ensure app settings are loaded. */
-  ensureAppSettingsLoaded: () => Promise<void>;
-  /** Schedule settings save (with debouncing). */
-  scheduleSaveSettings: () => void;
-  /**
-   * Persist a settings snapshot immediately (bypasses debounce) and updates the
-   * internal "last saved" snapshot so follow-up debounced saves don't double-write.
-   */
-  persistNow: (nextSettings?: AppSettings) => Promise<void>;
-  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  getAppSetting: <Key extends keyof AppSettings>(key: Key) => AppSettings[Key] | undefined;
-  flushSettings: () => Promise<void>;
-  /**
-   * Mark a snapshot as saved without performing I/O. Use this when settings
-   * were persisted outside of useAppSettings and you need to keep the internal
-   * snapshot consistent.
-   */
-  markSaved: (serializedOrSettings: string | AppSettings) => void;
-  /** Refresh external tool statuses. */
-  refreshToolStatuses: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-    remoteCheckKind?: ExternalToolKind;
-  }) => Promise<void>;
-  /** Manually trigger download/update for a given tool kind. */
-  downloadToolNow: (kind: ExternalToolKind) => Promise<void>;
-  /** Enumerate available candidate binaries for a tool. */
-  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
-  /** Get display name for a tool kind. */
-  getToolDisplayName: (kind: ExternalToolKind) => string;
-  /** Get custom path for a tool. */
-  getToolCustomPath: (kind: ExternalToolKind) => string;
-  /** Set custom path for a tool. */
-  setToolCustomPath: (kind: ExternalToolKind, value: string | number) => void;
-  /** Clean up timers (call in onUnmounted). */
-  cleanup: () => void;
-}
-
 /**
  * Composable for app settings management.
  */
@@ -108,6 +44,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const pendingSettings = shallowRef<Partial<AppSettings>>({});
   const isSavingSettings = ref(false);
   const settingsSaveError = ref<string | null>(null);
+  const unavailableSettings = ref<UnavailableSetting[]>([]);
   const toolStatuses = ref<ExternalToolStatus[]>([]);
   const toolStatusesFresh = ref(false);
   let settingsSaveTimer: number | undefined;
@@ -156,7 +93,23 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const markSaved = (serializedOrSettings: string | AppSettings) => {
     lastSavedSettingsSnapshot =
       typeof serializedOrSettings === "string" ? serializedOrSettings : JSON.stringify(serializedOrSettings);
+    unavailableSettings.value = settingsAvailability();
   };
+
+  let settingsGeneration = 0;
+  const unsubscribeReplacement = subscribeSettingsReplacement((settings) => {
+    settingsGeneration += 1;
+    latestSaveRevision += 1;
+    cancelScheduledSave();
+    pendingSettings.value = {};
+    lastQueuedSnapshot = null;
+    lastQueuedSave = null;
+    appSettings.value = settings;
+    markSaved(settings);
+    settingsSaveError.value = null;
+    if (manualJobPresetId) manualJobPresetId.value = settings.defaultQueuePresetId ?? null;
+    if (smartConfig) smartConfig.value = settings.batchCompressDefaults;
+  });
 
   const loadSettingsOnce = async () => {
     if (appSettings.value) return;
@@ -168,8 +121,10 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
     const applyLoadedSettings = (settings: AppSettings) => {
       const current = appSettings.value;
-      appSettings.value = normalizeLoadedAppSettings(Object.assign({}, settings, current ?? {}));
-      lastSavedSettingsSnapshot = JSON.stringify(settings);
+      const loaded = settings;
+      appSettings.value = Object.assign({}, loaded, current ?? {});
+      lastSavedSettingsSnapshot = JSON.stringify(loaded);
+      unavailableSettings.value = settingsAvailability();
       if (settings?.batchCompressDefaults && smartConfig) {
         const existing = smartConfig.value;
         const next = { ...settings.batchCompressDefaults };
@@ -255,7 +210,9 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   };
 
   const persistSnapshot = (current: AppSettings): Promise<void> => {
+    const generation = settingsGeneration;
     const serialized = JSON.stringify(current);
+    const capturedBaseline = lastSavedSettingsSnapshot;
     if (serialized === lastQueuedSnapshot && lastQueuedSave) return lastQueuedSave;
     const revision = ++latestSaveRevision;
     pendingSaveCount += 1;
@@ -263,18 +220,38 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     settingsSaveError.value = null;
     const save = saveTail
       .then(async () => {
+        if (generation !== settingsGeneration) return;
         if (serialized === lastSavedSettingsSnapshot) return;
+        const next = JSON.parse(serialized) as AppSettings;
+        const candidate =
+          capturedBaseline && lastSavedSettingsSnapshot
+            ? rebaseAppSettings(
+                JSON.parse(capturedBaseline) as AppSettings,
+                next,
+                JSON.parse(lastSavedSettingsSnapshot) as AppSettings,
+              )
+            : next;
+        let saved: AppSettings;
         try {
-          await saveAppSettings(JSON.parse(serialized) as AppSettings);
+          saved = await saveAppSettings(candidate);
         } catch (error) {
-          lastSavedSettingsSnapshot = null;
           console.error("Failed to save settings", error);
           if (revision === latestSaveRevision) {
             settingsSaveError.value = `${t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings."} ${error instanceof Error ? error.message : String(error)}`;
           }
           return;
         }
-        lastSavedSettingsSnapshot = serialized;
+        const draft = appSettings.value;
+        if (generation !== settingsGeneration) return;
+        lastSavedSettingsSnapshot = JSON.stringify(saved);
+        unavailableSettings.value = settingsAvailability();
+        if (draft) {
+          const rebased = rebaseAppSettings(next, draft, saved);
+          const serializedDraft = JSON.stringify(draft);
+          const serializedRebased = JSON.stringify(rebased);
+          if (serializedRebased !== serializedDraft) appSettings.value = rebased;
+          if (serializedRebased === lastSavedSettingsSnapshot) cancelScheduledSave();
+        }
       })
       .finally(() => {
         pendingSaveCount -= 1;
@@ -456,6 +433,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   };
 
   const cleanup = () => {
+    unsubscribeReplacement();
     cancelScheduledSave();
     toolStatusUnlisten?.();
     toolStatusUnlisten = null;
@@ -470,6 +448,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     appSettings,
     isSavingSettings,
     settingsSaveError,
+    unavailableSettings,
     toolStatuses,
     toolStatusesFresh,
 

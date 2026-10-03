@@ -106,7 +106,7 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<Networ
         .and_then(|n| n.to_str())
         .ok_or_else(|| anyhow!("destination {} has invalid file name", dest.display()))?;
 
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved = network_proxy::resolve_effective_proxy_once()?;
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
     let force_no_proxy = resolved.is_no_proxy_mode();
 
@@ -185,7 +185,7 @@ where
         .ok_or_else(|| anyhow!("destination {} has no parent directory", dest.display()))?;
     fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
 
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved = network_proxy::resolve_effective_proxy_once()?;
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
 
     let mut info = NetworkAttemptInfo {
@@ -295,7 +295,7 @@ where
 {
     const PREFETCH_CAPACITY_LIMIT_BYTES: usize = 16 * 1024 * 1024;
 
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved = network_proxy::resolve_effective_proxy_once()?;
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
 
     let mut info = NetworkAttemptInfo {
@@ -410,7 +410,7 @@ fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
 pub(crate) fn content_length_head(url: &str) -> Option<u64> {
     use reqwest::blocking::Client;
 
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved = network_proxy::resolve_effective_proxy_once().ok()?;
     let force_no_proxy = resolved.is_no_proxy_mode();
 
     let builder = Client::builder().timeout(Duration::from_secs(5));

@@ -7,6 +7,7 @@ use crate::ffui_core::BatchCompressConfig;
 /// 这是为了修复“删除全部任务都跳过的压缩任务”时后端返回 false，导致前端无法删除复合任务的问题。
 #[test]
 fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_all_skipped_delete");
     let _ = fs::create_dir_all(&dir);
 

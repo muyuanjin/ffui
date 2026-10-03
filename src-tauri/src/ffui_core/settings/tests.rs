@@ -277,7 +277,7 @@ fn app_settings_round_trips_locale_when_present() {
 }
 
 #[test]
-fn load_settings_migrates_legacy_unversioned_file_to_versioned_envelope() {
+fn legacy_unversioned_settings_are_projected_without_writing_then_migrate_on_edit() {
     let data_dir = tempdir().expect("temp data dir");
     let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
         data_dir.path().to_path_buf(),
@@ -305,28 +305,22 @@ fn load_settings_migrates_legacy_unversioned_file_to_versioned_envelope() {
     let rewritten: Value =
         serde_json::from_str(&fs::read_to_string(&path).expect("read rewritten settings"))
             .expect("parse rewritten settings JSON");
+    assert_eq!(rewritten, legacy);
+    let mut edited = loaded;
+    edited.developer_mode_enabled = true;
+    save_settings(&edited).expect("edit legacy settings");
+    let migrated: Value =
+        serde_json::from_slice(&fs::read(&path).expect("migrated settings")).expect("JSON");
+    assert_eq!(migrated["version"], 2);
+    assert_eq!(migrated["settings"]["locale"], legacy["locale"]);
     assert_eq!(
-        rewritten.get("version").and_then(Value::as_u64),
-        Some(2),
-        "settings file must be rewritten with a version envelope"
-    );
-    assert!(
-        rewritten.get("settings").is_some(),
-        "settings file must be rewritten with a top-level settings object"
-    );
-    assert_eq!(
-        rewritten
-            .get("settings")
-            .and_then(Value::as_object)
-            .and_then(|settings| settings.get("locale"))
-            .and_then(Value::as_str),
-        Some("en"),
-        "rewritten settings must persist normalized locale"
+        load_settings().expect("reload").locale.as_deref(),
+        Some("en")
     );
 }
 
 #[test]
-fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope() {
+fn legacy_wrapper_is_unchanged_on_read_and_versioned_on_edit() {
     let data_dir = tempdir().expect("temp data dir");
     let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
         data_dir.path().to_path_buf(),
@@ -346,15 +340,14 @@ fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope()
     let rewritten: Value =
         serde_json::from_str(&fs::read_to_string(&path).expect("read rewritten settings"))
             .expect("parse rewritten settings JSON");
-    assert_eq!(
-        rewritten.get("version").and_then(Value::as_u64),
-        Some(2),
-        "legacy wrapper must be rewritten with the current version envelope"
-    );
-    assert!(
-        rewritten.get("settings").is_some(),
-        "legacy wrapper must be rewritten with a top-level settings object"
-    );
+    assert_eq!(rewritten, legacy);
+    let mut edited = loaded;
+    edited.developer_mode_enabled = true;
+    save_settings(&edited).expect("edit legacy wrapper");
+    let migrated: Value =
+        serde_json::from_slice(&fs::read(&path).expect("migrated settings")).expect("JSON");
+    assert_eq!(migrated["version"], 2);
+    assert_eq!(migrated["settings"]["locale"], "zh-CN");
 }
 
 #[test]

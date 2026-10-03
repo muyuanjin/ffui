@@ -173,6 +173,8 @@ const app = {
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
+    compatibilityWarning:
+      "Some settings require a newer application version. Their values are preserved; affected settings and operations are unavailable.",
     appUpdateTitle: "App updates",
     appUpdateDescription: "Check for new FFUI versions on GitHub Releases.",
     appUpdateUnavailableHint: "In-app updates are available only in the desktop app.",

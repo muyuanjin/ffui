@@ -18,18 +18,27 @@ pub mod smart_presets;
 mod smart_presets_cpu;
 
 // Application settings management
+#[cfg(test)]
 pub mod app_settings;
 mod app_settings_resume;
+mod document;
+mod merge;
+mod store;
+mod store_lock;
 
 // Tests
+#[cfg(test)]
+mod store_tests;
 #[cfg(test)]
 mod tests;
 
 // Re-export types and main API
+#[cfg(test)]
 pub use app_settings::{load_settings, save_settings};
 pub use presets::{load_presets, save_presets};
 pub use proxy::{NetworkProxyMode, NetworkProxySettings};
 pub use smart_presets::hardware_smart_default_presets;
+pub use store::{SettingsSnapshot, SettingsStore, UnavailableSetting};
 pub use types::{
     AppSettings, DownloadedToolInfo, DownloadedToolState, ExternalToolSettings,
     QueuePersistenceMode, TaskbarProgressMode, TaskbarProgressScope, TranscodeParallelismMode,

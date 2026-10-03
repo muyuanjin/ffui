@@ -17,6 +17,9 @@ import type { OutputContainerPolicy } from "@/types/output-policy";
 import type { OutputContainerPolicy as WireContainerPolicy } from "@/lib/backend/generated/queue-contracts";
 import planningContract from "../../src-tauri/tests/preset-output-planning-contract.json";
 import settingsMediaContract from "../../src-tauri/tests/settings-media-selection-contract.json";
+import snapshotContract from "../../src-tauri/tests/settings-snapshot-contract.json";
+import { settingsSnapshot } from "./helpers/settingsSnapshot";
+import { acceptSettingsSnapshot } from "@/lib/backend.settings";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -88,6 +91,66 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("backend settings contract", () => {
+  it("consumes the Rust snapshot envelope and forwards its identities on save", async () => {
+    const settings = makeAppSettings();
+    invokeMock.mockResolvedValue({ ...snapshotContract, settings });
+    await loadAppSettings();
+    await saveAppSettings(settings);
+    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", {
+      settings,
+      baseSettings: settings,
+      baseContentId: snapshotContract.contentId,
+      dataRootId: snapshotContract.dataRootId,
+    });
+  });
+  it("uses the confirmed document identity and protects the baseline from UI mutation", async () => {
+    const initial = makeAppSettings();
+    const confirmation = { ...settingsSnapshot(initial), contentId: "confirmed-revision-1" };
+    invokeMock.mockResolvedValueOnce(confirmation);
+    const draft = await loadAppSettings();
+    draft.tools.autoDownload = false;
+    const merged = { ...initial, locale: "zh-CN", tools: { ...initial.tools, autoDownload: false } };
+    invokeMock.mockResolvedValueOnce({ ...settingsSnapshot(merged), contentId: "confirmed-revision-2" });
+    expect(await saveAppSettings(draft)).toEqual(merged);
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "save_app_settings",
+      expect.objectContaining({
+        baseContentId: "confirmed-revision-1",
+        dataRootId: "test-data-root",
+        baseSettings: expect.objectContaining({ tools: expect.objectContaining({ autoDownload: true }) }),
+        settings: expect.objectContaining({ tools: expect.objectContaining({ autoDownload: false }) }),
+      }),
+    );
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(merged));
+    await saveAppSettings({ ...merged, selectionBarPinned: false });
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "save_app_settings",
+      expect.objectContaining({ baseContentId: "confirmed-revision-2", baseSettings: merged }),
+    );
+  });
+
+  it("rejects malformed snapshot responses instead of accepting unconfirmed settings", async () => {
+    invokeMock.mockResolvedValueOnce(makeAppSettings());
+    await expect(loadAppSettings()).rejects.toThrow("Invalid settings snapshot");
+    invokeMock.mockResolvedValueOnce({
+      ...settingsSnapshot(makeAppSettings()),
+      unavailableSettings: [{ path: 1, reason: "bad" }],
+    });
+    await expect(loadAppSettings()).rejects.toThrow("Invalid settings snapshot");
+  });
+
+  it("retains the confirmed baseline after an IPC write failure", async () => {
+    const baseline = makeAppSettings();
+    acceptSettingsSnapshot({ ...settingsSnapshot(baseline), contentId: "before-failure" });
+    invokeMock.mockRejectedValueOnce(new Error("atomic replacement denied"));
+    await expect(saveAppSettings({ ...baseline, locale: "zh-CN" })).rejects.toThrow("atomic replacement denied");
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(baseline));
+    await saveAppSettings(baseline);
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "save_app_settings",
+      expect.objectContaining({ baseContentId: "before-failure", baseSettings: baseline }),
+    );
+  });
   it("propagates settings load failure without saving a default configuration", async () => {
     invokeMock.mockRejectedValueOnce("settings file is not valid JSON");
     await expect(loadAppSettings()).rejects.toBe("settings file is not valid JSON");
@@ -95,9 +158,15 @@ describe("backend settings contract", () => {
   });
   it("preserves the media defaults disk contract across settings IPC", async () => {
     const settings = { ...makeAppSettings(), ...settingsMediaContract } as AppSettings;
-    invokeMock.mockResolvedValue(settings);
+    acceptSettingsSnapshot(settingsSnapshot(settings));
+    invokeMock.mockResolvedValue(settingsSnapshot(settings));
     expect(await saveAppSettings(settings)).toEqual(settings);
-    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", { settings });
+    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", {
+      settings,
+      baseSettings: settings,
+      baseContentId: JSON.stringify(settings),
+      dataRootId: "test-data-root",
+    });
     expect(await loadAppSettings()).toEqual(settings);
     expect(invokeMock).toHaveBeenLastCalledWith("get_app_settings", {});
   });
@@ -105,9 +174,15 @@ describe("backend settings contract", () => {
     const settings = makeAppSettings();
     settings.queuePresetSelection = planningContract.selection as AppSettings["queuePresetSelection"];
     settings.queueOutputPolicy!.container = { mode: "force", format: "mp3" };
-    invokeMock.mockResolvedValueOnce(settings);
+    acceptSettingsSnapshot(settingsSnapshot(settings));
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(settings));
     expect(await saveAppSettings(settings)).toEqual(settings);
-    expect(invokeMock).toHaveBeenCalledWith("save_app_settings", { settings });
+    expect(invokeMock).toHaveBeenCalledWith("save_app_settings", {
+      settings,
+      baseSettings: settings,
+      baseContentId: JSON.stringify(settings),
+      dataRootId: "test-data-root",
+    });
     expect(settings.queueOutputPolicy!.container).toEqual({ mode: "force", format: "mp3" });
   });
   it("round trips per-media format fields without flattening them into one force format", async () => {
@@ -116,10 +191,15 @@ describe("backend settings contract", () => {
     expect(wireContainer).toEqual(mediaOutputContract.container);
     const settings = makeAppSettings();
     settings.queueOutputPolicy!.container = container;
-    invokeMock.mockResolvedValue(settings);
+    invokeMock.mockResolvedValue(settingsSnapshot(settings));
     expect((await loadAppSettings()).queueOutputPolicy?.container).toEqual(container);
     await saveAppSettings(settings);
-    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", { settings });
+    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", {
+      settings,
+      baseSettings: settings,
+      baseContentId: JSON.stringify(settings),
+      dataRootId: "test-data-root",
+    });
   });
   beforeEach(() => {
     invokeMock.mockReset();
@@ -127,7 +207,7 @@ describe("backend settings contract", () => {
 
   it("loads app settings via get_app_settings", async () => {
     const settings = makeAppSettings();
-    invokeMock.mockResolvedValueOnce(settings);
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(settings));
 
     const loaded = await loadAppSettings();
     expect(invokeMock).toHaveBeenCalledWith("get_app_settings", {});
@@ -136,7 +216,8 @@ describe("backend settings contract", () => {
 
   it("saves app settings via save_app_settings and keeps crash recovery keys stable", async () => {
     const settings = makeAppSettings();
-    invokeMock.mockResolvedValueOnce(settings);
+    acceptSettingsSnapshot(settingsSnapshot(settings));
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(settings));
 
     const saved = await saveAppSettings(settings);
     expect(invokeMock).toHaveBeenCalledTimes(1);

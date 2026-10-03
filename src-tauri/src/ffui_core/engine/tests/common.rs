@@ -70,6 +70,17 @@ pub(crate) fn make_test_preset() -> FFmpegPreset {
     }
 }
 
+pub(super) fn setup_settings_store_for_tests() -> (
+    crate::ffui_core::data_root::DataRootOverrideGuard,
+    tempfile::TempDir,
+) {
+    let directory = tempfile::tempdir().expect("settings directory");
+    let guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        directory.path().to_path_buf(),
+    );
+    (guard, directory)
+}
+
 pub(super) fn make_engine_with_preset() -> TranscodingEngine {
     let presets = vec![make_test_preset()];
     let settings = AppSettings::default();

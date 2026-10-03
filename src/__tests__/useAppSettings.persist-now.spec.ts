@@ -28,6 +28,8 @@ vi.mock("@tauri-apps/api/event", () => {
 import { useAppSettings } from "@/composables/useAppSettings";
 import * as backend from "@/lib/backend";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { acceptSettingsReplacement } from "@/lib/backend.settings";
+import { settingsSnapshot } from "./helpers/settingsSnapshot";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -58,6 +60,35 @@ const TestHost = defineComponent({
 });
 
 describe("useAppSettings.persistNow", () => {
+  it("discards queued drafts after import while allowing a new edit with the same value", async () => {
+    const initial = makeAppSettings();
+    vi.mocked(backend.loadAppSettings).mockResolvedValueOnce(initial);
+    let finish!: (settings: AppSettings) => void;
+    vi.mocked(backend.saveAppSettings).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    await vm.ensureAppSettingsLoaded();
+    const first = vm.updateAppSettings({ locale: "en" });
+    await flushPromises();
+    const queued = vm.updateAppSettings({ locale: "fr" });
+    await flushPromises();
+    const imported = { ...initial, locale: "zh-CN" };
+    acceptSettingsReplacement(settingsSnapshot(imported));
+    expect(vm.appSettings.locale).toBe("zh-CN");
+    const fresh = vm.updateAppSettings({ locale: "fr" });
+    await flushPromises();
+    finish({ ...initial, locale: "en" });
+    await Promise.all([first, queued, fresh]);
+    await vm.flushSettings();
+    expect(backend.saveAppSettings).toHaveBeenCalledTimes(2);
+    expect(vm.appSettings.locale).toBe("fr");
+    wrapper.unmount();
+  });
   it("drains A-B-A writes before flush succeeds and rejects the final failed A write", async () => {
     vi.mocked(backend.loadAppSettings).mockResolvedValueOnce(makeAppSettings());
     const saves: Array<{ resolve: (settings: AppSettings) => void; reject: (error: Error) => void }> = [];
@@ -367,7 +398,7 @@ describe("useAppSettings.persistNow", () => {
     consoleError.mockRestore();
     wrapper.unmount();
   });
-  it("reapplies a saved baseline after an intermediate IPC changes backend state but fails persistence", async () => {
+  it("keeps the confirmed baseline after a failed write and can revert without another write", async () => {
     const baseline = {
       ...makeAppSettings(),
       queueOutputPolicy: { ...DEFAULT_OUTPUT_POLICY, container: { mode: "force" as const, format: "mp4" } },
@@ -388,8 +419,7 @@ describe("useAppSettings.persistNow", () => {
     const vm = wrapper.vm as any;
     await vm.persistNow(baseline);
     await flushPromises();
-    saveMock.mockImplementationOnce((settings) => {
-      backendSettings = settings as typeof baseline;
+    saveMock.mockImplementationOnce(() => {
       return new Promise((_resolve, reject) => {
         failChanged = reject;
       });
@@ -397,14 +427,13 @@ describe("useAppSettings.persistNow", () => {
     const changing = vm.persistNow(changed);
     const reverting = vm.persistNow(baseline);
     await flushPromises();
-    expect(backendSettings.queueOutputPolicy.container.format).toBe("mkv");
-    failChanged(new Error("atomic replacement denied after state update"));
+    expect(backendSettings.queueOutputPolicy.container.format).toBe("mp4");
+    failChanged(new Error("atomic replacement denied"));
     await Promise.all([changing, reverting]);
     await flushPromises();
     expect(saveMock.mock.calls.map(([settings]) => settings.queueOutputPolicy?.container)).toEqual([
       { mode: "force", format: "mp4" },
       { mode: "force", format: "mkv" },
-      { mode: "force", format: "mp4" },
     ]);
     expect(backendSettings.queueOutputPolicy.container.format).toBe("mp4");
     expect(vm.appSettings.queueOutputPolicy.container.format).toBe("mp4");
@@ -412,6 +441,31 @@ describe("useAppSettings.persistNow", () => {
     expect(vm.isSavingSettings).toBe(false);
     wrapper.unmount();
     consoleError.mockRestore();
+  });
+  it("adopts backend normalization and merged fields while retaining a later unsaved edit", async () => {
+    const initial = makeAppSettings();
+    vi.mocked(backend.loadAppSettings).mockResolvedValueOnce(initial);
+    let finish!: (settings: AppSettings) => void;
+    vi.mocked(backend.saveAppSettings).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    await vm.ensureAppSettingsLoaded();
+    const saving = vm.updateAppSettings({ locale: " zh-CN " });
+    await flushPromises();
+    vm.appSettings.defaultQueuePresetId = "later";
+    finish({ ...initial, locale: "zh-CN", maxParallelJobs: 4 });
+    await saving;
+    expect(vm.appSettings).toMatchObject({ locale: "zh-CN", maxParallelJobs: 4, defaultQueuePresetId: "later" });
+    await vm.flushSettings();
+    expect(backend.saveAppSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ locale: "zh-CN", maxParallelJobs: 4, defaultQueuePresetId: "later" }),
+    );
+    wrapper.unmount();
   });
   it("persists once and keeps the debounced saver from double-writing", async () => {
     const wrapper = mount(TestHost);

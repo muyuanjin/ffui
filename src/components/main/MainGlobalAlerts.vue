@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctagonX, TriangleAlert, X } from "lucide-vue-next";
+import type { UnavailableSetting } from "@/lib/backend.settings";
 
 type AlertVariant = "error" | "warning";
 
@@ -11,6 +12,7 @@ const props = defineProps<{
   queueError: string | null;
   mediaInspectError: string | null;
   settingsSaveError: string | null;
+  unavailableSettings?: UnavailableSetting[];
 }>();
 
 const emit = defineEmits<{
@@ -28,6 +30,7 @@ const alertTitle = (id: string) => {
     case "media":
       return t("app.tabs.media");
     case "settings":
+    case "settings-compatibility":
       return t("app.tabs.settings");
     default:
       return id;
@@ -35,7 +38,7 @@ const alertTitle = (id: string) => {
 };
 
 const alerts = computed(() => {
-  const list: { id: string; message: string; variant: AlertVariant; onClose: () => void }[] = [];
+  const list: { id: string; message: string; variant: AlertVariant; onClose?: () => void }[] = [];
 
   if (props.queueError) {
     list.push({
@@ -64,6 +67,13 @@ const alerts = computed(() => {
     });
   }
 
+  if (props.unavailableSettings?.length) {
+    list.push({
+      id: "settings-compatibility",
+      message: `${t("app.settings.compatibilityWarning")}\n${props.unavailableSettings.map((entry) => `${entry.path || "/"}: ${entry.reason}`).join("\n")}`,
+      variant: "warning",
+    });
+  }
   return list;
 });
 
@@ -103,6 +113,7 @@ const alertClass = (variant: AlertVariant) =>
             </AlertDescription>
           </div>
           <Button
+            v-if="alert.onClose"
             variant="ghost"
             size="icon-xs"
             class="absolute top-2 right-2"

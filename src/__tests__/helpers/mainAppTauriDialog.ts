@@ -5,6 +5,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import { buildBatchCompressDefaults } from "./batchCompressDefaults";
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
+import { settingsCommandResponse } from "./settingsSnapshot";
 
 export const dialogOpenMock = vi.fn();
 export const dialogMessageMock = vi.fn();
@@ -161,13 +162,15 @@ export function getBatchCompressProgressHandler() {
   return batchCompressProgressHandler;
 }
 
-export function defaultBackendResponse(cmd: string): unknown {
+export function defaultBackendResponse(cmd: string, payload?: Record<string, unknown>): unknown {
   switch (cmd) {
     case "get_queue_state_lite":
     case "get_queue_state":
       return { jobs: queueJobs };
     case "get_app_settings":
       return defaultAppSettings();
+    case "save_app_settings":
+      return payload?.settings;
     case "get_presets":
       return structuredClone(INITIAL_PRESETS);
     case "get_cpu_usage":
@@ -193,7 +196,7 @@ export function useBackendMock(overrides: Record<string, (payload?: Record<strin
       // full queue state handler in tests so older specs keep working.
       (cmd === "get_queue_state_lite" ? overrides["get_queue_state"] : undefined);
     if (handler) {
-      return Promise.resolve(handler(payload));
+      return Promise.resolve(handler(payload)).then((value) => settingsCommandResponse(cmd, value));
     }
     if (cmd === "expand_manual_job_inputs") {
       const raw = (payload?.paths ?? payload?.inputPaths ?? payload?.input_paths) as unknown;
@@ -203,7 +206,7 @@ export function useBackendMock(overrides: Record<string, (payload?: Record<strin
       }
       return Promise.resolve({ accepted: [], skipped: 0 });
     }
-    return Promise.resolve(defaultBackendResponse(cmd));
+    return Promise.resolve(settingsCommandResponse(cmd, defaultBackendResponse(cmd, payload)));
   });
 }
 

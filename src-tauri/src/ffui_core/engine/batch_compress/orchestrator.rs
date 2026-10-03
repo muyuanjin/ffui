@@ -50,10 +50,17 @@ pub(crate) fn run_auto_compress(
     fs::read_dir(&root)
         .with_context(|| format!("Root path is not readable: {}", root.display()))?;
     config.root_path = Some(root_path.clone());
+    {
+        let state = inner.state.lock_unpoisoned();
+        if let Some(error) = state.settings_capability_error(&["/tools", "/batchCompressDefaults"])
+        {
+            anyhow::bail!("{error}");
+        }
+    }
+    inner.update_settings(|settings| settings.batch_compress_defaults = config.clone())?;
 
     let (settings_snapshot, presets, batch_id, started_at_ms) = {
         let mut state = inner.state.lock_unpoisoned();
-        state.settings.batch_compress_defaults = config.clone();
         let settings_snapshot = state.settings.clone();
         let presets = state.presets.clone();
 
@@ -82,12 +89,6 @@ pub(crate) fn run_auto_compress(
 
         (settings_snapshot, presets, batch_id, started_at_ms)
     };
-
-    if let Err(err) = inner.persist_current_settings() {
-        crate::debug_eprintln!(
-            "failed to persist Batch Compress defaults to settings.json: {err:#}"
-        );
-    }
 
     // Emit an initial progress snapshot so the frontend can show that the
     // batch has started even before any files are discovered.

@@ -3,6 +3,7 @@ use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_skips_compressed_named_outputs_as_candidates() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_skip_compressed_output");
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);

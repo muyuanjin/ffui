@@ -45,7 +45,7 @@ fn migrate_legacy_settings_picks_latest_candidate() {
         portable_root: exe_dir.path().to_path_buf(),
     };
 
-    migration::migrate_legacy_sidecars(&state, exe_dir.path());
+    migration::migrate_legacy_sidecars(&state, exe_dir.path()).expect("migrate legacy files");
     let dest = data_dir.path().join(SETTINGS_FILENAME);
     let contents = fs::read_to_string(&dest).expect("read migrated settings");
     assert_eq!(contents, "second");
@@ -97,6 +97,42 @@ fn ui_fonts_dir_follows_data_root() {
     let fonts_dir = ui_fonts_dir().expect("resolve ui fonts dir for test");
     assert_eq!(fonts_dir, data_dir.path().join(UI_FONTS_DIRNAME));
     assert!(fonts_dir.is_dir());
+}
+
+#[test]
+fn snapshot_migration_copies_raw_settings_and_preserves_existing_destination() {
+    let source = tempdir().expect("source");
+    let target = tempdir().expect("target");
+    let raw = b"{\"version\":2,\"settings\":{\"future\":[1,2]},\"metadata\":{\"writerVersion\":\"future\"}}";
+    fs::write(source.path().join(SETTINGS_FILENAME), raw).expect("source settings");
+    migration::migrate_data_root_snapshot(source.path(), target.path()).expect("migration");
+    assert_eq!(
+        fs::read(target.path().join(SETTINGS_FILENAME)).expect("target settings"),
+        raw
+    );
+    fs::write(source.path().join(SETTINGS_FILENAME), b"different").expect("source edit");
+    migration::migrate_data_root_snapshot(source.path(), target.path())
+        .expect("preserve destination");
+    assert_eq!(
+        fs::read(target.path().join(SETTINGS_FILENAME)).expect("existing settings"),
+        raw
+    );
+    assert_eq!(fs::read_dir(target.path()).expect("files").count(), 1);
+}
+
+#[test]
+fn snapshot_migration_reports_write_failure_and_preserves_source() {
+    let source = tempdir().expect("source");
+    let target = tempdir().expect("target");
+    fs::write(source.path().join(SETTINGS_FILENAME), b"original").expect("settings");
+    let blocked = target.path().join("occupied");
+    fs::write(&blocked, b"keep").expect("occupied directory path");
+    assert!(migration::migrate_data_root_snapshot(source.path(), &blocked).is_err());
+    assert_eq!(
+        fs::read(source.path().join(SETTINGS_FILENAME)).expect("source settings"),
+        b"original"
+    );
+    assert_eq!(fs::read(blocked).expect("occupied path"), b"keep");
 }
 
 #[test]

@@ -26,7 +26,9 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
 fn try_restore_jobs_from_persisted_queue(inner: &Inner) -> anyhow::Result<()> {
     let (mode, retention) = {
         let state = inner.state.lock_unpoisoned();
-        if let Some(error) = &state.settings_load_error {
+        if let Some(error) = state
+            .settings_capability_error(&["/queuePersistenceMode", "/crashRecoveryLogRetention"])
+        {
             anyhow::bail!("Cannot restore queue history before settings load: {error}");
         }
         (

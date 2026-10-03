@@ -53,6 +53,7 @@ pub(crate) struct EngineState {
     pub(crate) presets: Arc<Vec<FFmpegPreset>>,
     pub(crate) settings: AppSettings,
     pub(crate) settings_load_error: Option<String>,
+    pub(crate) unavailable_settings: Vec<crate::ffui_core::settings::UnavailableSetting>,
     pub(crate) queue_restore_error: Option<String>,
     pub(crate) queue_recovery_pending: bool,
     pub(crate) shutting_down: bool,
@@ -105,12 +106,39 @@ pub(crate) struct EngineState {
 }
 
 impl EngineState {
+    pub(crate) fn settings_capability_error(&self, paths: &[&str]) -> Option<String> {
+        if let Some(error) = &self.settings_load_error {
+            return Some(format!("Settings are not loaded: {error}"));
+        }
+        self.unavailable_settings
+            .iter()
+            .find(|entry| {
+                entry.path.is_empty()
+                    || paths.iter().any(|path| {
+                        *path == entry.path
+                            || path.starts_with(&format!("{}/", entry.path))
+                            || entry.path.starts_with(&format!("{path}/"))
+                    })
+            })
+            .map(|entry| format!("Setting {} is unavailable: {}", entry.path, entry.reason))
+    }
+
     pub(crate) fn queue_persistence_error(&self) -> Option<&str> {
         if self.queue_recovery_pending {
             return Some("Queue recovery is still in progress; existing history is protected");
         }
         self.settings_load_error
             .as_deref()
+            .or_else(|| {
+                self.unavailable_settings
+                    .iter()
+                    .find(|entry| {
+                        entry.path.is_empty()
+                            || entry.path.starts_with("/queuePersistenceMode")
+                            || entry.path.starts_with("/crashRecoveryLogRetention")
+                    })
+                    .map(|entry| entry.reason.as_str())
+            })
             .or(self.queue_restore_error.as_deref())
     }
 
@@ -119,6 +147,7 @@ impl EngineState {
             presets: Arc::new(presets),
             settings,
             settings_load_error: None,
+            unavailable_settings: Vec::new(),
             queue_restore_error: None,
             queue_recovery_pending: false,
             shutting_down: false,
@@ -150,6 +179,7 @@ impl EngineState {
 pub(crate) struct Inner {
     pub(crate) state: Mutex<EngineState>,
     pub(crate) settings_persistence: Mutex<()>,
+    pub(crate) settings_store: Mutex<Option<crate::ffui_core::settings::SettingsStore>>,
     pub(crate) cv: Condvar,
     pub(crate) next_job_id: AtomicU64,
     pub(crate) queue_recovery_done: AtomicBool,
@@ -168,6 +198,7 @@ impl Inner {
         Self {
             state: Mutex::new(EngineState::new(presets, settings)),
             settings_persistence: Mutex::new(()),
+            settings_store: Mutex::new(None),
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
             queue_recovery_done: AtomicBool::new(false),

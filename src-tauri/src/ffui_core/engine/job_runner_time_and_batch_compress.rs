@@ -31,9 +31,8 @@ pub(super) fn record_tool_download_with_inner(
     // would incorrectly auto-fill the Settings UI and change precedence semantics.
     let meta = last_tool_download_metadata(kind);
 
-    {
-        let mut state = inner.state.lock_unpoisoned();
-        let tools = &mut state.settings.tools;
+    if let Err(err) = inner.update_settings(|settings| {
+        let tools = &mut settings.tools;
 
         let downloaded = tools
             .downloaded
@@ -59,9 +58,7 @@ pub(super) fn record_tool_download_with_inner(
             }
         }
 
-    }
-
-    if let Err(err) = inner.persist_current_settings() {
+    }) {
         crate::debug_eprintln!(
             "failed to persist external tool download metadata to settings.json: {err:#}"
         );

@@ -1,6 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type {
-  AppSettings,
   AutoCompressResult,
   CpuUsageSnapshot,
   ExternalToolCandidate,
@@ -67,13 +66,7 @@ export {
   ensureJobPreviewVariant,
   measureJobVmaf,
 } from "./backend/queue";
-export const loadAppSettings = async (): Promise<AppSettings> => {
-  return invokeCommand<AppSettings>("get_app_settings");
-};
-
-export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
-  return invokeCommand<AppSettings>("save_app_settings", { settings });
-};
+export { loadAppSettings, saveAppSettings } from "./backend.settings";
 
 export const fetchSystemFontFamilies = async (): Promise<SystemFontFamily[]> => {
   if (!hasTauri()) return [];

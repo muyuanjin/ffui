@@ -7,6 +7,7 @@ import type {
   DataRootMode,
 } from "../types";
 import { hasTauri, requireTauri } from "./backend.core";
+import { acceptSettingsReplacement, withSettingsOperation, type SettingsSnapshot } from "./backend.settings";
 
 export const fetchDataRootInfo = async (): Promise<DataRootInfo> => {
   requireTauri("fetchDataRootInfo");
@@ -15,7 +16,7 @@ export const fetchDataRootInfo = async (): Promise<DataRootInfo> => {
 
 export const setDataRootMode = async (mode: DataRootMode): Promise<DataRootInfo> => {
   requireTauri("setDataRootMode");
-  return invokeCommand<DataRootInfo>("set_data_root_mode", { mode });
+  return withSettingsOperation(() => invokeCommand<DataRootInfo>("set_data_root_mode", { mode }));
 };
 
 export const acknowledgeDataRootFallbackNotice = async (): Promise<boolean> => {
@@ -34,9 +35,11 @@ export const exportConfigBundle = async (targetPath: string): Promise<ConfigBund
   if (!normalized) {
     throw new Error("export path is empty");
   }
-  return invokeCommand<ConfigBundleExportResult>("export_config_bundle", {
-    targetPath: normalized,
-  });
+  return withSettingsOperation(() =>
+    invokeCommand<ConfigBundleExportResult>("export_config_bundle", {
+      targetPath: normalized,
+    }),
+  );
 };
 
 export const importConfigBundle = async (sourcePath: string): Promise<ConfigBundleImportResult> => {
@@ -45,12 +48,20 @@ export const importConfigBundle = async (sourcePath: string): Promise<ConfigBund
   if (!normalized) {
     throw new Error("import path is empty");
   }
-  return invokeCommand<ConfigBundleImportResult>("import_config_bundle", {
-    sourcePath: normalized,
+  return withSettingsOperation(async () => {
+    const result = await invokeCommand<Omit<ConfigBundleImportResult, "settings"> & { settings: SettingsSnapshot }>(
+      "import_config_bundle",
+      {
+        sourcePath: normalized,
+      },
+    );
+    return { ...result, settings: acceptSettingsReplacement(result.settings) };
   });
 };
 
 export const clearAllAppData = async (): Promise<AppSettings> => {
   requireTauri("clearAllAppData");
-  return invokeCommand<AppSettings>("clear_all_app_data");
+  return withSettingsOperation(async () =>
+    acceptSettingsReplacement(await invokeCommand<SettingsSnapshot>("clear_all_app_data")),
+  );
 };

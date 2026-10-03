@@ -63,6 +63,11 @@ struct PreparedBatchCompressMediaJob {
 }
 
 pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
+    let configuration_error = inner.state.lock_unpoisoned().settings_capability_error(&["/tools", "/parallelismMode"]);
+    if let Some(reason) = configuration_error {
+        super::ffmpeg_job::mark_invalid_job(inner, job_id, reason);
+        return Ok(());
+    }
     super::manual_execution::hydrate_legacy_manual_job(inner, job_id);
     let execution = inner.state.lock_unpoisoned().jobs.get(job_id).and_then(|job| job.execution.clone());
     match execution {

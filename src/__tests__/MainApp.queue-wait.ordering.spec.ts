@@ -9,12 +9,14 @@ import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
+import { settingsCommandResponse } from "./helpers/settingsSnapshot";
 
 const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
 const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, payload?: Record<string, unknown>) => invokeMock(cmd, payload),
+  invoke: async (cmd: string, payload?: Record<string, unknown>) =>
+    settingsCommandResponse(cmd, cmd === "save_app_settings" ? payload?.settings : await invokeMock(cmd, payload)),
   convertFileSrc: (path: string) => path,
 }));
 vi.mock("@tauri-apps/api/window", () => ({

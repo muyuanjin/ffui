@@ -11,6 +11,7 @@ struct NetworkProxyConfig {
     mode: NetworkProxyMode,
     custom_proxy_url: Option<String>,
     fallback_to_direct_on_error: bool,
+    unavailable_reason: Option<String>,
 }
 
 static NETWORK_PROXY_CONFIG: Lazy<RwLock<NetworkProxyConfig>> = Lazy::new(|| {
@@ -18,6 +19,7 @@ static NETWORK_PROXY_CONFIG: Lazy<RwLock<NetworkProxyConfig>> = Lazy::new(|| {
         mode: NetworkProxyMode::System,
         custom_proxy_url: None,
         fallback_to_direct_on_error: true,
+        unavailable_reason: None,
     })
 });
 
@@ -58,7 +60,15 @@ pub fn parse_reqwest_proxy_for(
     Ok(Some(ParsedReqwestProxy { proxy }))
 }
 
+#[cfg(test)]
 pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
+    apply_confirmed_settings(settings, None);
+}
+
+pub(crate) fn apply_confirmed_settings(
+    settings: Option<&NetworkProxySettings>,
+    unavailable_reason: Option<String>,
+) {
     let mut state = NETWORK_PROXY_CONFIG.write_unpoisoned();
     let mode = settings.map_or(NetworkProxyMode::System, |s| s.mode);
     let proxy_url = settings
@@ -68,8 +78,10 @@ pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
     state.mode = mode;
     state.custom_proxy_url = proxy_url;
     state.fallback_to_direct_on_error = settings.is_none_or(|s| s.fallback_to_direct_on_error);
+    state.unavailable_reason = unavailable_reason;
 }
 
+#[cfg(test)]
 pub fn snapshot() -> (NetworkProxyMode, Option<String>, bool) {
     let state = NETWORK_PROXY_CONFIG.read_unpoisoned();
     (
@@ -79,18 +91,30 @@ pub fn snapshot() -> (NetworkProxyMode, Option<String>, bool) {
     )
 }
 
-pub fn resolve_effective_proxy_once() -> ResolvedNetworkProxy {
-    let (mode, proxy_url, fallback_to_direct_on_error) = snapshot();
+fn available_snapshot() -> anyhow::Result<(NetworkProxyMode, Option<String>, bool)> {
+    let state = NETWORK_PROXY_CONFIG.read_unpoisoned();
+    if let Some(reason) = &state.unavailable_reason {
+        anyhow::bail!("Network settings are unavailable: {reason}");
+    }
+    Ok((
+        state.mode,
+        state.custom_proxy_url.clone(),
+        state.fallback_to_direct_on_error,
+    ))
+}
+
+pub fn resolve_effective_proxy_once() -> anyhow::Result<ResolvedNetworkProxy> {
+    let (mode, proxy_url, fallback_to_direct_on_error) = available_snapshot()?;
     let proxy_url = match mode {
         NetworkProxyMode::None => None,
         NetworkProxyMode::Custom => proxy_url,
         NetworkProxyMode::System => proxy_from_env().or_else(proxy_from_platform_system_proxy),
     };
-    ResolvedNetworkProxy {
+    Ok(ResolvedNetworkProxy {
         mode,
         proxy_url,
         fallback_to_direct_on_error,
-    }
+    })
 }
 
 #[cfg(not(test))]
@@ -143,9 +167,9 @@ pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNet
 ///     `NO_PROXY`) without us collapsing it into a single proxy URL.
 ///   - otherwise, return the platform/system proxy (best-effort) as an explicit
 ///     override because `reqwest` defaults do not read platform proxy settings.
-pub fn resolve_updater_proxy_override_once() -> Option<String> {
-    let (mode, custom_proxy_url, _fallback) = snapshot();
-    match mode {
+pub fn resolve_updater_proxy_override_once() -> anyhow::Result<Option<String>> {
+    let (mode, custom_proxy_url, _fallback) = available_snapshot()?;
+    Ok(match mode {
         NetworkProxyMode::None => None,
         NetworkProxyMode::Custom => custom_proxy_url,
         NetworkProxyMode::System => {
@@ -155,7 +179,7 @@ pub fn resolve_updater_proxy_override_once() -> Option<String> {
                 proxy_from_platform_system_proxy()
             }
         }
-    }
+    })
 }
 
 fn proxy_from_env() -> Option<String> {

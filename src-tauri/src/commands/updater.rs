@@ -69,8 +69,9 @@ pub fn get_app_updater_capabilities(app: AppHandle) -> AppUpdaterCapabilities {
 /// updates, so we avoid mutating process-wide environment variables (which is
 /// inherently racy in multi-threaded programs).
 #[tauri::command]
-pub fn prepare_app_updater_proxy() -> Option<String> {
+pub fn prepare_app_updater_proxy() -> Result<Option<String>, String> {
     crate::ffui_core::network_proxy::resolve_updater_proxy_override_once()
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[cfg(test)]

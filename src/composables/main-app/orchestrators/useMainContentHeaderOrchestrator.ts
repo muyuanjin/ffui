@@ -9,6 +9,14 @@ export function useMainContentHeaderOrchestrator() {
   const queue = proxyRefs(useQueueDomain());
   const presets = proxyRefs(usePresetsDomain());
   const settings = proxyRefs(useSettingsDomain());
+  const available = (...paths: string[]) =>
+    !(settings.unavailableSettings ?? []).some(
+      (entry) =>
+        entry.path === "" ||
+        paths.some(
+          (path) => path === entry.path || path.startsWith(`${entry.path}/`) || entry.path.startsWith(`${path}/`),
+        ),
+    );
 
   const headerProps = proxyRefs({
     activeTab: computed(() => shell.activeTab),
@@ -25,7 +33,10 @@ export function useMainContentHeaderOrchestrator() {
     presetSortMode: computed(() => presets.presetSortMode),
     presetSortDirection: computed(() => presets.presetSortDirection),
     queueOutputPolicy: computed(() => queue.queueOutputPolicy),
-    outputSettingsReady: computed(() => settings.appSettings !== null),
+    outputSettingsReady: computed(() => settings.appSettings !== null && available("/queueOutputPolicy")),
+    presetSettingsReady: computed(
+      () => settings.appSettings !== null && available("/queuePresetSelection", "/defaultQueuePresetId"),
+    ),
     carouselAutoRotationSpeed: computed(() => queue.carouselAutoRotationSpeed),
   });
 

@@ -4,6 +4,7 @@ use crate::ffui_core::{
 };
 #[test]
 fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_progress");
     let _ = fs::create_dir_all(&dir);
 
@@ -154,6 +155,7 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
 
 #[test]
 fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_lock_free");
     let _ = fs::create_dir_all(&dir);
 
@@ -232,6 +234,7 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
 
 #[test]
 fn run_auto_compress_persists_defaults_with_invoked_root_path() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_defaults_root_path");
     let _ = fs::create_dir_all(&dir);
 
@@ -255,6 +258,14 @@ fn run_auto_compress_persists_defaults_with_invoked_root_path() {
         engine.batch_compress_defaults().root_path.as_deref(),
         Some(root_path.as_str()),
         "Batch Compress defaults should persist the actual invoked root path"
+    );
+    assert_eq!(
+        crate::ffui_core::settings::load_settings()
+            .expect("persisted settings")
+            .batch_compress_defaults
+            .root_path
+            .as_deref(),
+        Some(root_path.as_str())
     );
     assert_eq!(
         descriptor.root_path, root_path,
@@ -294,6 +305,7 @@ fn run_auto_compress_rejects_file_root_path_without_creating_batch() {
 
 #[test]
 fn run_auto_compress_skips_symlink_directory_loops() {
+    let _settings = setup_settings_store_for_tests();
     let dir = tempfile::tempdir().expect("temp dir");
     let nested = dir.path().join("nested");
     fs::create_dir(&nested).expect("create nested dir");
@@ -346,6 +358,7 @@ fn run_auto_compress_skips_symlink_directory_loops() {
 
 #[test]
 fn run_auto_compress_processes_symlinked_media_files() {
+    let _settings = setup_settings_store_for_tests();
     let dir = tempfile::tempdir().expect("temp dir");
     let target_dir = tempfile::tempdir().expect("target temp dir");
     let target = target_dir.path().join("target.mp4");
@@ -397,6 +410,7 @@ fn run_auto_compress_processes_symlinked_media_files() {
 
 #[test]
 fn batch_compress_pushes_full_batch_snapshot_after_detection() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_full_snapshot");
     let _ = fs::create_dir_all(&dir);
 
@@ -479,6 +493,7 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
 
 #[test]
 fn batch_compress_media_children_enter_normal_worker_queue() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_media_owner_race");
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);
@@ -729,6 +744,7 @@ fn app_settings_batch_compress_image_defaults_match_domain_defaults() {
 
 #[test]
 fn batch_compress_empty_extension_filters_produce_zero_candidates() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_empty_filters");
     let _ = fs::create_dir_all(&dir);
 
@@ -780,6 +796,7 @@ fn batch_compress_empty_extension_filters_produce_zero_candidates() {
 
 #[test]
 fn batch_compress_scan_excludes_gif_from_image_candidates() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_gif_excluded");
     let _ = fs::create_dir_all(&dir);
 
@@ -895,6 +912,7 @@ fn replace_original_video_planning_ignores_fixed_directory_and_name_policy() {
 
 #[test]
 fn batch_compress_batch_carries_replace_original_flag() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_replace_flag");
     let _ = fs::create_dir_all(&dir);
 
@@ -975,6 +993,7 @@ fn batch_compress_does_not_reenqueue_known_outputs_as_candidates() {
 
 #[test]
 fn batch_compress_scan_skips_output_style_files_after_cold_start() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_cold_output_skip");
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);

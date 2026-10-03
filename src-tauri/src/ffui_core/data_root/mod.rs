@@ -86,7 +86,7 @@ fn set_global_state(state: DataRootState) -> Arc<RwLock<DataRootState>> {
 pub fn init_data_root(app: &tauri::AppHandle) -> Result<DataRootInfo> {
     let context = resolve::data_root_context_from_app(app)?;
     let state = resolve::resolve_data_root_with(&context, resolve::is_dir_writable);
-    migration::migrate_legacy_sidecars(&state, &context.exe_dir);
+    migration::migrate_legacy_sidecars(&state, &context.exe_dir)?;
     set_global_state(state.clone());
     Ok(to_info(&state))
 }
@@ -247,12 +247,6 @@ pub fn set_desired_mode(mode: DataRootMode) -> Result<DataRootInfo> {
         last_selected_at_ms: Some(now_ms()),
         fallback_notice_dismissed: Some(false),
     };
-    if let Err(err) = meta::write_meta(meta_root, &meta) {
-        crate::debug_eprintln!(
-            "failed to persist data root preference {}: {err:#}",
-            meta::meta_path(meta_root).display()
-        );
-    }
     let next_effective = guard.effective_mode;
     let next_root = guard.data_root.clone();
     if mode != guard.desired_mode {
@@ -261,10 +255,12 @@ pub fn set_desired_mode(mode: DataRootMode) -> Result<DataRootInfo> {
         } else {
             guard.system_root.clone()
         };
-        if target_root != guard.data_root {
-            migration::migrate_data_root_snapshot(&guard.data_root, &target_root);
+        if target_root != guard.data_root && !fallback_active {
+            migration::migrate_data_root_snapshot(&guard.data_root, &target_root)?;
         }
     }
+
+    meta::write_meta(meta_root, &meta)?;
 
     guard.desired_mode = mode;
     guard.effective_mode = next_effective;

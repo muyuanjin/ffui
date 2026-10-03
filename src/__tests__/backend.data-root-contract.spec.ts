@@ -19,6 +19,9 @@ import {
   setDataRootMode,
 } from "@/lib/backend";
 import type { DataRootInfo } from "@/types";
+import { settingsSnapshot } from "./helpers/settingsSnapshot";
+import { buildWebFallbackAppSettings } from "@/composables/appSettingsWebFallback";
+import { acceptSettingsSnapshot, saveAppSettings, subscribeSettingsReplacement } from "@/lib/backend.settings";
 
 const makeDataRootInfo = (): DataRootInfo => ({
   desiredMode: "system",
@@ -82,7 +85,7 @@ describe("backend data root contract", () => {
   });
 
   it("imports config bundle via import_config_bundle", async () => {
-    invokeMock.mockResolvedValueOnce({ presetCount: 0, settings: {} });
+    invokeMock.mockResolvedValueOnce({ presetCount: 0, settings: settingsSnapshot(buildWebFallbackAppSettings()) });
 
     await importConfigBundle("/tmp/in.json");
     expect(invokeMock).toHaveBeenCalledWith("import_config_bundle", {
@@ -91,8 +94,38 @@ describe("backend data root contract", () => {
     expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("source_path");
   });
 
+  it("serializes an import and discards saves queued from the replaced settings generation", async () => {
+    const baseline = buildWebFallbackAppSettings();
+    acceptSettingsSnapshot(settingsSnapshot(baseline));
+    let finish!: (value: unknown) => void;
+    invokeMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const received: unknown[] = [];
+    const unsubscribe = subscribeSettingsReplacement((settings) => received.push(settings));
+    const importing = importConfigBundle("/tmp/in.json");
+    const staleSave = saveAppSettings({ ...baseline, locale: "en" });
+    await Promise.resolve();
+    const imported = { ...baseline, locale: "zh-CN" };
+    finish({ presetCount: 0, settings: settingsSnapshot(imported) });
+    await importing;
+    expect(await staleSave).toEqual(imported);
+    expect(received).toEqual([imported]);
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(["import_config_bundle"]);
+    invokeMock.mockResolvedValueOnce(settingsSnapshot({ ...imported, developerModeEnabled: true }));
+    await saveAppSettings({ ...imported, developerModeEnabled: true });
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "save_app_settings",
+      expect.objectContaining({ baseSettings: imported, baseContentId: JSON.stringify(imported) }),
+    );
+    unsubscribe();
+  });
+
   it("clears app data via clear_all_app_data", async () => {
-    invokeMock.mockResolvedValueOnce({});
+    invokeMock.mockResolvedValueOnce(settingsSnapshot(buildWebFallbackAppSettings()));
 
     await clearAllAppData();
     expect(invokeMock).toHaveBeenCalledWith("clear_all_app_data", {});

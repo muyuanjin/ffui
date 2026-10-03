@@ -31,6 +31,7 @@ export function useMainSettingsTabOrchestrator() {
     isSavingSettings: computed(() => settings.isSavingSettings.value),
     settingsSaveError: computed(() => settings.settingsSaveError.value),
     reloadPresets: computed(() => presets.reloadPresets),
+    flushSettings: computed(() => settings.flushSettings),
     appUpdate: computed(() => appUpdate.value),
     checkForAppUpdate: computed(() => updater.checkForAppUpdate),
     installAppUpdate: computed(() => updater.downloadAndInstallUpdate),

@@ -47,7 +47,8 @@ async fn download_font_to_path(
     mut on_progress: impl FnMut(u64, Option<u64>),
     cancel_requested: impl Fn() -> bool,
 ) -> Result<(String, u64, Option<u64>), String> {
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved =
+        network_proxy::resolve_effective_proxy_once().map_err(|error| format!("{error:#}"))?;
     let force_no_proxy = resolved.is_no_proxy_mode();
 
     let mut invalid_proxy_fallback = false;

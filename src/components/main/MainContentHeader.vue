@@ -35,10 +35,12 @@ const props = withDefaults(
     presetSortDirection?: PresetSortDirection;
     queueOutputPolicy?: OutputPolicy;
     outputSettingsReady?: boolean;
+    presetSettingsReady?: boolean;
     carouselAutoRotationSpeed?: number;
   }>(),
   {
     outputSettingsReady: true,
+    presetSettingsReady: true,
     queuePresetSelection: undefined,
     presetSortMode: undefined,
     presetSortDirection: undefined,
@@ -315,6 +317,7 @@ const hoverPreviewExamples = computed(() => {
         :presets="sortedPresets"
         :unified-preset-id="manualJobPresetId"
         :selection="queuePresetSelection ?? { mode: 'unified' }"
+        :disabled="!presetSettingsReady"
         @update:unified-preset-id="(value) => emit('update:manualJobPresetId', value)"
         @update:selection="(value) => emit('update:queuePresetSelection', value)"
       />

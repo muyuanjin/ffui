@@ -37,6 +37,9 @@ fn paused_jobs_do_not_mark_transcode_activity() {
 
 #[test]
 fn processing_jobs_mark_transcode_activity() {
+    let directory = tempfile::tempdir().expect("data directory");
+    let _data_root =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
     let presets = vec![common::make_test_preset()];
     let settings = AppSettings::default();
     let inner = Arc::new(Inner::new(presets, settings));
@@ -76,5 +79,18 @@ fn processing_jobs_mark_transcode_activity() {
     assert!(
         has_activity,
         "processing activity must set at least one hour bit"
+    );
+    let persisted = settings::SettingsStore::open()
+        .expect("persisted activity")
+        .snapshot()
+        .settings;
+    assert!(
+        persisted
+            .monitor
+            .expect("monitor")
+            .transcode_activity_days
+            .expect("days")
+            .iter()
+            .any(|day| day.active_hours_mask != 0)
     );
 }

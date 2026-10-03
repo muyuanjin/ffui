@@ -6,6 +6,7 @@ use crate::ffui_core::BatchCompressConfig;
 /// 已完成，`delete_batch_compress_batch` 也必须返回 true 以便前端可以删除该复合任务。
 #[test]
 fn delete_batch_compress_batch_succeeds_for_candidates_without_children() {
+    let _settings = setup_settings_store_for_tests();
     let dir = env::temp_dir().join("ffui_batch_compress_no_preset_delete");
     let _ = fs::create_dir_all(&dir);
 

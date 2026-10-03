@@ -218,6 +218,8 @@ fn crash_recovery_segment_probe_skips_dir_scan_when_no_evidence_exists() {
 #[test]
 fn restore_advances_next_job_id_from_legacy_numeric_batch_child_ids() {
     let tmp = tempfile::tempdir().expect("tempdir");
+    let _data_root =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(tmp.path().into());
     let input = tmp.path().join("legacy-numeric-child.jpg");
     std::fs::write(&input, vec![0u8; 1024]).expect("create Batch Compress image input");
 

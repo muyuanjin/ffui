@@ -69,7 +69,7 @@ fn resolve_system_calls_platform_proxy_reader_when_env_missing() {
     apply_system_proxy_settings();
     let (calls, _hook_guard) = install_counting_platform_proxy_hook("http://127.0.0.1:7890");
 
-    let resolved = resolve_effective_proxy_once();
+    let resolved = resolve_effective_proxy_once().expect("supported proxy");
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     assert_eq!(resolved.proxy_url(), Some("http://127.0.0.1:7890"));
 }
@@ -85,7 +85,7 @@ fn aria2c_args_use_resolved_proxy_snapshot() {
         proxy_url: Some("http://127.0.0.1:7890".to_string()),
         fallback_to_direct_on_error: true,
     }));
-    let resolved = resolve_effective_proxy_once();
+    let resolved = resolve_effective_proxy_once().expect("supported proxy");
     let mut cmd = std::process::Command::new("aria2c");
     apply_aria2c_args(&mut cmd, &resolved);
     let args = cmd_args(&cmd);
@@ -99,7 +99,7 @@ fn aria2c_args_use_resolved_proxy_snapshot() {
         proxy_url: None,
         fallback_to_direct_on_error: true,
     }));
-    let resolved = resolve_effective_proxy_once();
+    let resolved = resolve_effective_proxy_once().expect("supported proxy");
     let mut cmd = std::process::Command::new("aria2c");
     apply_aria2c_args(&mut cmd, &resolved);
     let args = cmd_args(&cmd);
@@ -117,7 +117,7 @@ fn updater_proxy_override_skips_when_env_proxy_present() {
     apply_system_proxy_settings();
     let (calls, _hook_guard) = install_counting_platform_proxy_hook("http://127.0.0.1:7890");
 
-    let override_proxy = resolve_updater_proxy_override_once();
+    let override_proxy = resolve_updater_proxy_override_once().expect("supported updater proxy");
     assert_eq!(override_proxy, None);
     assert_eq!(calls.load(Ordering::SeqCst), 0);
 }
@@ -131,7 +131,7 @@ fn updater_proxy_override_uses_platform_proxy_when_env_missing() {
     apply_system_proxy_settings();
     let (calls, _hook_guard) = install_counting_platform_proxy_hook("http://127.0.0.1:7890");
 
-    let override_proxy = resolve_updater_proxy_override_once();
+    let override_proxy = resolve_updater_proxy_override_once().expect("supported updater proxy");
     assert_eq!(override_proxy.as_deref(), Some("http://127.0.0.1:7890"));
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
@@ -151,4 +151,36 @@ fn cmd_args(cmd: &std::process::Command) -> Vec<String> {
     cmd.get_args()
         .map(|s| s.to_string_lossy().into_owned())
         .collect::<Vec<_>>()
+}
+
+#[test]
+fn unsupported_proxy_settings_block_network_and_updater_resolution() {
+    let _lock = ENV_MUTEX.lock_unpoisoned();
+    let directory = tempfile::tempdir().expect("settings directory");
+    let _data_root = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        directory.path().to_path_buf(),
+    );
+    std::fs::write(
+        directory.path().join("ffui.settings.json"),
+        r#"{"version":2,"settings":{"networkProxy":{"mode":"futureProxy"},"locale":"zh-CN"}}"#,
+    )
+    .expect("unknown proxy settings");
+    let engine = crate::ffui_core::TranscodingEngine::new_for_tests();
+    let snapshot = engine.settings_snapshot().expect("read supported settings");
+    assert_eq!(snapshot.settings.locale.as_deref(), Some("zh-CN"));
+    assert!(
+        snapshot
+            .unavailable_settings
+            .iter()
+            .any(|entry| entry.path == "/networkProxy")
+    );
+    assert!(
+        resolve_effective_proxy_once()
+            .expect_err("network unavailable")
+            .to_string()
+            .contains("futureProxy")
+    );
+    assert!(resolve_updater_proxy_override_once().is_err());
+    apply_settings(None);
+    assert!(resolve_effective_proxy_once().is_ok());
 }

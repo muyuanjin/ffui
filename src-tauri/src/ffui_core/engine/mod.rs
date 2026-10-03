@@ -78,25 +78,35 @@ impl TranscodingEngine {
         let _guard = test_mutex::ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
-        let (mut settings, settings_load_error) = match settings::load_settings() {
-            Ok(settings) => (settings, None),
-            Err(err) => {
-                crate::debug_eprintln!("failed to load settings: {err:#}");
-                (AppSettings::default(), Some(format!("{err:#}")))
-            }
-        };
+        let (mut settings_store, settings, settings_load_error) =
+            match settings::SettingsStore::open() {
+                Ok(store) => {
+                    let settings = store.snapshot().settings;
+                    (Some(store), settings, None)
+                }
+                Err(err) => {
+                    crate::debug_eprintln!("failed to load settings: {err:#}");
+                    (None, AppSettings::default(), Some(format!("{err:#}")))
+                }
+            };
+        let mut settings = settings;
         if settings_load_error.is_none()
             && !settings.onboarding_completed
             && presets
                 .iter()
                 .any(|p| matches!(p.is_smart_preset, Some(true)))
         {
-            settings.onboarding_completed = true;
-            if let Err(err) = settings::save_settings(&settings) {
-                crate::debug_eprintln!("failed to persist onboardingCompleted marker: {err:#}");
+            let mut next = settings.clone();
+            next.onboarding_completed = true;
+            if let Some(store) = settings_store.as_mut() {
+                match store.update(&next) {
+                    Ok(saved) => settings = saved.settings,
+                    Err(err) => crate::debug_eprintln!(
+                        "failed to persist onboardingCompleted marker: {err:#}"
+                    ),
+                }
             }
         }
-        crate::ffui_core::network_proxy::apply_settings(settings.network_proxy.as_ref());
         hydrate_last_tool_download_from_settings(&settings.tools);
         hydrate_remote_version_cache_from_settings(&settings.tools);
         hydrate_probe_cache_from_settings(&settings.tools);
@@ -104,7 +114,18 @@ impl TranscodingEngine {
         {
             let mut state = inner.state.lock_unpoisoned();
             state.settings_load_error = settings_load_error;
+            if let Some(store) = &settings_store {
+                state.unavailable_settings = store.snapshot().unavailable_settings;
+            }
             state.queue_recovery_pending = true;
+        }
+        *inner.settings_store.lock_unpoisoned() = settings_store;
+        {
+            let state = inner.state.lock_unpoisoned();
+            crate::ffui_core::network_proxy::apply_confirmed_settings(
+                state.settings.network_proxy.as_ref(),
+                state.settings_capability_error(&["/networkProxy"]),
+            );
         }
         {
             let previous = read_shutdown_marker();

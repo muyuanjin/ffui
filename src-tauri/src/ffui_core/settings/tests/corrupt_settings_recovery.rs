@@ -1,191 +1,94 @@
-use std::fs;
-
+use super::*;
 use serde_json::json;
+use std::fs;
 use tempfile::tempdir;
 
-use super::*;
-
 #[test]
-fn missing_settings_file_loads_explicit_default_preferences() {
-    let data_dir = tempdir().expect("data directory");
+fn missing_settings_file_loads_explicit_defaults_without_creating_files() {
+    let directory = tempdir().expect("directory");
     let _guard =
-        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
     assert_eq!(
-        load_settings()
-            .expect("missing settings defaults")
-            .queue_persistence_mode,
+        load_settings().expect("defaults").queue_persistence_mode,
         QueuePersistenceMode::None
     );
+    assert_eq!(fs::read_dir(directory.path()).expect("entries").count(), 0);
 }
 
 #[cfg(unix)]
 #[test]
 fn unreadable_settings_path_is_not_treated_as_missing_preferences() {
-    let data_dir = tempdir().expect("data directory");
+    let directory = tempdir().expect("directory");
     let _guard =
-        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
-    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
-    std::os::unix::fs::symlink(&path, &path).expect("unreadable symlink cycle");
-    assert!(!path.exists());
-    let read_error = fs::read(&path).expect_err("settings path must fail to read");
-    assert_ne!(read_error.kind(), std::io::ErrorKind::NotFound);
-    let error = load_settings().expect_err("unreadable settings require a diagnostic");
-    assert!(format!("{error:#}").contains("failed to read settings file"));
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("path");
+    std::os::unix::fs::symlink(&path, &path).expect("symlink cycle");
+    assert!(
+        format!("{:#}", load_settings().expect_err("read failure"))
+            .contains("failed to read settings file")
+    );
     assert!(path.is_symlink());
 }
 
 #[test]
-fn incompatible_settings_preserve_primary_and_do_not_apply_last_good_preferences() {
-    let data_dir = tempdir().expect("data directory");
+fn corrupt_primary_is_preserved_without_using_or_overwriting_existing_backup() {
+    let directory = tempdir().expect("directory");
     let _guard =
-        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_dir.path().into());
-    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
-    save_settings(&AppSettings::default()).expect("last-good settings");
-    let incompatible = json!({
-        "version": 2,
-        "settings": {
-            "queuePersistenceMode": "crashRecoveryLite",
-            "queuePresetSelection": {"mode": "future-mode"}
-        }
-    })
-    .to_string();
-    fs::write(&path, &incompatible).expect("primary settings");
-    let error = load_settings().expect_err("incompatible settings require a diagnostic");
-    assert!(format!("{error:#}").contains("future-mode"));
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("path");
+    let backup = directory.path().join("ffui.settings.last-good.json");
+    let previous = json!({"version": 1, "settings": {"locale": "zh-CN"}}).to_string();
+    fs::write(&backup, &previous).expect("existing backup");
+    fs::write(&path, b"{interrupted").expect("corrupt primary");
+    assert!(load_settings().is_err());
+    assert!(save_settings(&AppSettings::default()).is_err());
+    assert_eq!(fs::read(&path).expect("primary"), b"{interrupted");
+    assert_eq!(fs::read_to_string(backup).expect("backup"), previous);
+    assert_eq!(fs::read_dir(directory.path()).expect("entries").count(), 2);
+}
+
+#[test]
+fn unsupported_mode_preserves_other_preferences_and_blocks_only_related_changes() {
+    let directory = tempdir().expect("directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("path");
+    let raw = json!({"version": 2, "settings": {"queuePersistenceMode": "crashRecoveryLite", "queuePresetSelection": {"mode": "future-mode"}}});
+    fs::write(&path, raw.to_string()).expect("settings");
+    let mut store = SettingsStore::open().expect("partial settings");
+    let snapshot = store.snapshot();
     assert_eq!(
-        fs::read_to_string(&path).expect("preserved primary"),
-        incompatible
+        snapshot.settings.queue_persistence_mode,
+        QueuePersistenceMode::CrashRecoveryLite
     );
-    let last_good: Value = serde_json::from_slice(
-        &fs::read(data_dir.path().join("ffui.settings.last-good.json")).expect("last good"),
-    )
-    .expect("JSON");
-    assert_eq!(last_good["settings"]["queuePersistenceMode"], "none");
+    assert_eq!(
+        snapshot.unavailable_settings[0].path,
+        "/queuePresetSelection"
+    );
+    let mut changed = snapshot.settings.clone();
+    changed.locale = Some("zh-CN".into());
+    store.update(&changed).expect("unrelated edit");
+    changed.queue_preset_selection = Some(super::super::types::QueuePresetSelection::Unified);
+    assert!(store.update(&changed).is_err());
+    let saved: Value = serde_json::from_slice(&fs::read(&path).expect("bytes")).expect("JSON");
+    assert_eq!(
+        saved["settings"]["queuePresetSelection"],
+        raw["settings"]["queuePresetSelection"]
+    );
 }
 
 #[test]
-fn load_settings_backs_up_corrupt_json_and_returns_defaults() {
-    let data_dir = tempdir().expect("temp data dir");
-    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
-        data_dir.path().to_path_buf(),
-    );
-    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
-
-    let corrupt = b"{ this is not json";
-    fs::write(&path, corrupt).expect("write corrupt settings");
-
-    let _ = load_settings().expect_err("load_settings should error on corrupt json");
-
-    let mut backups: Vec<_> = fs::read_dir(data_dir.path())
-        .expect("read settings dir")
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_file())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("ffui.settings.json.corrupt-"))
-        })
-        .collect();
-    backups.sort();
-    assert!(
-        !backups.is_empty(),
-        "load_settings should create a recovery backup for corrupt settings"
-    );
-
-    let backup_content = fs::read(&backups[0]).expect("read backup file");
-    assert_eq!(backup_content, corrupt);
-
-    if path.exists() {
-        let current = fs::read(&path).expect("read current settings path");
-        assert_eq!(
-            current, corrupt,
-            "load_settings must not overwrite corrupt settings content"
-        );
-    }
-}
-
-#[test]
-fn load_settings_recovers_from_last_good_when_main_settings_is_corrupt() {
-    let data_dir = tempdir().expect("temp data dir");
-    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
-        data_dir.path().to_path_buf(),
-    );
-    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
-    let last_good_path = data_dir.path().join("ffui.settings.last-good.json");
-
-    let last_good = serde_json::to_string_pretty(&json!({
-        "version": 1,
-        "settings": {
-            "locale": "zh-CN",
-            "onboardingCompleted": true
-        }
-    }))
-    .expect("serialize last-good settings");
-    fs::write(&last_good_path, &last_good).expect("write last-good settings");
-
-    let corrupt = b"{ this is not json";
-    fs::write(&path, corrupt).expect("write corrupt settings");
-
-    let loaded = load_settings().expect("load_settings should recover from last-good");
+fn newer_file_version_is_readable_but_not_writable() {
+    let directory = tempdir().expect("directory");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = crate::ffui_core::data_root::settings_path().expect("path");
+    let raw = json!({"version": 999, "settings": {"locale": "zh-CN", "onboardingCompleted": true}})
+        .to_string();
+    fs::write(&path, &raw).expect("settings");
+    let loaded = load_settings().expect("readable view");
     assert_eq!(loaded.locale.as_deref(), Some("zh-CN"));
     assert!(loaded.onboarding_completed);
-
-    let mut backups: Vec<_> = fs::read_dir(data_dir.path())
-        .expect("read settings dir")
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_file())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("ffui.settings.json.corrupt-"))
-        })
-        .collect();
-    backups.sort();
-    assert!(
-        !backups.is_empty(),
-        "load_settings should create a corrupt backup before recovering"
-    );
-
-    let healed: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(&path).expect("read healed settings"))
-            .expect("parse healed settings");
-    assert_eq!(
-        healed.get("version").and_then(serde_json::Value::as_u64),
-        Some(2)
-    );
-    assert!(
-        healed.get("settings").is_some(),
-        "healed settings should use the versioned envelope"
-    );
-}
-
-#[test]
-fn load_settings_decodes_newer_version_envelope_best_effort() {
-    let data_dir = tempdir().expect("temp data dir");
-    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
-        data_dir.path().to_path_buf(),
-    );
-    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
-
-    let raw = serde_json::to_string_pretty(&json!({
-        "version": 999,
-        "settings": {
-            "locale": "zh-CN",
-            "onboardingCompleted": true
-        }
-    }))
-    .expect("serialize newer version settings");
-    fs::write(&path, &raw).expect("write settings file");
-
-    let loaded = load_settings().expect("load_settings should decode best-effort");
-    assert_eq!(loaded.locale.as_deref(), Some("zh-CN"));
-    assert!(loaded.onboarding_completed);
-
-    let after = fs::read_to_string(&path).expect("read settings file after load");
-    assert_eq!(
-        after, raw,
-        "load_settings should not rewrite settings.json for a newer version envelope"
-    );
+    assert!(save_settings(&loaded).is_err());
+    assert_eq!(fs::read_to_string(path).expect("unchanged file"), raw);
 }

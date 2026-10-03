@@ -58,6 +58,7 @@ const props = withDefaults(
     settingsSaveError: string | null;
     /** Reload presets from backend after data imports. */
     reloadPresets?: () => Promise<void>;
+    flushSettings?: () => Promise<void>;
     /** Fetch available candidate binaries for a tool kind. */
     fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   }>(),
@@ -79,6 +80,7 @@ const props = withDefaults(
     checkForAppUpdate: undefined,
     installAppUpdate: undefined,
     reloadPresets: undefined,
+    flushSettings: undefined,
   },
 );
 
@@ -137,6 +139,7 @@ const systemStatus = computed(() => {
         />
 
         <SettingsDataStorageSection
+          :flush-settings="flushSettings"
           class="lg:flex-[4]"
           :reload-presets="reloadPresets"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"

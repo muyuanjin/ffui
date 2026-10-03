@@ -3,6 +3,7 @@ use crate::ffui_core::tools::ExternalToolKind;
 
 #[test]
 fn manual_tool_download_records_download_metadata_without_custom_path_override() {
+    let _settings = setup_settings_store_for_tests();
     let engine = make_engine_with_preset();
 
     let initial = engine.settings();
@@ -28,5 +29,15 @@ fn manual_tool_download_records_download_metadata_without_custom_path_override()
     assert!(
         downloaded.ffmpeg.is_some(),
         "downloaded.ffmpeg metadata entry should be populated after manual download recording"
+    );
+    assert_eq!(
+        serde_json::to_value(
+            crate::ffui_core::settings::load_settings()
+                .expect("persisted settings")
+                .tools
+                .downloaded
+        )
+        .expect("serialize persisted metadata"),
+        serde_json::to_value(updated.tools.downloaded).expect("serialize confirmed metadata")
     );
 }

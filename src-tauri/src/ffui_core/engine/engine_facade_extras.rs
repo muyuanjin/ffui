@@ -64,11 +64,9 @@ impl TranscodingEngine {
         // emit ffui://external-tool-status without re-probing the filesystem
         // on every download tick.
         crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
-        let settings_changed = {
-            let mut state = self.inner.state.lock_unpoisoned();
-            update_probe_cache_from_statuses(&mut state.settings.tools, &statuses)
-        };
-        if settings_changed && let Err(err) = self.inner.persist_current_settings() {
+        if let Err(err) = self.inner.update_settings(|settings| {
+            update_probe_cache_from_statuses(&mut settings.tools, &statuses)
+        }) {
             crate::debug_eprintln!("[tools_probe_cache] failed to persist probe cache: {err:#}");
         }
         statuses
@@ -85,11 +83,8 @@ impl TranscodingEngine {
         &self,
         config: BatchCompressConfig,
     ) -> Result<BatchCompressConfig> {
-        {
-            let mut state = self.inner.state.lock_unpoisoned();
-            state.settings.batch_compress_defaults = config.clone();
-        }
-        self.inner.persist_current_settings()?;
+        self.inner
+            .update_settings(|settings| settings.batch_compress_defaults = config.clone())?;
         Ok(config)
     }
 

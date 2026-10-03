@@ -80,7 +80,7 @@ pub(crate) use settings::load_presets;
 #[cfg_attr(not(windows), allow(unused_imports))]
 pub use settings::{
     AppSettings, DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS, DEFAULT_METRICS_INTERVAL_MS,
-    TaskbarProgressMode, TaskbarProgressScope, hardware_smart_default_presets,
+    SettingsSnapshot, TaskbarProgressMode, TaskbarProgressScope, hardware_smart_default_presets,
 };
 pub(crate) use template_validation::{PresetTemplateValidationResult, validate_preset_template};
 

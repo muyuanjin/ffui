@@ -225,6 +225,28 @@ impl AppSettings {
             types_helpers::normalize_parallel_limit(self.max_parallel_hw_jobs);
         types_helpers::normalize_string_option(&mut self.locale);
         types_helpers::normalize_string_option(&mut self.vmaf_measure_reference_path);
+        if self
+            .ui_font_file_path
+            .as_ref()
+            .is_some_and(|path| !path.trim().is_empty())
+        {
+            self.ui_font_download_id = None;
+            self.ui_font_family = UiFontFamily::System;
+            if self
+                .ui_font_name
+                .as_ref()
+                .is_none_or(|name| name.trim().is_empty())
+            {
+                self.ui_font_name = Some("FFUI Imported".into());
+            }
+        } else if self
+            .ui_font_download_id
+            .as_ref()
+            .is_some_and(|id| !id.trim().is_empty())
+        {
+            self.ui_font_file_path = None;
+            self.ui_font_family = UiFontFamily::System;
+        }
         if matches!(self.preset_sort_mode, Some(PresetSortMode::Unknown)) {
             self.preset_sort_mode = None;
         }

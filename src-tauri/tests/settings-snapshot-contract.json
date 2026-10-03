@@ -1,0 +1,10 @@
+{
+  "contentId": "fixture-content-identity",
+  "dataRootId": "fixture-directory-identity",
+  "unavailableSettings": [
+    {
+      "path": "/queuePresetSelection",
+      "reason": "Unsupported selection mode"
+    }
+  ]
+}

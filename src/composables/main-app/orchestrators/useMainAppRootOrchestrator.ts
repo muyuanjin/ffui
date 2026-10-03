@@ -69,6 +69,7 @@ export function useMainAppRootOrchestrator() {
     queueError: computed(() => queue.queueError.value),
     mediaInspectError: computed(() => media.mediaInspectError.value),
     settingsSaveError: computed(() => settings.settingsSaveError.value),
+    unavailableSettings: computed(() => settings.unavailableSettings.value),
   });
 
   const globalAlertsListeners = {

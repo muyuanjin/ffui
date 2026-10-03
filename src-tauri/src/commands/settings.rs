@@ -7,15 +7,18 @@
 
 use tauri::State;
 
+use crate::ffui_core::SettingsSnapshot;
 use crate::ffui_core::{AppSettings, AutoCompressResult, BatchCompressConfig, TranscodingEngine};
 
 /// Get the current application settings.
 #[tauri::command]
-pub async fn get_app_settings(engine: State<'_, TranscodingEngine>) -> Result<AppSettings, String> {
+pub async fn get_app_settings(
+    engine: State<'_, TranscodingEngine>,
+) -> Result<SettingsSnapshot, String> {
     let engine = engine.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         engine
-            .checked_settings()
+            .settings_snapshot()
             .map_err(|error| format!("{error:#}"))
     })
     .await
@@ -27,10 +30,15 @@ pub async fn get_app_settings(engine: State<'_, TranscodingEngine>) -> Result<Ap
 pub async fn save_app_settings(
     engine: State<'_, TranscodingEngine>,
     settings: AppSettings,
-) -> Result<AppSettings, String> {
+    base_settings: AppSettings,
+    base_content_id: String,
+    data_root_id: String,
+) -> Result<SettingsSnapshot, String> {
     let engine = engine.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        engine.save_settings(settings).map_err(|e| e.to_string())
+        engine
+            .commit_settings(settings, base_settings, base_content_id, data_root_id, true)
+            .map_err(|e| format!("{e:#}"))
     })
     .await
     .map_err(|e| e.to_string())?

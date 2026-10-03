@@ -23,6 +23,7 @@ type ActionStatus = { tone: StatusTone; message: string };
 
 const props = defineProps<{
   reloadPresets?: () => Promise<void>;
+  flushSettings?: () => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -83,6 +84,7 @@ const desiredModeModel = computed<DataRootMode>({
     if (activeAction.value) return;
     activeAction.value = "mode";
     try {
+      await props.flushSettings?.();
       dataRootInfo.value = await setDataRootMode(nextMode);
       if (dataRootInfo.value.switchPending) {
         setStatus("neutral", t("app.settings.dataRootSwitchPending") as string);
@@ -149,6 +151,7 @@ const handleExportConfig = async () => {
       activeAction.value = null;
       return;
     }
+    await props.flushSettings?.();
     await exportConfigBundle(path);
     setStatus("success", t("app.settings.dataRootExportSuccess") as string);
   } catch (error) {

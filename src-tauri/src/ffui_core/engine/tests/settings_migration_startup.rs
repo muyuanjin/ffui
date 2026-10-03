@@ -59,7 +59,11 @@ fn engine_settings_load_failure_rejects_reads_and_writes_then_reloads_repaired_d
         default_queue_preset_id: Some("custom-audio".into()),
         ..Default::default()
     };
-    settings::save_settings(&recovered).expect("external repair");
+    fs::write(
+        &path,
+        serde_json::json!({"version": 2, "settings": recovered}).to_string(),
+    )
+    .expect("external repair");
     let loaded = engine
         .checked_settings()
         .expect("retry loads repaired settings");
@@ -74,5 +78,41 @@ fn engine_settings_load_failure_rejects_reads_and_writes_then_reloads_repaired_d
             .lock_unpoisoned()
             .settings_load_error
             .is_none()
+    );
+}
+
+#[test]
+fn unsupported_configuration_cannot_execute_manual_or_restored_jobs() {
+    let engine = TranscodingEngine::new_for_tests();
+    let snapshot = settings::SettingsStore::inspect_document(&serde_json::json!({"version":2,"settings":{"queuePresetSelection":{"mode":"future-mode"}}})).expect("partial settings");
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings = snapshot.settings;
+        state.unavailable_settings = snapshot.unavailable_settings;
+    }
+    let job = worker::enqueue_transcode_job(
+        &engine.inner,
+        "unavailable-input.wav".into(),
+        JobType::Audio,
+        JobSource::Manual,
+        1.0,
+        Some("pcm".into()),
+        "missing".into(),
+    );
+    assert!(
+        matches!(job.execution, Some(crate::ffui_core::domain::JobExecution::Invalid { ref reason }) if reason.contains("queuePresetSelection"))
+    );
+    let tools = settings::SettingsStore::inspect_document(&serde_json::json!({"version":2,"settings":{"tools":{"autoDownload":false},"parallelismMode":"future-mode"}})).expect("partial tools");
+    engine.inner.state.lock_unpoisoned().unavailable_settings = tools.unavailable_settings;
+    job_runner::process_transcode_job(&engine.inner, &job.id).expect("explicit failure");
+    let state = engine.inner.state.lock_unpoisoned();
+    let failed = state.jobs.get(&job.id).expect("job");
+    assert_eq!(failed.status, JobStatus::Failed);
+    assert!(
+        failed
+            .failure_reason
+            .as_deref()
+            .expect("diagnostic")
+            .contains("parallelismMode")
     );
 }

@@ -27,6 +27,19 @@ fn write_history(path: &std::path::Path) -> Vec<TranscodeJob> {
     jobs
 }
 
+fn with_protected_history(check: impl FnOnce(&std::path::Path, &std::path::Path, &[u8])) {
+    let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+    state_persist::reset_queue_persist_state_for_tests();
+    let directory = tempfile::tempdir().expect("data directory");
+    let _data_root =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
+    let path = directory.path().join("ffui.queue-state.json");
+    let _sidecar = crate::ffui_core::override_queue_state_sidecar_path_for_tests(path.clone());
+    write_history(&path);
+    let original = std::fs::read(&path).expect("original history");
+    check(directory.path(), &path, &original);
+}
+
 #[test]
 fn startup_settings_saves_and_exit_cannot_replace_history_before_recovery() {
     let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
@@ -127,26 +140,52 @@ fn unreadable_history_reports_recovery_error_and_refuses_empty_replacement() {
 
 #[test]
 fn failed_settings_load_does_not_filter_history_using_placeholder_preferences() {
-    let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
-    state_persist::reset_queue_persist_state_for_tests();
-    let directory = tempfile::tempdir().expect("data directory");
-    let _data_root =
-        crate::ffui_core::data_root::override_data_root_dir_for_tests(directory.path().into());
-    let path = directory.path().join("ffui.queue-state.json");
-    let _sidecar = crate::ffui_core::override_queue_state_sidecar_path_for_tests(path.clone());
-    write_history(&path);
-    let original = std::fs::read(&path).expect("original history");
-    let engine = TranscodingEngine::new_for_tests();
-    engine.inner.state.lock_unpoisoned().settings_load_error =
-        Some("incompatible preferences".into());
-    restore_jobs_from_persisted_queue(&engine.inner);
-    assert!(
-        engine
-            .queue_restore_error()
-            .expect("diagnostic")
-            .contains("incompatible preferences")
-    );
-    assert!(engine.force_persist_queue_state_lite_now().is_err());
-    notify_queue_listeners(&engine.inner);
-    assert_eq!(std::fs::read(&path).expect("protected history"), original);
+    with_protected_history(|_, path, original| {
+        let engine = TranscodingEngine::new_for_tests();
+        engine.inner.state.lock_unpoisoned().settings_load_error =
+            Some("incompatible preferences".into());
+        restore_jobs_from_persisted_queue(&engine.inner);
+        assert!(
+            engine
+                .queue_restore_error()
+                .expect("diagnostic")
+                .contains("incompatible preferences")
+        );
+        assert!(engine.force_persist_queue_state_lite_now().is_err());
+        notify_queue_listeners(&engine.inner);
+        assert_eq!(std::fs::read(&path).expect("protected history"), original);
+    });
+}
+
+#[test]
+fn unknown_queue_persistence_mode_protects_history_and_terminal_logs() {
+    with_protected_history(|directory, path, original| {
+        let logs = directory.join("queue-logs");
+        std::fs::create_dir_all(&logs).expect("logs");
+        std::fs::write(logs.join("keep.json"), "keep").expect("existing log");
+        let snapshot = crate::ffui_core::settings::SettingsStore::inspect_document(
+            &serde_json::json!({"version":2,"settings":{"queuePersistenceMode":"future-mode"}}),
+        )
+        .expect("partial projection");
+        let engine = TranscodingEngine::new_for_tests();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.settings = snapshot.settings;
+            state.unavailable_settings = snapshot.unavailable_settings;
+        }
+        restore_jobs_from_persisted_queue(&engine.inner);
+        assert!(
+            engine
+                .queue_restore_error()
+                .expect("diagnostic")
+                .contains("queuePersistenceMode")
+        );
+        assert!(engine.force_persist_queue_state_lite_now().is_err());
+        notify_queue_listeners(&engine.inner);
+        assert_eq!(std::fs::read(&path).expect("protected history"), original);
+        assert_eq!(
+            std::fs::read_to_string(logs.join("keep.json")).expect("protected log"),
+            "keep"
+        );
+    });
 }

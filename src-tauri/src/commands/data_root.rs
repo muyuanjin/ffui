@@ -3,10 +3,11 @@ use std::path::Path;
 use tauri::{AppHandle, State};
 
 use crate::commands::tools::reveal_path_in_folder;
+use crate::ffui_core::SettingsSnapshot;
 use crate::ffui_core::{
-    AppSettings, ConfigBundle, ConfigBundleExportResult, ConfigBundleImportResult, DataRootInfo,
-    DataRootMode, TranscodingEngine, acknowledge_fallback_notice, clear_app_data_root,
-    data_root_dir, data_root_info, export_config_bundle as export_config_bundle_impl, load_presets,
+    ConfigBundle, ConfigBundleExportResult, ConfigBundleImportResult, DataRootInfo, DataRootMode,
+    TranscodingEngine, acknowledge_fallback_notice, clear_app_data_root, data_root_dir,
+    data_root_info, export_config_bundle as export_config_bundle_impl, load_presets,
     read_config_bundle, set_data_root_mode as set_data_root_mode_impl,
 };
 
@@ -51,7 +52,9 @@ pub fn export_config_bundle(
         return Err("export path is empty".to_string());
     }
     let path = Path::new(trimmed);
-    let settings = engine.settings();
+    let settings = engine
+        .settings_document()
+        .map_err(|error| format!("{error:#}"))?;
     let presets = (*engine.presets()).clone();
     let app_version = app.package_info().version.to_string();
     export_config_bundle_impl(path, settings, presets, app_version).map_err(|e| e.to_string())
@@ -76,14 +79,10 @@ pub fn import_config_bundle(
     let ConfigBundle {
         schema_version,
         app_version,
-        settings,
+        settings_document,
         presets,
         ..
     } = bundle;
-    let mut normalized_settings = settings;
-    normalized_settings.normalize();
-
-    let previous_settings = engine.settings();
     let previous_presets = (*engine.presets()).clone();
 
     let preset_count = presets.len();
@@ -91,29 +90,29 @@ pub fn import_config_bundle(
         return Err(err.to_string());
     }
 
-    match engine.save_settings(normalized_settings) {
+    match engine.import_settings_document(settings_document) {
         Ok(saved_settings) => Ok(ConfigBundleImportResult {
             settings: saved_settings,
             preset_count,
             schema_version,
             app_version,
         }),
-        Err(err) => {
-            drop(engine.replace_presets(previous_presets));
-            drop(engine.save_settings(previous_settings));
-            Err(err.to_string())
-        }
+        Err(err) => match engine.replace_presets(previous_presets) {
+            Ok(_) => Err(format!("{err:#}")),
+            Err(rollback) => Err(format!(
+                "Settings import failed: {err:#}; preset rollback failed: {rollback:#}"
+            )),
+        },
     }
 }
 
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
-pub fn clear_all_app_data(engine: State<'_, TranscodingEngine>) -> Result<AppSettings, String> {
+pub fn clear_all_app_data(
+    engine: State<'_, TranscodingEngine>,
+) -> Result<SettingsSnapshot, String> {
     clear_app_data_root().map_err(|e| e.to_string())?;
-    let default_settings = AppSettings::default();
-    let saved_settings = engine
-        .save_settings(default_settings)
-        .map_err(|e| e.to_string())?;
+    let saved_settings = engine.reset_settings().map_err(|e| e.to_string())?;
     let presets = load_presets().map_err(|e| e.to_string())?;
     drop(engine.replace_presets(presets).map_err(|e| e.to_string())?);
     Ok(saved_settings)

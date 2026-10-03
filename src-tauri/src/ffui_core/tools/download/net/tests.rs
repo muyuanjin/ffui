@@ -138,6 +138,21 @@ struct ProxySettingsGuard {
     prev: (NetworkProxyMode, Option<String>, bool),
 }
 
+#[test]
+fn unavailable_proxy_configuration_blocks_downloads_without_direct_fallback() {
+    let (_env_lock, _env_guard) = prepare_proxy_env_for_test();
+    let _settings_guard = ProxySettingsGuard::capture();
+    network_proxy::apply_confirmed_settings(None, Some("unsupported proxy mode".into()));
+    let error = download_bytes_with_reqwest("http://127.0.0.1:9/test", |_, _| {})
+        .expect_err("download must not use a default proxy");
+    assert!(
+        error
+            .to_string()
+            .contains("Network settings are unavailable")
+    );
+    assert_eq!(content_length_head("http://127.0.0.1:9/test"), None);
+}
+
 impl ProxySettingsGuard {
     fn capture() -> Self {
         Self {

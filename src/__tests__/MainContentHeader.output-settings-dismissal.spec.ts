@@ -9,12 +9,18 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 
 describe("output settings nested select dismissal", () => {
-  it.each([
-    ["en", "byMedia"],
-    ["zh-CN", "byMedia"],
-    ["en", "force"],
-    ["zh-CN", "force"],
-  ] as const)("keeps the %s settings dialog and values when cancelling %s selectors", async (locale, mode) => {
+  it.each(
+    ["en", "zh-CN"].flatMap((locale) => [
+      ...["container-mode-trigger", "directory-mode-trigger", "video-format", "audio-format", "image-format"].map(
+        (selector) => ({ locale, mode: "byMedia" as const, selector }),
+      ),
+      ...["container-mode-trigger", "directory-mode-trigger", "container-format"].map((selector) => ({
+        locale,
+        mode: "force" as const,
+        selector,
+      })),
+    ]),
+  )("keeps $locale settings and $mode values when cancelling $selector", async ({ locale, mode, selector }) => {
     const wrapper = mount(MainContentHeader, {
       props: {
         activeTab: "queue",
@@ -41,46 +47,38 @@ describe("output settings nested select dismissal", () => {
     await flushPromises();
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog).not.toBeNull();
-    const selectors = [
-      '[data-testid="output-policy-container-mode-trigger"]',
-      '[data-testid="output-policy-directory-mode-trigger"]',
-      ...(mode === "byMedia"
-        ? ["video", "audio", "image"].map((kind) => `[data-testid="output-policy-${kind}-format"] [role="combobox"]`)
-        : ['[data-testid="output-policy-container-format"] [role="combobox"]']),
-    ];
-    for (const selector of selectors) {
-      const trigger = dialog!.querySelector(selector)!;
-      const original = trigger.textContent;
-      for (const target of ["overlay", "blank", "escape"]) {
-        trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-        await flushPromises();
-        await new Promise((resolve) => window.setTimeout(resolve, 0));
-        expect(document.querySelector('[role="listbox"]')).not.toBeNull();
-        const originalEvent =
-          target === "escape"
-            ? new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
-            : new PointerEvent("pointerdown", {
-                bubbles: true,
-                cancelable: true,
-                button: 0,
-                pointerType: "mouse",
-              });
-        const outside = target === "overlay" ? document.querySelector('[data-testid="dialog-overlay"]')! : dialog!;
-        if (target === "escape") document.activeElement!.dispatchEvent(originalEvent);
-        else outside.dispatchEvent(originalEvent);
-        await flushPromises();
-        await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).toBeNull());
-        expect(document.querySelector('[role="dialog"]')).toBe(dialog);
-        expect(trigger.textContent).toBe(original);
-        expect(wrapper.emitted("update:queueOutputPolicy")).toBeUndefined();
-        if (target !== "escape") {
-          const delayedParentEvent = new CustomEvent("dismissableLayer.pointerDownOutside", {
-            cancelable: true,
-            detail: { originalEvent },
-          });
-          wrapper.findComponent(RekaDialogContent).vm.$emit("pointerDownOutside", delayedParentEvent);
-          expect(delayedParentEvent.defaultPrevented).toBe(true);
-        }
+    const field = dialog!.querySelector(`[data-testid="output-policy-${selector}"]`)!;
+    const trigger = field.matches('[role="combobox"]') ? field : field.querySelector('[role="combobox"]')!;
+    const original = trigger.textContent;
+    for (const target of ["overlay", "blank", "escape"]) {
+      trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      await flushPromises();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+      expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+      const originalEvent =
+        target === "escape"
+          ? new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+          : new PointerEvent("pointerdown", {
+              bubbles: true,
+              cancelable: true,
+              button: 0,
+              pointerType: "mouse",
+            });
+      const outside = target === "overlay" ? document.querySelector('[data-testid="dialog-overlay"]')! : dialog!;
+      if (target === "escape") document.activeElement!.dispatchEvent(originalEvent);
+      else outside.dispatchEvent(originalEvent);
+      await flushPromises();
+      await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).toBeNull());
+      expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+      expect(trigger.textContent).toBe(original);
+      expect(wrapper.emitted("update:queueOutputPolicy")).toBeUndefined();
+      if (target !== "escape") {
+        const delayedParentEvent = new CustomEvent("dismissableLayer.pointerDownOutside", {
+          cancelable: true,
+          detail: { originalEvent },
+        });
+        wrapper.findComponent(RekaDialogContent).vm.$emit("pointerDownOutside", delayedParentEvent);
+        expect(delayedParentEvent.defaultPrevented).toBe(true);
       }
     }
     document

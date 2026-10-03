@@ -15,6 +15,7 @@ const props = defineProps<{
   presets: FFmpegPreset[];
   unifiedPresetId: string | null;
   selection: QueuePresetSelection;
+  disabled?: boolean;
 }>();
 const emit = defineEmits<{
   (event: "update:unifiedPresetId", value: string): void;
@@ -43,6 +44,7 @@ const closeDelay = useTimeoutFn(
   { immediate: false },
 );
 const enter = (event: PointerEvent) => {
+  if (props.disabled) return;
   if (event.pointerType === "touch") return;
   closeDelay.stop();
   if (!open.value) openDelay.start();
@@ -126,6 +128,7 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
           size="sm"
           :class="triggerClass"
           :title="t('app.queuePresetSettings')"
+          :disabled="disabled"
           @click.capture="triggerClick = true"
         >
           {{ t("app.queuePresetSettings") }}

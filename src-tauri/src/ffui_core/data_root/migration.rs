@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -60,14 +61,29 @@ fn pick_most_recent(paths: &[PathBuf]) -> Option<PathBuf> {
     best.map(|(path, _)| path)
 }
 
-fn copy_file_if_missing(source: &Path, dest: &Path) {
+fn copy_file_if_missing(source: &Path, dest: &Path) -> Result<()> {
     if dest.exists() {
-        return;
+        return Ok(());
     }
-    if let Some(parent) = dest.parent() {
-        drop(fs::create_dir_all(parent));
+    let parent = dest
+        .parent()
+        .context("Migration destination has no directory")?;
+    fs::create_dir_all(parent)
+        .with_context(|| format!("Create migration directory {}", parent.display()))?;
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
+    let mut input = fs::File::open(source)
+        .with_context(|| format!("Read migration source {}", source.display()))?;
+    std::io::copy(&mut input, temporary.as_file_mut())?;
+    temporary.as_file().sync_all()?;
+    match temporary.persist_noclobber(dest) {
+        Ok(file) => drop(file),
+        Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(error.error)
+                .with_context(|| format!("Publish migrated file {}", dest.display()));
+        }
     }
-    drop(fs::copy(source, dest));
+    Ok(())
 }
 
 fn copy_dir_files_if_missing(source: &Path, dest: &Path) {
@@ -92,26 +108,26 @@ fn copy_dir_files_if_missing(source: &Path, dest: &Path) {
     }
 }
 
-pub(super) fn migrate_legacy_sidecars(state: &DataRootState, exe_dir: &Path) {
+pub(super) fn migrate_legacy_sidecars(state: &DataRootState, exe_dir: &Path) -> Result<()> {
     let settings_candidates = legacy_candidates_with_suffix(exe_dir, ".settings.json");
     if let Some(source) = pick_most_recent(&settings_candidates)
         && !state.data_root.join(SETTINGS_FILENAME).exists()
     {
-        copy_file_if_missing(&source, &state.data_root.join(SETTINGS_FILENAME));
+        copy_file_if_missing(&source, &state.data_root.join(SETTINGS_FILENAME))?;
     }
 
     let presets_candidates = legacy_candidates_with_suffix(exe_dir, ".presets.json");
     if let Some(source) = pick_most_recent(&presets_candidates)
         && !state.data_root.join(PRESETS_FILENAME).exists()
     {
-        copy_file_if_missing(&source, &state.data_root.join(PRESETS_FILENAME));
+        copy_file_if_missing(&source, &state.data_root.join(PRESETS_FILENAME))?;
     }
 
     let queue_candidates = legacy_candidates_with_suffix(exe_dir, ".queue-state.json");
     if let Some(source) = pick_most_recent(&queue_candidates)
         && !state.data_root.join(QUEUE_STATE_FILENAME).exists()
     {
-        copy_file_if_missing(&source, &state.data_root.join(QUEUE_STATE_FILENAME));
+        copy_file_if_missing(&source, &state.data_root.join(QUEUE_STATE_FILENAME))?;
     }
 
     let log_candidates = legacy_dir_candidates_with_suffix(exe_dir, ".queue-logs");
@@ -126,15 +142,16 @@ pub(super) fn migrate_legacy_sidecars(state: &DataRootState, exe_dir: &Path) {
     if tools.is_dir() && !state.data_root.join(TOOLS_DIRNAME).exists() {
         copy_dir_files_if_missing(&tools, &state.data_root.join(TOOLS_DIRNAME));
     }
+    Ok(())
 }
 
-pub(super) fn migrate_data_root_snapshot(source_root: &Path, target_root: &Path) {
+pub(super) fn migrate_data_root_snapshot(source_root: &Path, target_root: &Path) -> Result<()> {
     let files = [SETTINGS_FILENAME, PRESETS_FILENAME, QUEUE_STATE_FILENAME];
     for name in files {
         let source = source_root.join(name);
         let dest = target_root.join(name);
         if source.is_file() {
-            copy_file_if_missing(&source, &dest);
+            copy_file_if_missing(&source, &dest)?;
         }
     }
 
@@ -149,4 +166,5 @@ pub(super) fn migrate_data_root_snapshot(source_root: &Path, target_root: &Path)
     if tools.is_dir() {
         copy_dir_files_if_missing(&tools, &tools_dest);
     }
+    Ok(())
 }

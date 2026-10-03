@@ -138,7 +138,21 @@ fn enqueue_transcode_job_no_notify(
                 }
             }
         }
-        let execution = if direct_command {
+        let configuration_error = state.settings_capability_error(if direct_command {
+            &["/tools"]
+        } else if matches!(source, JobSource::Manual) {
+            &[
+                "/tools",
+                "/queueOutputPolicy",
+                "/queuePresetSelection",
+                "/defaultQueuePresetId",
+            ]
+        } else {
+            &["/tools"]
+        });
+        let execution = if let Some(reason) = configuration_error {
+            Some(JobExecution::Invalid { reason })
+        } else if direct_command {
             explicit_execution
         } else if let Some(reason) = path_error {
             Some(JobExecution::Invalid { reason })

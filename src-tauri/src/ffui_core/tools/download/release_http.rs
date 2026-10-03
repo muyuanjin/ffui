@@ -77,7 +77,7 @@ pub(super) fn resolve_release_from_github_checked(
 ) -> Result<ReleaseResolveInfo> {
     use std::time::Duration;
 
-    let resolved = network_proxy::resolve_effective_proxy_once();
+    let resolved = network_proxy::resolve_effective_proxy_once()?;
     let force_no_proxy = resolved.is_no_proxy_mode();
 
     let parsed = match network_proxy::parse_reqwest_proxy_for(&resolved) {

@@ -2,11 +2,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent } from "vue";
+import { settingsCommandResponse } from "./helpers/settingsSnapshot";
 
 const invokeMock = vi.fn<(cmd: string, payload?: unknown) => Promise<unknown>>();
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, payload?: unknown) => (payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload)),
+  invoke: async (cmd: string, payload?: unknown) =>
+    settingsCommandResponse(cmd, await (payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload))),
   convertFileSrc: (path: string) => path,
 }));
 

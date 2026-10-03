@@ -31,13 +31,14 @@ fn store_remote_version_cache<F>(engine: &TranscodingEngine, update: F)
 where
     F: FnOnce(&mut crate::ffui_core::settings::types::RemoteToolVersionCache),
 {
-    {
-        let mut state = engine.inner.state.lock_unpoisoned();
-        let tools = &mut state.settings.tools;
+    if let Err(error) = engine.inner.update_settings(|settings| {
+        let tools = &mut settings.tools;
         let cache = tools
             .remote_version_cache
             .get_or_insert_with(Default::default);
         update(cache);
+    }) {
+        crate::debug_eprintln!("failed to persist remote version cache: {error:#}");
     }
 }
 
@@ -235,7 +236,6 @@ impl TranscodingEngine {
                 );
 
                 let mut remote_updated = false;
-                let mut should_persist_settings = false;
                 if manual_remote_check
                     && let Some(kind) = remote_check_kind {
                         clear_tool_remote_check_state(kind);
@@ -251,7 +251,6 @@ impl TranscodingEngine {
                         Ok(Some(info)) => {
                             remote_updated |= info.cacheable();
                             if info.cacheable() {
-                                should_persist_settings = true;
                                 store_remote_version_cache(&engine_clone, |cache| {
                                     cache.ffmpeg_static = Some(
                                         crate::ffui_core::settings::types::RemoteToolVersionInfo {
@@ -300,7 +299,6 @@ impl TranscodingEngine {
                         Ok(Some(info)) => {
                             remote_updated |= info.cacheable();
                             if info.cacheable() {
-                                should_persist_settings = true;
                                 store_remote_version_cache(&engine_clone, |cache| {
                                     cache.libavif = Some(
                                         crate::ffui_core::settings::types::RemoteToolVersionInfo {
@@ -335,13 +333,6 @@ impl TranscodingEngine {
                             record_proxy_remote_check_error(&report_kinds, &err, now_ms);
                         }
                     }
-                }
-
-                if should_persist_settings
-                    && let Err(err) = engine_clone.inner.persist_current_settings() {
-                        crate::debug_eprintln!(
-                            "[tools_refresh] failed to persist remote TTL cache: {err:#}"
-                        );
                 }
 
                 // Always refresh local tool probing in the background, and push an event when

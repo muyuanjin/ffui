@@ -3,15 +3,62 @@ use crate::ffui_core::tools::{ExternalToolKind, clear_tool_runtime_error};
 use crate::sync_ext::MutexExt;
 
 impl super::state::Inner {
+    #[cfg(test)]
     pub(crate) fn persist_current_settings(&self) -> Result<()> {
+        self.update_settings(|_| ())?;
+        Ok(())
+    }
+
+    pub(crate) fn update_settings<Output>(
+        &self,
+        update: impl FnOnce(&mut AppSettings) -> Output,
+    ) -> Result<Output> {
         let _guard = self.settings_persistence.lock_unpoisoned();
-        let state = self.state.lock_unpoisoned();
+        let mut store = self.settings_store.lock_unpoisoned();
+        if store.is_none() {
+            *store = Some(settings::SettingsStore::open()?);
+        }
+        let mut state = self.state.lock_unpoisoned();
         if let Some(error) = &state.settings_load_error {
             anyhow::bail!("Settings are not loaded: {error}");
         }
-        let snapshot = state.settings.clone();
+        let mut candidate = state.settings.clone();
+        let output = update(&mut candidate);
+        let snapshot = store
+            .as_mut()
+            .expect("settings store loaded")
+            .update(&candidate)?;
+        if state.settings.preview_capture_percent != snapshot.settings.preview_capture_percent {
+            state.preview_refresh_token = state.preview_refresh_token.saturating_add(1);
+            for job in state
+                .jobs
+                .values_mut()
+                .filter(|job| job.job_type == crate::ffui_core::domain::JobType::Video)
+            {
+                job.preview_path = None;
+                job.preview_revision = job.preview_revision.saturating_add(1);
+            }
+        }
+        let tools_changed = state.settings.tools.ffmpeg_path != snapshot.settings.tools.ffmpeg_path
+            || state.settings.tools.ffprobe_path != snapshot.settings.tools.ffprobe_path
+            || state.settings.tools.avifenc_path != snapshot.settings.tools.avifenc_path
+            || state.settings.tools.auto_download != snapshot.settings.tools.auto_download
+            || state.settings.tools.auto_update != snapshot.settings.tools.auto_update;
+        state.settings = snapshot.settings;
+        state.unavailable_settings = snapshot.unavailable_settings;
+        let tools = state.settings.tools.clone();
+        let proxy = state.settings.network_proxy.clone();
+        let proxy_error = state.settings_capability_error(&["/networkProxy"]);
         drop(state);
-        settings::save_settings(&snapshot)
+        drop(store);
+        install_runtime_tool_state(&tools);
+        crate::ffui_core::network_proxy::apply_confirmed_settings(proxy.as_ref(), proxy_error);
+        if tools_changed {
+            clear_runtime_tool_errors();
+        }
+        self.cv.notify_all();
+        state::notify_queue_listeners(self);
+        Ok(output)
     }
 }
 
@@ -49,15 +96,16 @@ mod persistence_tests {
             .expect("save latest settings");
         let saved = settings::load_settings().expect("load settings");
         assert_eq!(saved.default_queue_preset_id.as_deref(), Some("video"));
-        let last_good: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(directory.path().join("ffui.settings.last-good.json"))
-                .expect("last good"),
-        )
-        .expect("last good JSON");
-        assert_eq!(last_good["settings"]["defaultQueuePresetId"], "video");
+        assert!(
+            !directory
+                .path()
+                .join("ffui.settings.last-good.json")
+                .exists()
+        );
     }
 }
 
+#[cfg(test)]
 fn merge_backend_owned_tool_state(
     new_tools: &mut crate::ffui_core::settings::ExternalToolSettings,
     old_tools: &crate::ffui_core::settings::ExternalToolSettings,
@@ -76,33 +124,117 @@ fn merge_backend_owned_tool_state(
 }
 
 impl TranscodingEngine {
+    #[cfg(test)]
     pub fn checked_settings(&self) -> Result<AppSettings> {
-        let _guard = self.inner.settings_persistence.lock_unpoisoned();
-        let mut state = self.inner.state.lock_unpoisoned();
-        if state.settings_load_error.is_some() {
-            let loaded = settings::load_settings()?;
-            state.settings = loaded;
-            state.settings_load_error = None;
-            crate::ffui_core::network_proxy::apply_settings(state.settings.network_proxy.as_ref());
-            crate::ffui_core::tools::hydrate_last_tool_download_from_settings(
-                &state.settings.tools,
-            );
-            crate::ffui_core::tools::hydrate_remote_version_cache_from_settings(
-                &state.settings.tools,
-            );
-            crate::ffui_core::tools::hydrate_probe_cache_from_settings(&state.settings.tools);
-            self.inner.cv.notify_all();
+        let snapshot = self.settings_snapshot()?;
+        if let Some(error) = snapshot
+            .unavailable_settings
+            .iter()
+            .find(|entry| entry.path.is_empty())
+        {
+            anyhow::bail!("{}", error.reason);
         }
-        Ok(state.settings.clone())
+        Ok(snapshot.settings)
+    }
+
+    pub fn settings_snapshot(&self) -> Result<settings::SettingsSnapshot> {
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let mut store = self.inner.settings_store.lock_unpoisoned();
+        if store.is_none() {
+            *store = Some(settings::SettingsStore::open()?);
+        }
+        let snapshot = match store.as_mut().expect("settings store loaded").reload() {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                self.inner.state.lock_unpoisoned().settings_load_error = Some(format!("{error:#}"));
+                return Err(error);
+            }
+        };
+        drop(store);
+        self.inner.state.lock_unpoisoned().settings_load_error = None;
+        Ok(self.publish_settings(snapshot))
     }
 
     /// Save new application settings.
+    #[cfg(test)]
     pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
-        self.checked_settings()?;
+        let baseline = self.settings_snapshot()?;
+        let mut next = new_settings;
+        merge_backend_owned_tool_state(&mut next.tools, &baseline.settings.tools);
+        Ok(self
+            .commit_settings(
+                next,
+                baseline.settings,
+                baseline.content_id,
+                baseline.data_root_id,
+                false,
+            )?
+            .settings)
+    }
+
+    pub fn commit_settings(
+        &self,
+        new_settings: AppSettings,
+        base_settings: AppSettings,
+        base_content_id: String,
+        data_root_id: String,
+        user_owned: bool,
+    ) -> Result<settings::SettingsSnapshot> {
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let mut store = self.inner.settings_store.lock_unpoisoned();
+        if store.is_none() {
+            *store = Some(settings::SettingsStore::open()?);
+        }
+        if let Some(error) = &self.inner.state.lock_unpoisoned().settings_load_error {
+            anyhow::bail!("Settings are not loaded: {error}");
+        }
+        let saved = store.as_mut().expect("settings store loaded").commit(
+            &base_settings,
+            &base_content_id,
+            &data_root_id,
+            &new_settings,
+            user_owned,
+        )?;
+        drop(store);
+        Ok(self.publish_settings(saved))
+    }
+
+    pub fn settings_document(&self) -> Result<serde_json::Value> {
+        self.settings_snapshot()?;
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let store = self.inner.settings_store.lock_unpoisoned();
+        Ok(store.as_ref().expect("settings store loaded").document())
+    }
+
+    pub fn import_settings_document(
+        &self,
+        document: serde_json::Value,
+    ) -> Result<settings::SettingsSnapshot> {
+        self.settings_snapshot()?;
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let mut store = self.inner.settings_store.lock_unpoisoned();
+        let saved = store
+            .as_mut()
+            .expect("settings store loaded")
+            .import_document(document)?;
+        drop(store);
+        Ok(self.publish_settings(saved))
+    }
+
+    pub fn reset_settings(&self) -> Result<settings::SettingsSnapshot> {
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let reset = settings::SettingsStore::reset()?;
+        let saved = reset.snapshot();
+        *self.inner.settings_store.lock_unpoisoned() = Some(reset);
+        self.inner.state.lock_unpoisoned().settings_load_error = None;
+        Ok(self.publish_settings(saved))
+    }
+
+    fn publish_settings(&self, saved: settings::SettingsSnapshot) -> settings::SettingsSnapshot {
         let (
             tools_changed,
             percent_changed,
-            proxy_changed,
+            proxy_error,
             refresh_token,
             tools_snapshot,
             new_percent,
@@ -111,20 +243,11 @@ impl TranscodingEngine {
         ) = {
             let mut state = self.inner.state.lock_unpoisoned();
 
-            let mut normalized = new_settings;
-            normalized.normalize();
-
             let old_tools = state.settings.tools.clone();
             let old_percent = state.settings.preview_capture_percent;
-            let old_proxy = state.settings.network_proxy.clone();
 
-            // The frontend does not necessarily round-trip backend-owned cache
-            // fields (for example tool probe/version fingerprints). Preserve
-            // them when the incoming payload omits these fields so that
-            // cross-session startup optimizations remain effective.
-            merge_backend_owned_tool_state(&mut normalized.tools, &old_tools);
-
-            state.settings = normalized.clone();
+            state.settings = saved.settings.clone();
+            state.unavailable_settings = saved.unavailable_settings.clone();
 
             let new_tools = &state.settings.tools;
             let tools_changed = old_tools.ffmpeg_path != new_tools.ffmpeg_path
@@ -136,7 +259,7 @@ impl TranscodingEngine {
             let new_percent = state.settings.preview_capture_percent;
             let percent_changed = old_percent != new_percent;
             let proxy_snapshot = state.settings.network_proxy.clone();
-            let proxy_changed = old_proxy != proxy_snapshot;
+            let proxy_error = state.settings_capability_error(&["/networkProxy"]);
 
             if percent_changed {
                 state.preview_refresh_token = state.preview_refresh_token.saturating_add(1);
@@ -146,26 +269,24 @@ impl TranscodingEngine {
             (
                 tools_changed,
                 percent_changed,
-                proxy_changed,
+                proxy_error,
                 refresh_token,
                 state.settings.tools.clone(),
                 new_percent,
                 proxy_snapshot,
-                normalized,
+                saved,
             )
         };
 
-        self.inner.persist_current_settings()?;
-
         if tools_changed {
-            clear_tool_runtime_error(ExternalToolKind::Ffmpeg);
-            clear_tool_runtime_error(ExternalToolKind::Ffprobe);
-            clear_tool_runtime_error(ExternalToolKind::Avifenc);
+            clear_runtime_tool_errors();
         }
+        install_runtime_tool_state(&saved.settings.tools);
 
-        if proxy_changed {
-            crate::ffui_core::network_proxy::apply_settings(proxy_snapshot.as_ref());
-        }
+        crate::ffui_core::network_proxy::apply_confirmed_settings(
+            proxy_snapshot.as_ref(),
+            proxy_error,
+        );
 
         if percent_changed {
             let engine_clone = self.clone();
@@ -186,8 +307,20 @@ impl TranscodingEngine {
         state::notify_queue_listeners(&self.inner);
         worker::spawn_worker(&self.inner);
 
-        Ok(saved)
+        saved
     }
+}
+
+fn clear_runtime_tool_errors() {
+    clear_tool_runtime_error(ExternalToolKind::Ffmpeg);
+    clear_tool_runtime_error(ExternalToolKind::Ffprobe);
+    clear_tool_runtime_error(ExternalToolKind::Avifenc);
+}
+
+fn install_runtime_tool_state(tools: &settings::ExternalToolSettings) {
+    crate::ffui_core::tools::hydrate_last_tool_download_from_settings(tools);
+    crate::ffui_core::tools::hydrate_remote_version_cache_from_settings(tools);
+    crate::ffui_core::tools::hydrate_probe_cache_from_settings(tools);
 }
 
 #[cfg(test)]

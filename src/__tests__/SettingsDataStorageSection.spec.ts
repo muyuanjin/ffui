@@ -108,4 +108,32 @@ describe("SettingsDataStorageSection", () => {
     expect(wrapper.emitted("update:appSettings")).toBeUndefined();
     wrapper.unmount();
   });
+
+  it("waits for pending settings before exporting and reports flush failure without exporting", async () => {
+    fetchDataRootInfo.mockResolvedValue(makeInfo());
+    saveDialog.mockResolvedValue("/tmp/out.json");
+    let finish!: () => void;
+    const flushSettings = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = mount(SettingsDataStorageSection, { global: { plugins: [i18n] }, props: { flushSettings } });
+    await flushPromises();
+    await wrapper.get('[data-testid="settings-data-root-export"]').trigger("click");
+    await flushPromises();
+    expect(flushSettings).toHaveBeenCalledTimes(1);
+    expect(exportConfigBundle).not.toHaveBeenCalled();
+    finish();
+    await flushPromises();
+    expect(exportConfigBundle).toHaveBeenCalledWith("/tmp/out.json");
+    exportConfigBundle.mockClear();
+    flushSettings.mockRejectedValueOnce(new Error("settings save denied"));
+    await wrapper.get('[data-testid="settings-data-root-export"]').trigger("click");
+    await flushPromises();
+    expect(exportConfigBundle).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("settings save denied");
+    wrapper.unmount();
+  });
 });

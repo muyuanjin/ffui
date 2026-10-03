@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, ExternalToolCandidate, ExternalToolKind, BatchCompressConfig, TranscodeJob } from "@/types";
+import type { AppSettings, BatchCompressConfig, TranscodeJob } from "@/types";
+import type { UseAppSettingsReturn } from "@/composables/useAppSettings.types";
 import { hasTauri, requestAppClose } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
 import { installAppSettingsCloseFlush } from "@/composables/useAppSettingsCloseFlush";
@@ -15,26 +16,10 @@ export interface UseMainAppSettingsOptions {
   startupIdleReady?: Ref<boolean>;
 }
 
-export interface UseMainAppSettingsReturn {
-  appSettings: Ref<AppSettings | null>;
-  isSavingSettings: Ref<boolean>;
-  settingsSaveError: Ref<string | null>;
-  toolStatuses: ReturnType<typeof useAppSettings>["toolStatuses"];
-  toolStatusesFresh: ReturnType<typeof useAppSettings>["toolStatusesFresh"];
-  ensureAppSettingsLoaded: () => Promise<void>;
-  scheduleSaveSettings: () => void;
-  persistNow: (nextSettings?: AppSettings) => Promise<void>;
-  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  getAppSetting: <Key extends keyof AppSettings>(key: Key) => AppSettings[Key] | undefined;
-  flushSettings: () => Promise<void>;
-  markSaved: (serializedOrSettings: string | AppSettings) => void;
-  refreshToolStatuses: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-    remoteCheckKind?: ExternalToolKind;
-  }) => Promise<void>;
-  downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
-  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
+export interface UseMainAppSettingsReturn extends Omit<
+  UseAppSettingsReturn,
+  "cleanup" | "getToolDisplayName" | "getToolCustomPath" | "setToolCustomPath"
+> {
   progressUpdateIntervalMs: ReturnType<typeof useJobProgress>["progressUpdateIntervalMs"];
   globalTaskbarProgressPercent: ReturnType<typeof useJobProgress>["globalTaskbarProgressPercent"];
   headerProgressPercent: ReturnType<typeof useJobProgress>["headerProgressPercent"];
@@ -58,6 +43,7 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     appSettings,
     isSavingSettings,
     settingsSaveError,
+    unavailableSettings,
     toolStatuses,
     toolStatusesFresh,
     ensureAppSettingsLoaded,
@@ -169,6 +155,7 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     appSettings,
     isSavingSettings,
     settingsSaveError,
+    unavailableSettings,
     toolStatuses,
     toolStatusesFresh,
     ensureAppSettingsLoaded,
