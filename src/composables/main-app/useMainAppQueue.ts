@@ -14,7 +14,7 @@ import { useQueuePreferences } from "@/lib/queuePreferences";
 import { type QueueListItem, useQueueFiltering, useQueueOperations, type UseQueueFilteringReturn } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createQueueBulkActionsWithFeedback } from "./useMainAppQueue.bulkActions";
-import { ensureManualPresetId, getQueueIconGridClass, resolveManualPreset } from "./useMainAppQueue.ui";
+import { getQueueIconGridClass, resolveManualPreset } from "./useMainAppQueue.ui";
 import { buildFilteredJobsForTests } from "./useMainAppQueue.filteredJobsForTests";
 import { guardExclusiveAsyncAction } from "./useMainAppQueue.guards";
 import { createQueueDeleteConfirm } from "./useMainAppQueue.deleteConfirm";
@@ -31,6 +31,7 @@ export interface UseMainAppQueueOptions {
   presets: Ref<FFmpegPreset[]>;
   manualJobPresetId: Ref<string | null>;
   queuePresetSelection?: Ref<import("@/types").QueuePresetSelection>;
+  prepareManualEnqueue?: () => Promise<void>;
   compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
   compositeTasksById: ComputedRef<Map<string, CompositeBatchCompressTask>>;
   onJobCompleted?: (job: TranscodeJob) => void;
@@ -193,8 +194,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     resolveManualPreset(presets.value, manualJobPresetId.value),
   );
 
-  ensureManualPresetId(presets.value, manualJobPresetId);
-
   // Monotonic progress revision used to trigger progress-based sorting without
   // reintroducing full-list ordering fingerprints on every delta tick.
   const queueProgressRevision = ref(0);
@@ -279,7 +278,9 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = useQueueOperations({
     jobs,
     manualJobPreset,
+    manualJobPresetId,
     queuePresetSelection: options.queuePresetSelection,
+    prepareManualEnqueue: options.prepareManualEnqueue,
     presets,
     queueError,
     selectedJobIds,

@@ -34,6 +34,7 @@ export interface UseMainAppPresetsOptions {
   presetsLoadedFromBackend: Ref<boolean>;
   manualJobPresetId: Ref<string | null>;
   queuePresetSelection?: Ref<QueuePresetSelection>;
+  prepareManualEnqueue?: () => Promise<void>;
   dialogManager: UseMainAppDialogsReturn["dialogManager"];
   shell?: UseMainAppShellReturn;
 }
@@ -49,6 +50,7 @@ export interface UseMainAppPresetsReturn extends PresetLibraryActionsReturn {
   ) => Promise<void>;
   handleMeasureJobVmaf: (payload: { jobId: string; trimSeconds: number | null }) => Promise<void>;
   reloadPresets: () => Promise<void>;
+  ensurePresetsLoaded: () => Promise<void>;
   updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
@@ -80,7 +82,10 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     resolveManualPreset(presets.value, manualJobPresetId.value),
   );
 
-  const ensureManualPresetIdLocal = () => ensureManualPresetId(presets.value, manualJobPresetId);
+  const ensureManualPresetIdLocal = () => {
+    if (hasTauri() && !presetsLoadedFromBackend.value) return;
+    ensureManualPresetId(presets.value, manualJobPresetId);
+  };
   ensureManualPresetIdLocal();
 
   const libraryActions = usePresetLibraryActions({
@@ -161,11 +166,8 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   const reloadPresets = async () => {
     if (!hasTauri()) return;
     try {
-      const loaded = await loadPresets();
-      if (Array.isArray(loaded) && loaded.length > 0) {
-        presets.value = loaded;
-        ensureManualPresetIdLocal();
-      }
+      presetsLoadedFromBackend.value = false;
+      await ensurePresetsLoaded();
     } catch (error) {
       console.error("Failed to reload presets from backend:", error);
     }
@@ -272,6 +274,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
     }
 
+    if (manualJobPresetId.value === preset.id) manualJobPresetId.value = null;
     ensureManualPresetIdLocal();
   };
 
@@ -312,10 +315,15 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
       if (files.length === 0) return;
 
-      const preset = manualJobPreset.value ?? presets.value[0];
-      if (!preset) return;
-
-      await enqueueManualPresetFiles(files, presets.value, preset.id, options.queuePresetSelection?.value);
+      await options.prepareManualEnqueue?.();
+      await ensurePresetsLoaded();
+      await enqueueManualPresetFiles(
+        files,
+        presets.value,
+        manualJobPresetId.value,
+        options.queuePresetSelection?.value,
+        options.prepareManualEnqueue,
+      );
     } catch (e) {
       console.error("Failed to add manual job:", e);
       toast.error(t("queue.error.enqueueFailed"), {
@@ -378,6 +386,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
 
       presets.value = latestPresets;
+      if (manualJobPresetId.value && idsToRemove.includes(manualJobPresetId.value)) manualJobPresetId.value = null;
       ensureManualPresetIdLocal();
 
       if (shell) {
@@ -409,11 +418,12 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     }
   };
 
-  onMounted(async () => {
+  let presetsLoad: Promise<void> | null = null;
+  const ensurePresetsLoaded = async () => {
     if (!hasTauri()) return;
     if (presetsLoadedFromBackend.value) return;
-
-    try {
+    if (presetsLoad) return presetsLoad;
+    presetsLoad = (async () => {
       const startedAt = startupNowMs();
       const loaded = await loadPresets();
       const elapsedMs = startupNowMs() - startedAt;
@@ -426,13 +436,22 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
         }
         perfLog(`[perf] get_presets: ${elapsedMs.toFixed(1)}ms`);
       }
-      if (Array.isArray(loaded) && loaded.length > 0) {
-        presets.value = loaded;
-      }
+      presets.value = loaded;
       presetsLoadedFromBackend.value = true;
       ensureManualPresetIdLocal();
-    } catch (e) {
-      console.error("Failed to load presets:", e);
+    })();
+    try {
+      await presetsLoad;
+    } finally {
+      presetsLoad = null;
+    }
+  };
+
+  onMounted(async () => {
+    try {
+      await ensurePresetsLoaded();
+    } catch (error) {
+      console.error("Failed to load presets:", error);
     }
   });
 
@@ -445,6 +464,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     handleImportSmartPackConfirmed,
     handleMeasureJobVmaf,
     reloadPresets,
+    ensurePresetsLoaded,
     updatePresetStats,
     handleCompletedJobFromBackend,
     requestDeletePreset,

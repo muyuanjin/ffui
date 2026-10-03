@@ -35,9 +35,11 @@ export async function enqueueManualPresetFiles(
   presets: FFmpegPreset[],
   unifiedPresetId: string | null,
   selection: QueuePresetSelection = DEFAULT_QUEUE_PRESET_SELECTION,
+  prepareEnqueue?: () => Promise<void>,
 ) {
   const groups = planManualPresetGroups(files, presets, unifiedPresetId, selection);
   for (const { presetId, filenames } of groups) {
+    await prepareEnqueue?.();
     const request = { jobType: "other" as const, source: "manual" as const, originalSizeMb: 0, presetId };
     if (filenames.length === 1) {
       await enqueueTranscodeJob({ ...request, filename: filenames[0] });

@@ -2,6 +2,7 @@ import type { DialogsDomain, SettingsDomain } from "@/MainApp.types";
 import { useJobLog } from "@/composables";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
 import { useMainAppExitConfirm } from "@/composables/main-app/useMainAppExitConfirm";
+import { useBatchCompressSettingsCoordinator } from "@/composables/main-app/orchestrators/useBatchCompressSettingsCoordinator";
 import type { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
 
 export function useMainAppDialogsBase() {
@@ -27,7 +28,7 @@ export function useMainAppDialogsDomain(options: UseMainAppDialogsDomainOptions)
 
   return {
     ...dialogs,
-    batchCompress,
+    batchCompress: useBatchCompressSettingsCoordinator(batchCompress, settings),
     jobDetailJob,
     jobDetailLogText,
     highlightedLogHtml,

@@ -5,6 +5,58 @@ import { defineComponent } from "vue";
 import { mount } from "@vue/test-utils";
 
 describe("installAppSettingsCloseFlush", () => {
+  it("prevents duplicate close events and delegates closure without calling window close or destroy", async () => {
+    await vi.resetModules();
+    const nativeClose = vi.fn();
+    const destroy = vi.fn();
+    let handler!: (event: { preventDefault: () => void }) => Promise<void>;
+    const unlisten = vi.fn();
+    vi.doMock("@tauri-apps/api/window", () => ({
+      getCurrentWindow: () => ({
+        onCloseRequested: async (callback: typeof handler) => {
+          handler = callback;
+          return unlisten;
+        },
+        close: nativeClose,
+        destroy,
+      }),
+    }));
+    let finish!: () => void;
+    const persistNow = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const closeWindow = vi.fn(async () => {});
+    const { installAppSettingsCloseFlush } = await import("@/composables/useAppSettingsCloseFlush");
+    let cleanup!: () => void;
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          ({ cleanup } = installAppSettingsCloseFlush({ enabled: () => true, persistNow, closeWindow }));
+          return {};
+        },
+        template: "<div />",
+      }),
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    const preventDefault = vi.fn();
+    const first = handler({ preventDefault });
+    await handler({ preventDefault });
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    expect(persistNow).toHaveBeenCalledTimes(1);
+    expect(closeWindow).not.toHaveBeenCalled();
+    finish();
+    await first;
+    expect(closeWindow).toHaveBeenCalledTimes(1);
+    expect(nativeClose).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+    cleanup();
+    expect(unlisten).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -38,7 +90,7 @@ describe("installAppSettingsCloseFlush", () => {
 
     const TestHarness = defineComponent({
       setup() {
-        installAppSettingsCloseFlush({ enabled: () => true, persistNow });
+        installAppSettingsCloseFlush({ enabled: () => true, persistNow, closeWindow: close });
         return {};
       },
       template: "<div />",

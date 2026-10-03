@@ -1,8 +1,9 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AppSettings, ExternalToolCandidate, ExternalToolKind, BatchCompressConfig, TranscodeJob } from "@/types";
-import { hasTauri } from "@/lib/backend";
+import { hasTauri, requestAppClose } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
+import { installAppSettingsCloseFlush } from "@/composables/useAppSettingsCloseFlush";
 
 export interface UseMainAppSettingsOptions {
   jobs: Ref<TranscodeJob[]>;
@@ -23,6 +24,9 @@ export interface UseMainAppSettingsReturn {
   ensureAppSettingsLoaded: () => Promise<void>;
   scheduleSaveSettings: () => void;
   persistNow: (nextSettings?: AppSettings) => Promise<void>;
+  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  getAppSetting: <Key extends keyof AppSettings>(key: Key) => AppSettings[Key] | undefined;
+  flushSettings: () => Promise<void>;
   markSaved: (serializedOrSettings: string | AppSettings) => void;
   refreshToolStatuses: (options?: {
     remoteCheck?: boolean;
@@ -59,6 +63,9 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     persistNow,
+    updateAppSettings,
+    getAppSetting,
+    flushSettings,
     markSaved,
     refreshToolStatuses,
     downloadToolNow,
@@ -78,6 +85,11 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     headerProgressFading,
     cleanup: cleanupJobProgress,
   } = useJobProgress({ jobs, queueStructureRevision, appSettings });
+  const closeFlush = installAppSettingsCloseFlush({
+    enabled: hasTauri,
+    persistNow: flushSettings,
+    closeWindow: () => requestAppClose(),
+  });
   // Keep AppSettings.defaultQueuePresetId in sync when the user changes the
   // queue header preset selector. This ensures the next launch restores the
   // same default preset.
@@ -145,6 +157,7 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
   });
 
   onUnmounted(() => {
+    closeFlush.cleanup();
     cleanupJobProgress();
     cleanupAppSettings();
   });
@@ -161,6 +174,9 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     persistNow,
+    updateAppSettings,
+    getAppSetting,
+    flushSettings,
     markSaved,
     refreshToolStatuses,
     downloadToolNow,

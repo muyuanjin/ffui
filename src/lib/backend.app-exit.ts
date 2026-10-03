@@ -12,6 +12,11 @@ export const exitAppNow = async (): Promise<void> => {
   await invokeCommand<void>("exit_app_now");
 };
 
+export const requestAppClose = async (): Promise<void> => {
+  if (!hasTauri()) return;
+  await invokeCommand<void>("request_app_close");
+};
+
 export const exitAppWithAutoWait = async (): Promise<ExitAutoWaitOutcome> => {
   if (!hasTauri()) {
     throw new Error("exitAppWithAutoWait requires Tauri");

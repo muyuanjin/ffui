@@ -11,11 +11,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { exitAppNow, exitAppWithAutoWait, resetExitPrompt } from "@/lib/backend";
+import { flushAppSettingsForClose } from "@/composables/useAppSettingsCloseFlush";
 
 const props = defineProps<{
   open: boolean;
   processingJobCount: number;
   timeoutSeconds: number;
+  flushSettings?: () => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -25,11 +27,13 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const working = ref(false);
+const settingsError = ref(false);
 watch(
   () => props.open,
   (open) => {
     if (open) {
       working.value = false;
+      settingsError.value = false;
     }
   },
 );
@@ -58,6 +62,14 @@ const handlePauseAndExit = async () => {
   if (working.value) return;
   working.value = true;
   try {
+    await flushAppSettingsForClose(props.flushSettings ?? (() => Promise.resolve()));
+  } catch (error) {
+    working.value = false;
+    settingsError.value = true;
+    console.error("Failed to exit with auto-wait:", error);
+    return;
+  }
+  try {
     await exitAppWithAutoWait();
   } catch (error) {
     working.value = false;
@@ -68,6 +80,14 @@ const handlePauseAndExit = async () => {
 const handleExitNow = async () => {
   if (working.value) return;
   working.value = true;
+  try {
+    await flushAppSettingsForClose(props.flushSettings ?? (() => Promise.resolve()));
+  } catch (error) {
+    working.value = false;
+    settingsError.value = true;
+    console.error("Failed to exit immediately:", error);
+    return;
+  }
   try {
     await exitAppNow();
   } catch (error) {
@@ -96,6 +116,9 @@ const handleUpdateOpen = async (nextOpen: boolean) => {
       </DialogHeader>
 
       <div class="space-y-2">
+        <p v-if="settingsError" role="alert" class="text-[11px] text-destructive">
+          {{ t("app.exitConfirm.settingsSaveFailed") }}
+        </p>
         <p v-if="working" class="text-[11px] text-muted-foreground">
           {{ t("app.exitConfirm.pausing") }}
         </p>

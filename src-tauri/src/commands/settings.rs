@@ -11,8 +11,15 @@ use crate::ffui_core::{AppSettings, AutoCompressResult, BatchCompressConfig, Tra
 
 /// Get the current application settings.
 #[tauri::command]
-pub fn get_app_settings(engine: State<'_, TranscodingEngine>) -> AppSettings {
-    engine.settings()
+pub async fn get_app_settings(engine: State<'_, TranscodingEngine>) -> Result<AppSettings, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .checked_settings()
+            .map_err(|error| format!("{error:#}"))
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// Save application settings.

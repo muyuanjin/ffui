@@ -8,6 +8,7 @@ import type { ExternalToolStatus } from "@/types";
 vi.mock("@/lib/backend", () => {
   return {
     hasTauri: () => true,
+    requestAppClose: vi.fn(async () => {}),
     loadAppSettings: vi.fn(async () => ({})),
     saveAppSettings: vi.fn(async (settings: any) => settings),
     fetchExternalToolStatusesCached: vi.fn(async () => [] as ExternalToolStatus[]),

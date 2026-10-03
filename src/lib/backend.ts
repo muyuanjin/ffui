@@ -46,7 +46,7 @@ export {
 } from "./backend.data-root";
 export { fetchAppUpdaterCapabilities, prepareAppUpdaterProxy } from "./backend.updater";
 export { exportPresetsBundle, readPresetsBundle } from "./backend.presets-bundle";
-export { exitAppNow, exitAppWithAutoWait, resetExitPrompt } from "./backend.app-exit";
+export { exitAppNow, exitAppWithAutoWait, resetExitPrompt, requestAppClose } from "./backend.app-exit";
 export {
   cancelTranscodeJob,
   cancelTranscodeJobsBulk,
@@ -210,7 +210,9 @@ export const openDevtools = async (): Promise<void> => {
 };
 
 export const loadPresets = async (): Promise<FFmpegPreset[]> => {
-  return invokeCommand<FFmpegPreset[]>("get_presets");
+  const presets = await invokeCommand<FFmpegPreset[]>("get_presets");
+  if (!Array.isArray(presets)) throw new Error("get_presets must return an array.");
+  return presets;
 };
 
 export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {

@@ -4,6 +4,7 @@ import type { AppSettings, AutoCompressResult, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import { buildBatchCompressDefaults } from "./batchCompressDefaults";
+import { INITIAL_PRESETS } from "@/lib/initialPresets";
 
 export const dialogOpenMock = vi.fn();
 export const dialogMessageMock = vi.fn();
@@ -167,6 +168,8 @@ export function defaultBackendResponse(cmd: string): unknown {
       return { jobs: queueJobs };
     case "get_app_settings":
       return defaultAppSettings();
+    case "get_presets":
+      return structuredClone(INITIAL_PRESETS);
     case "get_cpu_usage":
       return { overall: 0, perCore: [] };
     case "get_gpu_usage":

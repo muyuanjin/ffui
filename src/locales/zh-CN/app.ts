@@ -340,6 +340,7 @@ const app = {
     pauseAndExit: "暂停任务并退出",
     exitNow: "直接退出",
     pausing: "正在安全暂停任务…",
+    settingsSaveFailed: "设置尚未保存成功，请重试或取消退出。",
     pauseTimeoutHint: "最多等待 {seconds}s；超时后仍会退出。",
     pauseTimeoutInfiniteHint: "将无限等待，直到任务暂停完成。",
   },

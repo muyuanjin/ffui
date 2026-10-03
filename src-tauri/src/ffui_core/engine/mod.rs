@@ -78,14 +78,14 @@ impl TranscodingEngine {
         let _guard = test_mutex::ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
-        let (mut settings, settings_loaded) = match settings::load_settings() {
-            Ok(settings) => (settings, true),
+        let (mut settings, settings_load_error) = match settings::load_settings() {
+            Ok(settings) => (settings, None),
             Err(err) => {
                 crate::debug_eprintln!("failed to load settings: {err:#}");
-                (AppSettings::default(), false)
+                (AppSettings::default(), Some(format!("{err:#}")))
             }
         };
-        if settings_loaded
+        if settings_load_error.is_none()
             && !settings.onboarding_completed
             && presets
                 .iter()
@@ -101,6 +101,7 @@ impl TranscodingEngine {
         hydrate_remote_version_cache_from_settings(&settings.tools);
         hydrate_probe_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
+        inner.state.lock_unpoisoned().settings_load_error = settings_load_error;
         {
             let previous = read_shutdown_marker();
             {

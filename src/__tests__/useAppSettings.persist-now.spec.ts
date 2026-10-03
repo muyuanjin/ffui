@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { defineComponent, nextTick } from "vue";
+import { defineComponent, nextTick, ref } from "vue";
 import type { AppSettings, ExternalToolStatus } from "@/types";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
@@ -58,10 +58,212 @@ const TestHost = defineComponent({
 });
 
 describe("useAppSettings.persistNow", () => {
+  it("drains A-B-A writes before flush succeeds and rejects the final failed A write", async () => {
+    vi.mocked(backend.loadAppSettings).mockResolvedValueOnce(makeAppSettings());
+    const saves: Array<{ resolve: (settings: AppSettings) => void; reject: (error: Error) => void }> = [];
+    const saveMock = vi.mocked(backend.saveAppSettings);
+    saveMock.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          saves.push({ resolve, reject });
+        }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    await vm.ensureAppSettingsLoaded();
+    const policyA = { ...DEFAULT_OUTPUT_POLICY, directory: { mode: "fixed", directory: "D:/A" } };
+    const policyB = { ...DEFAULT_OUTPUT_POLICY, directory: { mode: "fixed", directory: "D:/B" } };
+    const first = vm.updateAppSettings({ queueOutputPolicy: policyA });
+    await flushPromises();
+    let result = "pending";
+    let failure: unknown;
+    const flushing = vm.flushSettings().then(
+      () => {
+        result = "resolved";
+      },
+      (error: unknown) => {
+        result = "rejected";
+        failure = error;
+      },
+    );
+    await flushPromises();
+    const changed = vm.updateAppSettings({ queueOutputPolicy: policyB });
+    const reverted = vm.updateAppSettings({ queueOutputPolicy: policyA });
+    await flushPromises();
+    saves[0].resolve(saveMock.mock.calls[0][0]);
+    await first;
+    await flushPromises();
+    expect(result).toBe("pending");
+    expect(saveMock).toHaveBeenCalledTimes(2);
+    saves[1].resolve(saveMock.mock.calls[1][0]);
+    await changed;
+    await flushPromises();
+    expect(result).toBe("pending");
+    expect(saveMock).toHaveBeenCalledTimes(3);
+    saves[2].reject(new Error("final A denied"));
+    await Promise.all([reverted, flushing]);
+    expect(result).toBe("rejected");
+    expect(String(failure)).toContain("final A denied");
+    wrapper.unmount();
+    consoleError.mockRestore();
+  });
+  it("keeps flush pending after an obsolete save fails until the newer save finishes", async () => {
+    let failFirst!: (error: Error) => void;
+    let finishSecond!: (settings: AppSettings) => void;
+    const saveMock = vi.mocked(backend.saveAppSettings);
+    saveMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            failFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSecond = resolve;
+          }),
+      );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    const first = vm.persistNow({ ...makeAppSettings(), defaultQueuePresetId: "audio" });
+    await flushPromises();
+    let flushed = false;
+    const flushing = vm.flushSettings().then(() => {
+      flushed = true;
+    });
+    await flushPromises();
+    const next = vm.updateAppSettings({ defaultQueuePresetId: "image" });
+    await flushPromises();
+    failFirst(new Error("old save denied"));
+    await first;
+    await flushPromises();
+    expect(flushed).toBe(false);
+    expect(vm.isSavingSettings).toBe(true);
+    expect(saveMock).toHaveBeenCalledTimes(2);
+    finishSecond(saveMock.mock.calls[1][0]);
+    await Promise.all([next, flushing]);
+    expect(flushed).toBe(true);
+    wrapper.unmount();
+    consoleError.mockRestore();
+  });
+  it("keeps flush pending when another edit arrives while the earlier save is in flight", async () => {
+    const finishes: Array<(settings: AppSettings) => void> = [];
+    const saveMock = vi.mocked(backend.saveAppSettings);
+    saveMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishes.push(resolve);
+        }),
+    );
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    const first = vm.persistNow({ ...makeAppSettings(), defaultQueuePresetId: "audio" });
+    await flushPromises();
+    let flushed = false;
+    const flushing = vm.flushSettings().then(() => {
+      flushed = true;
+    });
+    await flushPromises();
+    const next = vm.updateAppSettings({ defaultQueuePresetId: "image" });
+    await flushPromises();
+    finishes[0](saveMock.mock.calls[0][0]);
+    await first;
+    await flushPromises();
+    expect(flushed).toBe(false);
+    expect(saveMock).toHaveBeenCalledTimes(2);
+    finishes[1](saveMock.mock.calls[1][0]);
+    await Promise.all([next, flushing]);
+    expect(flushed).toBe(true);
+    expect(vm.appSettings.defaultQueuePresetId).toBe("image");
+    wrapper.unmount();
+  });
   beforeEach(() => {
+    vi.mocked(backend.loadAppSettings).mockReset();
     vi.mocked(backend.saveAppSettings)
       .mockReset()
       .mockImplementation(async (settings) => settings);
+  });
+  it("merges concurrent early patches only after the shared load and preserves unrelated settings", async () => {
+    let resolveLoad!: (settings: AppSettings) => void;
+    vi.mocked(backend.loadAppSettings).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    const updates = [
+      vm.updateAppSettings({ queuePresetSelection: { mode: "byMedia", audio: "music" } }),
+      vm.updateAppSettings({ defaultQueuePresetId: "fallback" }),
+      vm.updateAppSettings({ presetSelectionBarPinned: true }),
+    ];
+    expect(backend.loadAppSettings).toHaveBeenCalledTimes(1);
+    expect(vm.appSettings).toBeNull();
+    expect(vm.getAppSetting("queuePresetSelection")).toEqual({ mode: "byMedia", audio: "music" });
+    expect(vm.getAppSetting("presetSelectionBarPinned")).toBe(true);
+    expect(backend.saveAppSettings).not.toHaveBeenCalled();
+    resolveLoad({ ...makeAppSettings(), locale: "zh-CN", uiScalePercent: 125 });
+    await Promise.all(updates);
+    expect(vm.appSettings).toMatchObject({
+      queuePresetSelection: { mode: "byMedia", audio: "music" },
+      defaultQueuePresetId: "fallback",
+      presetSelectionBarPinned: true,
+      locale: "zh-CN",
+      uiScalePercent: 125,
+    });
+    expect(backend.saveAppSettings).toHaveBeenLastCalledWith(vm.appSettings);
+    wrapper.unmount();
+  });
+
+  it("does not replace an unreadable configuration with partial defaults and can retry loading", async () => {
+    vi.mocked(backend.loadAppSettings)
+      .mockRejectedValueOnce(new Error("unreadable settings"))
+      .mockResolvedValueOnce(makeAppSettings());
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as any;
+    await vm.updateAppSettings({ queuePresetSelection: { mode: "byMedia", image: "picture" } });
+    expect(vm.settingsSaveError).toContain("unreadable settings");
+    expect(vm.appSettings).toBeNull();
+    expect(backend.saveAppSettings).not.toHaveBeenCalled();
+    await vm.flushSettings();
+    expect(vm.settingsSaveError).toBeNull();
+    expect(backend.saveAppSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ queuePresetSelection: { mode: "byMedia", image: "picture" } }),
+    );
+    wrapper.unmount();
+    consoleError.mockRestore();
+  });
+
+  it("restores an early default preset edit after hydration and retries failed disk persistence", async () => {
+    const selected = ref<string | null>("initial");
+    let api!: ReturnType<typeof useAppSettings>;
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          api = useAppSettings({ manualJobPresetId: selected });
+          return {};
+        },
+        template: "<div />",
+      }),
+    );
+    vi.mocked(backend.loadAppSettings).mockResolvedValueOnce({ ...makeAppSettings(), defaultQueuePresetId: "saved" });
+    vi.mocked(backend.saveAppSettings).mockRejectedValueOnce(new Error("access denied"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    await api.updateAppSettings({ defaultQueuePresetId: "early" });
+    expect(selected.value).toBe("early");
+    expect(api.settingsSaveError.value).toContain("access denied");
+    await api.persistNow();
+    expect(api.settingsSaveError.value).toBeNull();
+    expect(backend.saveAppSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ defaultQueuePresetId: "early" }),
+    );
+    wrapper.unmount();
+    consoleError.mockRestore();
   });
   it("preserves a unified MP3 setting returned by the versioned backend", async () => {
     const settings = makeAppSettings();

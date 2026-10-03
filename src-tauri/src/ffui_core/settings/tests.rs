@@ -60,6 +60,7 @@ fn settings_v1_scopes_legacy_format_once_without_migrating_new_unified_saves() {
 }
 
 mod corrupt_settings_recovery;
+mod media_selection;
 mod network_proxy;
 mod preset_card_footer;
 mod preset_panel_modes;
@@ -357,8 +358,10 @@ fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope()
 }
 
 #[test]
+#[cfg(windows)]
 fn load_settings_keeps_loaded_settings_when_rewrite_fails() {
     use std::fs;
+    use std::os::windows::fs::OpenOptionsExt;
 
     let data_dir = tempdir().expect("temp data dir");
     let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
@@ -366,18 +369,18 @@ fn load_settings_keeps_loaded_settings_when_rewrite_fails() {
     );
     let path = crate::ffui_core::data_root::settings_path().expect("settings path");
 
-    // Legacy unversioned settings that require a rewrite/migration on read.
     let legacy = json!({
         "locale": "  en  ",
         "onboardingCompleted": true
     });
     fs::write(&path, legacy.to_string()).expect("write legacy settings");
 
-    // Force the atomic temp file creation to fail by pre-creating a directory at
-    // the tmp path. This simulates unusual filesystem conditions without
-    // relying on platform-specific permission bits.
-    let tmp_path = path.with_extension("tmp");
-    fs::create_dir_all(&tmp_path).expect("create tmp path as directory");
+    let file_lock = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(1)
+        .open(&path)
+        .expect("read-only share lock");
+    assert!(save_settings(&AppSettings::default()).is_err());
 
     let loaded = load_settings().expect("load_settings should not fail if rewrite fails");
     assert_eq!(
@@ -389,6 +392,11 @@ fn load_settings_keeps_loaded_settings_when_rewrite_fails() {
         loaded.onboarding_completed,
         "settings must preserve onboardingCompleted even if rewrite fails"
     );
+    assert_eq!(
+        fs::read_to_string(&path).expect("legacy unchanged"),
+        legacy.to_string()
+    );
+    drop(file_lock);
 }
 
 #[test]

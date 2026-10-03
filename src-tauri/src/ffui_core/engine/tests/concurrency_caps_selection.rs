@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn worker_selection_stops_during_shutdown_and_settings_load_failure() {
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/queued.mp4".into(),
+        JobType::Video,
+        JobSource::Manual,
+        1.0,
+        None,
+        "preset-1".into(),
+    );
+    let mut state = engine.inner.state.lock_unpoisoned();
+    state.shutting_down = true;
+    assert!(next_job_for_worker_locked(&mut state).is_none());
+    assert_eq!(state.jobs[&job.id].status, JobStatus::Queued);
+    state.shutting_down = false;
+    state.settings_load_error = Some("read denied".into());
+    assert!(next_job_for_worker_locked(&mut state).is_none());
+    state.settings_load_error = None;
+    assert_eq!(next_job_for_worker_locked(&mut state), Some(job.id));
+}
+
+#[test]
 fn worker_selection_respects_unified_concurrency_cap() {
     let engine = make_engine_with_preset();
 

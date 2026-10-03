@@ -40,7 +40,9 @@ export interface UseQueueOperationsOptions {
   jobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
+  manualJobPresetId?: Ref<string | null>;
   queuePresetSelection?: Ref<QueuePresetSelection>;
+  prepareManualEnqueue?: () => Promise<void>;
   /** All available presets. */
   presets: Ref<FFmpegPreset[]>;
   /** Queue error message ref. */
@@ -143,9 +145,11 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   // ----- Single Job Operations -----
 
   const singleJobOpsDeps = {
+    manualJobPresetId: options.manualJobPresetId,
     jobs,
     manualJobPreset,
     queuePresetSelection,
+    prepareManualEnqueue: options.prepareManualEnqueue,
     presets,
     queueError,
     t,

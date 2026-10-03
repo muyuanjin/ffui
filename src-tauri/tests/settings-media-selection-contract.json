@@ -1,0 +1,24 @@
+{
+  "defaultQueuePresetId": "audio",
+  "queuePresetSelection": { "mode": "byMedia", "video": "video", "audio": "audio", "image": "image" },
+  "queueOutputPolicy": {
+    "container": { "mode": "byMedia", "video": "mkv", "audio": "mp3", "image": "png" },
+    "directory": { "mode": "fixed", "directory": "D:/输出 文件" },
+    "filename": {
+      "prefix": "完成_",
+      "suffix": "_转码",
+      "appendTimestamp": true,
+      "appendEncoderQuality": true,
+      "randomSuffixLen": 6,
+      "appendOrder": ["timestamp", "suffix", "random", "encoderQuality"],
+      "regexReplace": { "pattern": "^素材", "replacement": "成品" }
+    },
+    "preserveFileTimes": { "created": false, "modified": true, "accessed": false }
+  },
+  "presetSortMode": "name",
+  "presetSortDirection": "desc",
+  "presetViewMode": "compact",
+  "selectionBarPinned": true,
+  "presetSelectionBarPinned": true,
+  "onboardingCompleted": true
+}

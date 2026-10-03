@@ -84,6 +84,20 @@ fn exit_auto_wait_snapshot(engine: &TranscodingEngine) -> (bool, f64, Vec<String
     )
 }
 
+fn exit_confirmation_payload(
+    engine: &TranscodingEngine,
+    coordinator: &app_exit::ExitCoordinator,
+) -> Option<ExitRequestPayload> {
+    if coordinator.is_exit_allowed() {
+        return None;
+    }
+    let (enabled, timeout_seconds, processing_job_ids) = exit_auto_wait_snapshot(engine);
+    (enabled && !processing_job_ids.is_empty()).then_some(ExitRequestPayload {
+        processing_job_count: processing_job_ids.len(),
+        timeout_seconds,
+    })
+}
+
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
 #[cfg(windows)]
@@ -144,6 +158,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_exit::reset_exit_prompt,
             commands::app_exit::exit_app_now,
+            commands::app_exit::request_app_close,
             commands::app_exit::exit_app_with_auto_wait,
             commands::queue::get_queue_state,
             commands::queue::get_queue_state_lite,
@@ -240,25 +255,13 @@ pub fn run() {
             };
 
             let coordinator = window.app_handle().state::<app_exit::ExitCoordinator>();
-            if coordinator.is_exit_allowed() {
-                return;
-            }
-
             let engine = window.app_handle().state::<TranscodingEngine>();
-            let (enabled, timeout_seconds, processing_job_ids) =
-                exit_auto_wait_snapshot(&engine);
-            let processing_job_count = processing_job_ids.len();
-
-            if !enabled || processing_job_count == 0 {
+            let Some(payload) = exit_confirmation_payload(&engine, &coordinator) else {
                 return;
-            }
+            };
 
             api.prevent_close();
 
-            let payload = ExitRequestPayload {
-                processing_job_count,
-                timeout_seconds,
-            };
             if let Err(err) = window.emit("app://exit-requested", payload) {
                 crate::debug_eprintln!("failed to emit app://exit-requested event: {err}");
             }
@@ -418,6 +421,7 @@ pub fn run() {
         }
 
         let engine = app.state::<TranscodingEngine>();
+        engine.inner.state.lock_unpoisoned().shutting_down = true;
         let (enabled, timeout_seconds, processing_job_ids) = exit_auto_wait_snapshot(&engine);
         let processing_job_count = processing_job_ids.len();
 

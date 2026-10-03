@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
@@ -30,6 +30,7 @@ vi.mock("@tauri-apps/api/window", () => {
 
 vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
+  const { INITIAL_PRESETS } = await import("@/lib/initialPresets");
   const enqueueTranscodeJob = vi.fn(async () => ({}) as any);
   const enqueueTranscodeJobs = vi.fn(async () => [] as any);
   const expandManualJobInputs = vi.fn(async (paths: string[]) => ({ accepted: paths, skipped: 0 }));
@@ -50,7 +51,7 @@ vi.mock("@/lib/backend", async () => {
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadSmartDefaultPresets: vi.fn(async () => []),
-    loadPresets: vi.fn(async () => []),
+    loadPresets: vi.fn(async () => structuredClone(INITIAL_PRESETS)),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
     expandManualJobInputs,
@@ -118,7 +119,7 @@ describe("MainApp Tauri drag & drop integration", () => {
         paths: [droppedPath],
       },
     });
-    await nextTick();
+    await flushPromises();
 
     // Ensure the backend enqueue call was triggered with the dropped path.
     expect(enqueueTranscodeJob).toHaveBeenCalledTimes(1);
@@ -153,8 +154,7 @@ describe("MainApp Tauri drag & drop integration", () => {
 
     const dropped = ["C:/videos/a.mp4", "C:/videos/b.mkv"];
     dragDropHandler?.({ payload: { paths: dropped } });
-    await nextTick();
-    await Promise.resolve();
+    await flushPromises();
 
     expect(enqueueTranscodeJob).not.toHaveBeenCalled();
     expect(enqueueTranscodeJobs).toHaveBeenCalledTimes(1);

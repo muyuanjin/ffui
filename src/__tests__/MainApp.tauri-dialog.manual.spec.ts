@@ -15,7 +15,7 @@ import {
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
 import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
 
@@ -239,11 +239,7 @@ describe("MainApp Tauri manual job flow", () => {
     expect(subscribed).toBe(true);
 
     emitDragDrop(["C:/dropped"]);
-    await nextTick();
-    await nextTick();
-    for (let i = 0; i < 6; i += 1) {
-      await Promise.resolve();
-    }
+    await flushPromises();
 
     const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_jobs");
     expect(enqueues.length).toBe(1);

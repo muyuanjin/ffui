@@ -52,6 +52,8 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 pub(crate) struct EngineState {
     pub(crate) presets: Arc<Vec<FFmpegPreset>>,
     pub(crate) settings: AppSettings,
+    pub(crate) settings_load_error: Option<String>,
+    pub(crate) shutting_down: bool,
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
     pub(crate) active_jobs: HashSet<String>,
@@ -105,6 +107,8 @@ impl EngineState {
         Self {
             presets: Arc::new(presets),
             settings,
+            settings_load_error: None,
+            shutting_down: false,
             jobs: HashMap::new(),
             queue: VecDeque::new(),
             active_jobs: HashSet::new(),

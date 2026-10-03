@@ -5,7 +5,12 @@ use crate::sync_ext::MutexExt;
 impl super::state::Inner {
     pub(crate) fn persist_current_settings(&self) -> Result<()> {
         let _guard = self.settings_persistence.lock_unpoisoned();
-        let snapshot = self.state.lock_unpoisoned().settings.clone();
+        let state = self.state.lock_unpoisoned();
+        if let Some(error) = &state.settings_load_error {
+            anyhow::bail!("Settings are not loaded: {error}");
+        }
+        let snapshot = state.settings.clone();
+        drop(state);
         settings::save_settings(&snapshot)
     }
 }
@@ -71,8 +76,29 @@ fn merge_backend_owned_tool_state(
 }
 
 impl TranscodingEngine {
+    pub fn checked_settings(&self) -> Result<AppSettings> {
+        let _guard = self.inner.settings_persistence.lock_unpoisoned();
+        let mut state = self.inner.state.lock_unpoisoned();
+        if state.settings_load_error.is_some() {
+            let loaded = settings::load_settings()?;
+            state.settings = loaded;
+            state.settings_load_error = None;
+            crate::ffui_core::network_proxy::apply_settings(state.settings.network_proxy.as_ref());
+            crate::ffui_core::tools::hydrate_last_tool_download_from_settings(
+                &state.settings.tools,
+            );
+            crate::ffui_core::tools::hydrate_remote_version_cache_from_settings(
+                &state.settings.tools,
+            );
+            crate::ffui_core::tools::hydrate_probe_cache_from_settings(&state.settings.tools);
+            self.inner.cv.notify_all();
+        }
+        Ok(state.settings.clone())
+    }
+
     /// Save new application settings.
     pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
+        self.checked_settings()?;
         let (
             tools_changed,
             percent_changed,

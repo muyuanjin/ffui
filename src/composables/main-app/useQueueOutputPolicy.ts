@@ -1,17 +1,15 @@
-import { computed, type Ref } from "vue";
+import { computed } from "vue";
 import type { AppSettings, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
-export function useQueueOutputPolicy(appSettings: Ref<AppSettings | null>) {
-  const queueOutputPolicy = computed<OutputPolicy>(() => appSettings.value?.queueOutputPolicy ?? DEFAULT_OUTPUT_POLICY);
+export function useQueueOutputPolicy(
+  getOutputPolicy: () => OutputPolicy | undefined,
+  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>,
+) {
+  const queueOutputPolicy = computed<OutputPolicy>(() => getOutputPolicy() ?? DEFAULT_OUTPUT_POLICY);
 
   const setQueueOutputPolicy = (policy: OutputPolicy) => {
-    const current = appSettings.value;
-    const nextSettings: AppSettings = {
-      ...(current ?? ({ tools: {}, batchCompressDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
-      queueOutputPolicy: policy,
-    };
-    appSettings.value = nextSettings;
+    void updateAppSettings({ queueOutputPolicy: policy });
   };
 
   return { queueOutputPolicy, setQueueOutputPolicy };

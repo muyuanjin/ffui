@@ -45,6 +45,7 @@ const props = withDefaults(
     previewLoading?: boolean;
     previewError: string | null;
     ffmpegResolvedPath: string | null;
+    flushSettings?: () => Promise<void>;
     /** 排序比较函数，用于对批次子任务进行排序 */
     sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
   }>(),
@@ -59,6 +60,7 @@ const props = withDefaults(
     previewMediaKind: undefined,
     previewDurationSeconds: undefined,
     previewLoading: false,
+    flushSettings: undefined,
   },
 );
 
@@ -263,6 +265,7 @@ const openCompareFromJobDetail = () => {
     :open="dialogManager.exitConfirmOpen.value"
     :processing-job-count="dialogManager.exitConfirmProcessingJobCount.value"
     :timeout-seconds="dialogManager.exitConfirmTimeoutSeconds.value"
+    :flush-settings="props.flushSettings"
     @update:open="
       (open) => {
         if (!open) dialogManager.closeExitConfirm();

@@ -6,6 +6,9 @@ const isTestEnv =
 
 const CLOSE_FLUSH_TIMEOUT_MS = isTestEnv ? 50 : 800;
 
+export const flushAppSettingsForClose = (persist: () => Promise<void>) =>
+  withTimeout(persist(), CLOSE_FLUSH_TIMEOUT_MS);
+
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timeoutHandle: number | undefined;
   try {
@@ -25,6 +28,7 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T
 export type InstallAppSettingsCloseFlushOptions = {
   enabled: () => boolean;
   persistNow: () => Promise<void>;
+  closeWindow: () => Promise<void>;
 };
 
 export type AppSettingsCloseFlushHandle = {
@@ -34,26 +38,22 @@ export type AppSettingsCloseFlushHandle = {
 export const installAppSettingsCloseFlush = (
   options: InstallAppSettingsCloseFlushOptions,
 ): AppSettingsCloseFlushHandle => {
-  const { enabled, persistNow } = options;
+  const { enabled, persistNow, closeWindow } = options;
   let unlisten: (() => void) | undefined;
   let flushInProgress = false;
-  let ignoreNextCloseRequest = false;
+  let disposed = false;
 
   onMounted(async () => {
     if (!enabled()) return;
     try {
       const win = await getCurrentWindow();
       unlisten = await win.onCloseRequested(async (event: CloseRequestedEvent) => {
-        if (ignoreNextCloseRequest) {
-          ignoreNextCloseRequest = false;
-          return;
-        }
         event.preventDefault();
         if (flushInProgress) return;
 
         flushInProgress = true;
         try {
-          await withTimeout(persistNow(), CLOSE_FLUSH_TIMEOUT_MS);
+          await flushAppSettingsForClose(persistNow);
         } catch (error) {
           if (!isTestEnv) {
             console.error("Failed to flush app settings on close request", error);
@@ -61,17 +61,19 @@ export const installAppSettingsCloseFlush = (
         }
 
         try {
-          ignoreNextCloseRequest = true;
-          await win.close();
+          await closeWindow();
         } catch (error) {
           if (!isTestEnv) {
             console.error("Failed to close window after flushing app settings", error);
           }
-          ignoreNextCloseRequest = false;
         } finally {
           flushInProgress = false;
         }
       });
+      if (disposed) {
+        unlisten();
+        unlisten = undefined;
+      }
     } catch (error) {
       if (!isTestEnv) {
         console.error("Failed to register window close requested handler", error);
@@ -81,6 +83,7 @@ export const installAppSettingsCloseFlush = (
 
   return {
     cleanup: () => {
+      disposed = true;
       if (!unlisten) return;
       try {
         unlisten();

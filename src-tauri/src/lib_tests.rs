@@ -4,6 +4,45 @@ use crate::commands::tools::get_preview_data_url;
 use crate::commands::tools::playable_media::select_playable_media_path;
 
 #[test]
+fn settings_flushed_close_uses_backend_processing_state_and_exit_preferences() {
+    use crate::sync_ext::MutexExt;
+
+    let engine = crate::TranscodingEngine::new_for_tests();
+    let coordinator = crate::app_exit::ExitCoordinator::default();
+    assert!(crate::exit_confirmation_payload(&engine, &coordinator).is_none());
+    let job = crate::test_support::make_transcode_job_for_tests(
+        "active",
+        crate::JobStatus::Processing,
+        0.0,
+        None,
+    );
+    engine
+        .inner
+        .state
+        .lock_unpoisoned()
+        .jobs
+        .insert(job.id.clone(), job);
+    let payload =
+        crate::exit_confirmation_payload(&engine, &coordinator).expect("active task confirmation");
+    assert_eq!(payload.processing_job_count, 1);
+    engine
+        .inner
+        .state
+        .lock_unpoisoned()
+        .settings
+        .exit_auto_wait_enabled = false;
+    assert!(crate::exit_confirmation_payload(&engine, &coordinator).is_none());
+    engine
+        .inner
+        .state
+        .lock_unpoisoned()
+        .settings
+        .exit_auto_wait_enabled = true;
+    coordinator.allow_exit();
+    assert!(crate::exit_confirmation_payload(&engine, &coordinator).is_none());
+}
+
+#[test]
 fn get_preview_data_url_builds_data_url_prefix() {
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};

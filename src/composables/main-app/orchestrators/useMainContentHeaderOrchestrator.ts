@@ -17,22 +17,25 @@ export function useMainContentHeaderOrchestrator() {
     jobsLength: computed(() => queue.jobs.length),
     completedCount: computed(() => queue.completedCount),
     manualJobPresetId: computed(() => presets.manualJobPresetId),
-    queuePresetSelection: computed(() => settings.appSettings?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION),
+    queuePresetSelection: computed(
+      () => settings.getAppSetting("queuePresetSelection") ?? DEFAULT_QUEUE_PRESET_SELECTION,
+    ),
     presets: computed(() => presets.presets),
     queueViewModeModel: computed(() => queue.queueViewModeModel),
     presetSortMode: computed(() => presets.presetSortMode),
     presetSortDirection: computed(() => presets.presetSortDirection),
     queueOutputPolicy: computed(() => queue.queueOutputPolicy),
+    outputSettingsReady: computed(() => settings.appSettings !== null),
     carouselAutoRotationSpeed: computed(() => queue.carouselAutoRotationSpeed),
   });
 
   const headerListeners = {
     "update:queuePresetSelection": (value: QueuePresetSelection) => {
-      if (!settings.appSettings) return;
-      settings.appSettings = { ...settings.appSettings, queuePresetSelection: value };
+      void settings.updateAppSettings({ queuePresetSelection: value });
     },
     "update:manualJobPresetId": (value: string | null) => {
       presets.manualJobPresetId = value;
+      void settings.updateAppSettings({ defaultQueuePresetId: value ?? undefined });
     },
     "update:queueViewModeModel": (value: QueueViewMode) => {
       queue.queueViewModeModel = value;

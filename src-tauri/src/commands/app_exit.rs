@@ -1,4 +1,4 @@
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::app_exit::{
     ExitAutoWaitOutcome, ExitCoordinator, pause_processing_jobs_for_exit,
@@ -16,12 +16,28 @@ pub fn reset_exit_prompt(coordinator: State<'_, ExitCoordinator>) {
 }
 
 #[tauri::command]
+pub async fn request_app_close(
+    app: AppHandle,
+    engine: State<'_, TranscodingEngine>,
+    coordinator: State<'_, ExitCoordinator>,
+) -> Result<(), String> {
+    if let Some(payload) = crate::exit_confirmation_payload(&engine, &coordinator) {
+        return app
+            .emit("app://exit-requested", payload)
+            .map_err(|error| error.to_string());
+    }
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub async fn exit_app_now(
     app: AppHandle,
     engine: State<'_, TranscodingEngine>,
     coordinator: State<'_, ExitCoordinator>,
 ) -> Result<(), String> {
+    engine.inner.state.lock_unpoisoned().shutting_down = true;
     let processing_job_ids: Vec<String> = {
         let state = engine.inner.state.lock_unpoisoned();
         state
@@ -53,6 +69,7 @@ pub async fn exit_app_with_auto_wait(
     coordinator: State<'_, ExitCoordinator>,
 ) -> Result<ExitAutoWaitOutcome, String> {
     let engine = engine.inner().clone();
+    engine.inner.state.lock_unpoisoned().shutting_down = true;
     let timeout_seconds = {
         let state = engine.inner.state.lock_unpoisoned();
         state.settings.exit_auto_wait_timeout_seconds

@@ -14,6 +14,14 @@ You do not need the **Add command** button for this workflow. That separate entr
 
 Hover over the default-preset button or its summaries to see the full preset names in a compact settings panel without moving keyboard focus. Move into the panel to change selections. Clicking the button or interacting with the panel keeps it open; Escape, an outside click or another button click closes it. Keyboard and touch users can open it with the button. The preset and output controls share the same capsule style; long toolbar summaries truncate while their full names remain visible in the panel.
 
+### Saved preferences
+
+Default-preset mode, the unified preset and the per-input preset IDs are saved in application settings, together with output formats, directory, filename and timestamp preferences. Edits wait for existing settings to load, merge with the latest values and save without waiting for an idle callback. File, folder and drop enqueue waits for settings persistence before planning tasks; a save failure is visible and prevents enqueue against stale settings. Retrying the operation retries persistence. Rebuilding the executable does not reset these preferences when the same application data directory is used.
+
+Output editing becomes available after settings load; load errors do not authorize saving default settings over an unreadable file. Manual enqueue also waits for the backend preset list and rejects missing configured IDs instead of substituting another preset.
+
+Preset sorting, direction, view and selection-bar pin preferences also restore on startup. Batch Compress retains its last submitted configuration independently of manual queue output settings. Normal window close attempts a bounded settings flush, then asks the backend to apply the active-task exit policy; confirmed exit flushes settings again and remains cancellable if that flush fails or times out. Forced termination, an unavailable data directory or a failed/timed-out close flush cannot guarantee the latest edits reach disk. Unsaved preset-editor changes, command-dialog drafts, open popovers and preview playback positions are session state, not saved presets or application settings.
+
 ### Preset targets and output formats
 
 **Output settings** offers **Default (follow preset/template)**, **Keep input container**, **Unified format**, or **Specify formats by output type**. Input type selects the preset; the preset's target output type selects the format. Video processed with an audio-extraction preset uses the audio format; a frame-extraction preset uses the image format. Unset and unresolved output types follow the preset. A unified format explicitly applies to every task and must be compatible with its codecs and mappings. Known video-to-audio-container and AAC-to-MP3 conflicts produce invalid-plan diagnostics instead of silently changing codecs.
@@ -71,6 +79,14 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
 
 鼠标悬浮在默认预设按钮或摘要上，即可在紧凑的设置面板内查看完整预设名称，不会抢走键盘焦点。移入面板可修改选择；点击按钮或操作面板后，面板保持打开，按 Escape、点击外部或再次点击按钮关闭。键盘和触屏用户可通过按钮打开。预设与输出控件使用相同的胶囊样式，工具栏的长摘要截断显示，面板内保留完整名称。
+
+### 设置保存
+
+默认预设的模式、统一预设及各输入类型的预设 ID，与输出格式、目录、文件名和文件时间策略一起保存在应用设置中。修改等待原有设置加载完成，再与最新值合并并即时保存，不依赖空闲回调。添加文件、文件夹和拖入任务会等待设置保存后再规划任务；保存失败会显示诊断，并阻止使用陈旧设置入队。重试操作会重新尝试保存。使用相同应用数据目录时，重新编译 EXE 不会重置这些偏好。
+
+输出设置加载完成后才允许编辑；加载错误不会授权用默认设置覆盖不可读取的文件。手动入队也会等待后端预设列表，配置引用缺失时明确报错，不替换成其他预设。
+
+预设排序、方向、视图和选择栏固定偏好也会在启动时恢复。Batch Compress 保留最近提交的配置，与手动队列的输出设置独立。正常关闭窗口会在限定时间内尝试保存，再由后端执行活动任务的退出策略；确认退出时再次保存设置，保存失败或超时可取消退出。强制终止、数据目录不可用、关闭保存失败或超时，都无法保证最新修改落盘。尚未保存的预设编辑、命令弹窗草稿、弹层展开状态和预览播放位置属于会话状态，不属于已保存预设或应用设置。
 
 ### 预设目标与输出格式
 

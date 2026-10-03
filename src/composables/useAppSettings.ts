@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, ref, watch, type Ref } from "vue";
+import { onMounted, onUnmounted, ref, shallowRef, watch, type Ref } from "vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -19,7 +19,7 @@ import {
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
-import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { normalizeLoadedAppSettings } from "./appSettingsNormalize";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 import {
   externalToolCustomPath,
@@ -35,53 +35,6 @@ let loggedAppSettingsLoad = false;
 let loggedToolStatusLoad = false;
 
 // ----- Composable -----
-
-const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
-  const next: AppSettings = { ...settings };
-
-  // Normalize the locale string so we don't persist empty/whitespace values.
-  if (typeof next.locale === "string") {
-    const normalized = next.locale.trim();
-    next.locale = normalized.length > 0 ? normalized : undefined;
-  }
-
-  // Normalize the VMAF reference video path so we don't persist empty/whitespace values.
-  if (typeof next.vmafMeasureReferencePath === "string") {
-    const normalized = next.vmafMeasureReferencePath.trim();
-    next.vmafMeasureReferencePath = normalized.length > 0 ? normalized : undefined;
-  }
-
-  // Font mode exclusivity (new UI): keep exactly one source active.
-  if (typeof next.uiFontFilePath === "string" && next.uiFontFilePath.trim().length > 0) {
-    next.uiFontDownloadId = undefined;
-    next.uiFontFamily = "system";
-    if (!next.uiFontName || !next.uiFontName.trim()) {
-      next.uiFontName = "FFUI Imported";
-    }
-  } else if (typeof next.uiFontDownloadId === "string" && next.uiFontDownloadId.trim().length > 0) {
-    next.uiFontFilePath = undefined;
-    next.uiFontFamily = "system";
-  }
-
-  // Legacy generic families (sans/mono) are no longer surfaced in Settings.
-  const family = next.uiFontFamily;
-  if ((family === "sans" || family === "mono") && !next.uiFontName && !next.uiFontDownloadId && !next.uiFontFilePath) {
-    next.uiFontFamily = "system";
-  }
-
-  // Output policy defaults (queue + Batch Compress).
-  if (!next.queueOutputPolicy) {
-    next.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY };
-  }
-  if (next.batchCompressDefaults && !next.batchCompressDefaults.outputPolicy) {
-    next.batchCompressDefaults = {
-      ...next.batchCompressDefaults,
-      outputPolicy: { ...DEFAULT_OUTPUT_POLICY },
-    };
-  }
-
-  return next;
-};
 
 export interface UseAppSettingsOptions {
   /** Smart config ref (to restore from settings). */
@@ -115,6 +68,9 @@ export interface UseAppSettingsReturn {
    * internal "last saved" snapshot so follow-up debounced saves don't double-write.
    */
   persistNow: (nextSettings?: AppSettings) => Promise<void>;
+  updateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
+  getAppSetting: <Key extends keyof AppSettings>(key: Key) => AppSettings[Key] | undefined;
+  flushSettings: () => Promise<void>;
   /**
    * Mark a snapshot as saved without performing I/O. Use this when settings
    * were persisted outside of useAppSettings and you need to keep the internal
@@ -149,6 +105,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
   // ----- State -----
   const appSettings = ref<AppSettings | null>(null);
+  const pendingSettings = shallowRef<Partial<AppSettings>>({});
   const isSavingSettings = ref(false);
   const settingsSaveError = ref<string | null>(null);
   const toolStatuses = ref<ExternalToolStatus[]>([]);
@@ -163,6 +120,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   let pendingSaveCount = 0;
   let latestSaveRevision = 0;
   let awaitingToolsRefreshEvent = false;
+  let settingsLoadPromise: Promise<void> | null = null;
 
   // ----- Auto-save Watch -----
   watch(
@@ -200,7 +158,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       typeof serializedOrSettings === "string" ? serializedOrSettings : JSON.stringify(serializedOrSettings);
   };
 
-  const ensureAppSettingsLoaded = async () => {
+  const loadSettingsOnce = async () => {
     if (appSettings.value) return;
     if (!hasTauri()) {
       // Web mode: there is no backend settings.json. We still populate an in-memory
@@ -255,7 +213,16 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       applyLoadedSettings(settings);
     } catch (error) {
       console.error("Failed to load app settings", error);
+      settingsSaveError.value = `${t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings."} Failed to load application settings: ${error instanceof Error ? error.message : String(error)}`;
     }
+  };
+
+  const ensureAppSettingsLoaded = () => {
+    if (settingsLoadPromise) return settingsLoadPromise;
+    settingsLoadPromise = loadSettingsOnce().finally(() => {
+      settingsLoadPromise = null;
+    });
+    return settingsLoadPromise;
   };
 
   const scheduleSaveSettings = () => {
@@ -334,6 +301,41 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
     cancelScheduledSave();
     await persistSnapshot(current);
+  };
+
+  const updateAppSettings = async (patch: Partial<AppSettings>) => {
+    pendingSettings.value = { ...pendingSettings.value, ...patch };
+    await ensureAppSettingsLoaded();
+    const current = appSettings.value;
+    if (!current) return;
+    appSettings.value = { ...current, ...patch };
+    if (manualJobPresetId && "defaultQueuePresetId" in patch) {
+      manualJobPresetId.value = patch.defaultQueuePresetId ?? null;
+    }
+    const remaining = { ...pendingSettings.value };
+    for (const key of Object.keys(patch) as Array<keyof AppSettings>) {
+      if (remaining[key] === patch[key]) delete remaining[key];
+    }
+    pendingSettings.value = remaining;
+    await persistNow();
+  };
+
+  const getAppSetting = <Key extends keyof AppSettings>(key: Key): AppSettings[Key] | undefined =>
+    key in pendingSettings.value ? pendingSettings.value[key] : appSettings.value?.[key];
+
+  const flushSettings = async () => {
+    do {
+      await updateAppSettings(pendingSettings.value);
+      while (pendingSaveCount > 0) {
+        await saveTail;
+      }
+      if (!appSettings.value || settingsSaveError.value) {
+        throw new Error(settingsSaveError.value ?? "Application settings are not loaded.");
+      }
+    } while (
+      hasTauri() &&
+      (Object.keys(pendingSettings.value).length > 0 || JSON.stringify(appSettings.value) !== lastSavedSettingsSnapshot)
+    );
   };
 
   const refreshToolStatuses = async (options?: {
@@ -475,6 +477,9 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     persistNow,
+    updateAppSettings,
+    getAppSetting,
+    flushSettings,
     markSaved,
     refreshToolStatuses,
     downloadToolNow,

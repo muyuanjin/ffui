@@ -148,8 +148,8 @@ export async function bootstrapAppLocale(options: BootstrapAppLocaleOptions): Pr
         return {
           locale: detected,
           source: osLocale ? "plugin-os" : "navigator",
-          preloadedAppSettings: next,
-          persisted: true,
+          preloadedAppSettings: settings,
+          persisted: false,
         };
       }
     }

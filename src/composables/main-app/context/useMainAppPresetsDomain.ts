@@ -14,13 +14,6 @@ export interface UseMainAppPresetsDomainOptions {
   settings: SettingsDomain;
 }
 
-const createTemporaryAppSettings = (): AppSettings =>
-  ({
-    tools: {},
-    batchCompressDefaults: {},
-    previewCapturePercent: 50,
-  }) as AppSettings;
-
 export function useMainAppPresetsDomain(options: UseMainAppPresetsDomainOptions): PresetsDomain {
   const { state, shell, dialogs, settings } = options;
   const presetsModule = useMainAppPresets({
@@ -29,8 +22,9 @@ export function useMainAppPresetsDomain(options: UseMainAppPresetsDomainOptions)
     presets: state.presets,
     presetsLoadedFromBackend: state.presetsLoadedFromBackend,
     manualJobPresetId: state.manualJobPresetId,
+    prepareManualEnqueue: settings.flushSettings,
     queuePresetSelection: computed(
-      () => settings.appSettings.value?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION,
+      () => settings.getAppSetting("queuePresetSelection") ?? DEFAULT_QUEUE_PRESET_SELECTION,
     ),
     dialogManager: dialogs.dialogManager,
     shell,
@@ -94,15 +88,11 @@ export function useMainAppPresetsDomain(options: UseMainAppPresetsDomainOptions)
     { flush: "post" },
   );
 
-  const presetSelectionBarPinned = computed(() => settings.appSettings.value?.presetSelectionBarPinned ?? false);
+  const presetSelectionBarPinned = computed(() => settings.getAppSetting("presetSelectionBarPinned") ?? false);
   const setPresetSelectionBarPinned = (pinned: boolean) => {
-    const current = settings.appSettings.value;
-    if (current?.presetSelectionBarPinned === pinned) return;
+    if (settings.getAppSetting("presetSelectionBarPinned") === pinned) return;
 
-    settings.appSettings.value = {
-      ...(current ?? createTemporaryAppSettings()),
-      presetSelectionBarPinned: pinned,
-    };
+    void settings.updateAppSettings({ presetSelectionBarPinned: pinned });
   };
 
   return {

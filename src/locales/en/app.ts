@@ -354,6 +354,7 @@ const app = {
     pauseAndExit: "Pause jobs and exit",
     exitNow: "Exit now",
     pausing: "Pausing jobs…",
+    settingsSaveFailed: "Settings could not be saved. Retry or cancel exit.",
     pauseTimeoutHint: "Wait up to {seconds}s, then exit anyway.",
     pauseTimeoutInfiniteHint: "Wait indefinitely until jobs are paused.",
   },

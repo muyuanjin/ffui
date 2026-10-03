@@ -20,21 +20,32 @@ import {
 } from "@/lib/outputPolicyPreview";
 import type { QueueViewMode } from "@/types";
 
-const props = defineProps<{
-  activeTab: string;
-  currentTitle: string | unknown;
-  currentSubtitle: string | unknown;
-  jobsLength: number;
-  completedCount: number;
-  manualJobPresetId: string | null;
-  queuePresetSelection?: QueuePresetSelection;
-  presets: FFmpegPreset[];
-  queueViewModeModel: QueueViewMode;
-  presetSortMode?: PresetSortMode;
-  presetSortDirection?: PresetSortDirection;
-  queueOutputPolicy?: OutputPolicy;
-  carouselAutoRotationSpeed?: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    activeTab: string;
+    currentTitle: string | unknown;
+    currentSubtitle: string | unknown;
+    jobsLength: number;
+    completedCount: number;
+    manualJobPresetId: string | null;
+    queuePresetSelection?: QueuePresetSelection;
+    presets: FFmpegPreset[];
+    queueViewModeModel: QueueViewMode;
+    presetSortMode?: PresetSortMode;
+    presetSortDirection?: PresetSortDirection;
+    queueOutputPolicy?: OutputPolicy;
+    outputSettingsReady?: boolean;
+    carouselAutoRotationSpeed?: number;
+  }>(),
+  {
+    outputSettingsReady: true,
+    queuePresetSelection: undefined,
+    presetSortMode: undefined,
+    presetSortDirection: undefined,
+    queueOutputPolicy: undefined,
+    carouselAutoRotationSpeed: undefined,
+  },
+);
 
 const emit = defineEmits<{
   (e: "update:manualJobPresetId", value: string | null): void;
@@ -250,6 +261,7 @@ const hoverPreviewExamples = computed(() => {
           >
             <Button
               data-testid="ffui-queue-output-settings"
+              :disabled="outputSettingsReady === false"
               type="button"
               variant="outputSettings"
               size="sm"
@@ -379,6 +391,7 @@ const hoverPreviewExamples = computed(() => {
         <DialogTitle>{{ t("app.outputSettings") }}</DialogTitle>
       </DialogHeader>
       <OutputPolicyEditor
+        v-if="outputSettingsReady !== false"
         :model-value="effectiveOutputPolicy"
         :preview-preset-id="manualPreviewPresetId"
         :preview-preset="manualPreset"

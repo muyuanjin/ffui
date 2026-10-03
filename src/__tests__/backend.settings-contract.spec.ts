@@ -16,6 +16,7 @@ import mediaOutputContract from "../../src-tauri/tests/output-media-policy-contr
 import type { OutputContainerPolicy } from "@/types/output-policy";
 import type { OutputContainerPolicy as WireContainerPolicy } from "@/lib/backend/generated/queue-contracts";
 import planningContract from "../../src-tauri/tests/preset-output-planning-contract.json";
+import settingsMediaContract from "../../src-tauri/tests/settings-media-selection-contract.json";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -87,6 +88,19 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("backend settings contract", () => {
+  it("propagates settings load failure without saving a default configuration", async () => {
+    invokeMock.mockRejectedValueOnce("settings file is not valid JSON");
+    await expect(loadAppSettings()).rejects.toBe("settings file is not valid JSON");
+    expect(invokeMock.mock.calls.map(([command]) => command)).toEqual(["get_app_settings"]);
+  });
+  it("preserves the media defaults disk contract across settings IPC", async () => {
+    const settings = { ...makeAppSettings(), ...settingsMediaContract } as AppSettings;
+    invokeMock.mockResolvedValue(settings);
+    expect(await saveAppSettings(settings)).toEqual(settings);
+    expect(invokeMock).toHaveBeenLastCalledWith("save_app_settings", { settings });
+    expect(await loadAppSettings()).toEqual(settings);
+    expect(invokeMock).toHaveBeenLastCalledWith("get_app_settings", {});
+  });
   it("persists per-input preset selection independently of a unified output format", async () => {
     const settings = makeAppSettings();
     settings.queuePresetSelection = planningContract.selection as AppSettings["queuePresetSelection"];

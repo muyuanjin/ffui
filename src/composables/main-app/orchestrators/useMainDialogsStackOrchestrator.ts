@@ -42,6 +42,7 @@ export function useMainDialogsStackOrchestrator() {
       previewLoading: unref(preview.previewLoading),
       previewError: unref(preview.previewError),
       ffmpegResolvedPath: unref(settings.ffmpegResolvedPath),
+      flushSettings: settings.flushSettings,
       sortCompareFn: queue.compareJobsForDisplay,
     };
   });

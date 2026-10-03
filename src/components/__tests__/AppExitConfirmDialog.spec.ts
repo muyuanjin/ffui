@@ -34,6 +34,60 @@ const i18n = createI18n({
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("AppExitConfirmDialog", () => {
+  it.each(["exit-confirm-exit-now", "exit-confirm-pause-and-exit"])(
+    "restores cancel and retry after settings flush times out for %s",
+    async (action) => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const wrapper = mount(AppExitConfirmDialog, {
+        global: { plugins: [i18n] },
+        props: {
+          open: true,
+          processingJobCount: 1,
+          timeoutSeconds: 5,
+          flushSettings: () => new Promise<void>(() => {}),
+        },
+      });
+      await flushPromises();
+      (document.body.querySelector(`[data-testid="${action}"]`) as HTMLButtonElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(exitAppNow).not.toHaveBeenCalled();
+      expect(exitAppWithAutoWait).not.toHaveBeenCalled();
+      const cancel = document.body.querySelector('[data-testid="exit-confirm-cancel"]') as HTMLButtonElement;
+      expect(cancel.disabled).toBe(false);
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toContain("设置尚未保存成功");
+      cancel.click();
+      await flushPromises();
+      expect(resetExitPrompt).toHaveBeenCalledTimes(1);
+      wrapper.unmount();
+      consoleError.mockRestore();
+    },
+  );
+  it.each(["exit-confirm-exit-now", "exit-confirm-pause-and-exit"])(
+    "waits for settings persistence before %s",
+    async (action) => {
+      let finish!: () => void;
+      const flushSettings = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const wrapper = mount(AppExitConfirmDialog, {
+        global: { plugins: [i18n] },
+        props: { open: true, processingJobCount: 1, timeoutSeconds: 5, flushSettings },
+      });
+      await flushPromises();
+      (document.body.querySelector(`[data-testid="${action}"]`) as HTMLButtonElement).click();
+      await flushPromises();
+      expect(flushSettings).toHaveBeenCalledTimes(1);
+      expect(exitAppNow).not.toHaveBeenCalled();
+      expect(exitAppWithAutoWait).not.toHaveBeenCalled();
+      finish();
+      await flushPromises();
+      expect(action === "exit-confirm-exit-now" ? exitAppNow : exitAppWithAutoWait).toHaveBeenCalledTimes(1);
+      wrapper.unmount();
+    },
+  );
   beforeEach(() => {
     resetExitPrompt.mockClear();
     exitAppNow.mockClear();

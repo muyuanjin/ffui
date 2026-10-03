@@ -1,5 +1,4 @@
 import { computed } from "vue";
-import type { AppSettings } from "@/types";
 import type {
   DialogsDomain,
   MediaDomain,
@@ -29,13 +28,6 @@ export interface UseMainAppQueueDomainOptions {
   batchCompress: ReturnType<typeof useMainAppBatchCompress>;
 }
 
-const createTemporaryAppSettings = (): AppSettings =>
-  ({
-    tools: {},
-    batchCompressDefaults: {},
-    previewCapturePercent: 50,
-  }) as AppSettings;
-
 export function useMainAppQueueDomain(options: UseMainAppQueueDomainOptions): QueueDomain {
   const { state, shell, dialogs, media, presets, settings, batchCompress } = options;
   const queue = useMainAppQueue({
@@ -46,8 +38,12 @@ export function useMainAppQueueDomain(options: UseMainAppQueueDomainOptions): Qu
     lastQueueSnapshotRevision: state.lastQueueSnapshotRevision,
     presets: state.presets,
     manualJobPresetId: state.manualJobPresetId,
+    prepareManualEnqueue: async () => {
+      await presets.ensurePresetsLoaded();
+      await settings.flushSettings();
+    },
     queuePresetSelection: computed(
-      () => settings.appSettings.value?.queuePresetSelection ?? DEFAULT_QUEUE_PRESET_SELECTION,
+      () => settings.getAppSetting("queuePresetSelection") ?? DEFAULT_QUEUE_PRESET_SELECTION,
     ),
     compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
     compositeTasksById: batchCompress.compositeTasksById,
@@ -77,18 +73,17 @@ export function useMainAppQueueDomain(options: UseMainAppQueueDomainOptions): Qu
     bulkMoveSelectedJobsToTopInner: queue.bulkMoveSelectedJobsToTopInner,
   });
 
-  const selectionBarPinned = computed(() => settings.appSettings.value?.selectionBarPinned ?? false);
+  const selectionBarPinned = computed(() => settings.getAppSetting("selectionBarPinned") ?? false);
   const setSelectionBarPinned = (pinned: boolean) => {
-    const current = settings.appSettings.value;
-    if (current?.selectionBarPinned === pinned) return;
+    if (settings.getAppSetting("selectionBarPinned") === pinned) return;
 
-    settings.appSettings.value = {
-      ...(current ?? createTemporaryAppSettings()),
-      selectionBarPinned: pinned,
-    };
+    void settings.updateAppSettings({ selectionBarPinned: pinned });
   };
 
-  const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(settings.appSettings);
+  const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(
+    () => settings.getAppSetting("queueOutputPolicy"),
+    settings.updateAppSettings,
+  );
   const queueTotalCount = computed(() => state.jobs.value.length);
   const queuePanelProps = createQueuePanelProps({
     queueJobsForDisplay: queue.queueJobsForDisplay,

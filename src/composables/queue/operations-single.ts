@@ -18,7 +18,9 @@ export interface SingleJobOpsDeps {
   jobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
+  manualJobPresetId?: Ref<string | null>;
   queuePresetSelection?: Ref<QueuePresetSelection>;
+  prepareManualEnqueue?: () => Promise<void>;
   /** All available presets. */
   presets: Ref<FFmpegPreset[]>;
   /** Queue error message ref. */
@@ -217,15 +219,9 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
     return;
   }
 
-  const preset = deps.manualJobPreset.value ?? deps.presets.value[0];
-  if (!preset) {
-    console.error("No preset available for manual job");
-    deps.queueError.value = deps.t?.("queue.error.enqueueFailed") ?? "";
-    return;
-  }
-
   try {
     const expanded = await expandManualJobInputs(normalized, { recursive: true });
+    await deps.prepareManualEnqueue?.();
     const files = expanded.accepted;
     // 提示建立在展开结果上：目录没有扩展名，只看原始路径会把音乐专辑目录当成视频，
     // 展开为空时就又会变成静默——那正是 issue #2 的体验。
@@ -235,7 +231,13 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
       return;
     }
 
-    await enqueueManualPresetFiles(files, deps.presets.value, preset.id, deps.queuePresetSelection?.value);
+    await enqueueManualPresetFiles(
+      files,
+      deps.presets.value,
+      deps.manualJobPresetId ? deps.manualJobPresetId.value : (deps.manualJobPreset.value?.id ?? null),
+      deps.queuePresetSelection?.value,
+      deps.prepareManualEnqueue,
+    );
 
     // Avoid racing with queue stream events; let backend be the single source of truth.
     await deps.refreshQueueFromBackend();

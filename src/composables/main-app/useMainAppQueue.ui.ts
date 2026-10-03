@@ -18,10 +18,9 @@ export function getQueueIconGridClass(queueViewMode: QueueViewMode): string {
 
 export function ensureManualPresetId(presets: FFmpegPreset[], manualJobPresetId: Ref<string | null>) {
   if (!presets || presets.length === 0) {
-    manualJobPresetId.value = null;
     return;
   }
-  if (!manualJobPresetId.value || !presets.some((p) => p.id === manualJobPresetId.value)) {
+  if (!manualJobPresetId.value) {
     manualJobPresetId.value = presets[0].id;
   }
 }
@@ -29,5 +28,5 @@ export function ensureManualPresetId(presets: FFmpegPreset[], manualJobPresetId:
 export function resolveManualPreset(presets: FFmpegPreset[], manualJobPresetId: string | null): FFmpegPreset | null {
   if (!presets || presets.length === 0) return null;
   if (!manualJobPresetId) return presets[0];
-  return presets.find((p) => p.id === manualJobPresetId) ?? presets[0];
+  return presets.find((p) => p.id === manualJobPresetId) ?? null;
 }

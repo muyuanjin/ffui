@@ -10,7 +10,7 @@ vi.mock("@tauri-apps/api/core", () => {
   };
 });
 
-import { exitAppNow, exitAppWithAutoWait, resetExitPrompt } from "@/lib/backend.app-exit";
+import { exitAppNow, exitAppWithAutoWait, resetExitPrompt, requestAppClose } from "@/lib/backend.app-exit";
 
 describe("backend app exit contract", () => {
   beforeEach(() => {
@@ -38,6 +38,12 @@ describe("backend app exit contract", () => {
     invokeMock.mockResolvedValueOnce(undefined);
     await exitAppNow();
     expect(invokeMock).toHaveBeenCalledWith("exit_app_now", undefined);
+  });
+
+  it("requests a backend-authorized close without supplying a frontend job count", async () => {
+    invokeMock.mockResolvedValueOnce(undefined);
+    await requestAppClose();
+    expect(invokeMock).toHaveBeenCalledWith("request_app_close", undefined);
   });
 
   it("exitAppNow is a no-op when Tauri is unavailable", async () => {

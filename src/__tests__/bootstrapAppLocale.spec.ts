@@ -19,6 +19,37 @@ const makeSettings = (locale?: string): AppSettings =>
   }) as AppSettings;
 
 describe("bootstrapAppLocale", () => {
+  it("does not supply or persist defaults after a settings read failure", async () => {
+    const saveAppSettings = vi.fn(async (settings: AppSettings) => settings);
+    const result = await bootstrapAppLocale({
+      hasTauri: true,
+      loadAppSettings: async () => {
+        throw new Error("unreadable settings");
+      },
+      saveAppSettings,
+      getSearch: () => "",
+      getOsLocale: async () => "zh-CN",
+    });
+    expect(saveAppSettings).not.toHaveBeenCalled();
+    expect(result.preloadedAppSettings).toBeUndefined();
+    expect(result.persisted).toBe(false);
+  });
+
+  it("does not mark an unsuccessful locale write as a saved snapshot", async () => {
+    const original = { ...makeSettings(), defaultQueuePresetId: "custom-audio" };
+    const result = await bootstrapAppLocale({
+      hasTauri: true,
+      loadAppSettings: async () => original,
+      saveAppSettings: async () => {
+        throw new Error("access denied");
+      },
+      getSearch: () => "",
+      getOsLocale: async () => "zh-CN",
+    });
+    expect(result.locale).toBe("zh-CN");
+    expect(result.preloadedAppSettings).toEqual(original);
+    expect(result.persisted).toBe(false);
+  });
   it("normalizes locale strings into AppLocale", () => {
     expect(normalizeToAppLocale("zh")).toBe("zh-CN");
     expect(normalizeToAppLocale("zh-TW")).toBe("zh-CN");
