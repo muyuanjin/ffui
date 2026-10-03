@@ -28,6 +28,8 @@ Queue history follows **Queue persistence** in application settings: **Restore q
 
 **Output settings** offers **Default (follow preset/template)**, **Keep input container**, **Unified format**, or **Specify formats by output type**. Input type selects the preset; the preset's target output type selects the format. Video processed with an audio-extraction preset uses the audio format; a frame-extraction preset uses the image format. Unset and unresolved output types follow the preset. A unified format explicitly applies to every task and must be compatible with its codecs and mappings. Known video-to-audio-container and AAC-to-MP3 conflicts produce invalid-plan diagnostics instead of silently changing codecs.
 
+Click or tap outside an open format menu, or press Escape, to dismiss only that menu without changing its selection or closing **Output settings**. With no menu open, clicking outside or pressing Escape closes the settings dialog.
+
 Structured targets follow the selected streams and input resource. Custom command presets conservatively recognize simple recipes; use **Target output type** in the preset editor to declare video, audio, image or custom/multiple outputs when recognition is insufficient. The declaration selects a policy category without rewriting command arguments. MP4/MKV can contain audio without video; their extension alone does not define the target. Unknown inputs remain executable.
 
 The queue header shows one badge for a unified policy, or three category-icon badges extending to the left of **Output settings** for a per-output policy. Settings-file version 2 preserves explicit unified formats. Recognized single-format settings in older files migrate once to their category; unknown custom formats keep their global behavior. Existing task snapshots retain their saved policy and command. New manual tasks snapshot the selected preset and resolved output policy at enqueue time. Re-enqueue failed tasks after changing settings. Batch Compress's native image/audio targets remain controlled by their encoding configuration.
@@ -95,6 +97,8 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 ### 预设目标与输出格式
 
 **输出设置** 支持 **默认（走预设/模板）**、**维持原文件容器**、**统一指定格式** 和 **按输出类型指定格式**。输入类型用于选择预设，预设的目标输出类型用于选择格式。视频使用音频提取预设时走音频格式，使用截帧预设时走图片格式；未指定及无法确定的输出类型跟随预设。统一格式明确作用于所有任务，须与编码器和媒体映射兼容。已知的视频写入纯音频容器、AAC 写入 MP3 等冲突，会给出无效计划诊断，不静默更换编码器。
+
+格式下拉展开时，点击或轻触下拉外部、按 Escape，只关闭下拉，不改变原选择，**输出设置** 保持打开。没有下拉展开时，点击外部或按 Escape 关闭设置窗口。
 
 结构化目标按映射的媒体流与输入资源确定。自定义命令预设对简单配方进行保守识别；识别不足时，在预设编辑器的 **目标输出类型** 中明确选择视频、纯音频、图片或自定义／多输出。该声明只选择格式策略分类，不改写命令。MP4/MKV 可以只包含音频，不能仅按其扩展名确定输出类型。未知输入仍可执行。
 

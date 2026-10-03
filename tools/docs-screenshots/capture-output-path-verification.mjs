@@ -25,6 +25,45 @@ const verifyWarmAccent = async (locator) => {
   const channels = await backgroundChannels(locator);
   assert.ok(channels[0] > channels[2] + 30 && channels[1] > channels[2] + 15, `Expected warm: ${channels}`);
 };
+const verifyNestedFormatDismissal = async (page, dialog, kind, method, touch = false) => {
+  const selector = dialog.getByTestId(`output-policy-${kind}-format`).getByRole("combobox");
+  const original = await selector.textContent();
+  const dialogBounds = method === "blank" ? await dialog.boundingBox() : null;
+  if (method === "blank") assert.ok(dialogBounds);
+  if (touch) await selector.tap();
+  else await selector.click();
+  const listbox = page.getByRole("listbox");
+  await listbox.waitFor();
+  await listbox.click({ trial: true });
+  if (method === "escape") {
+    await page.keyboard.press("Escape");
+  } else {
+    let point = { x: 6, y: 6 };
+    if (dialogBounds) {
+      const menuBounds = await listbox.boundingBox();
+      assert.ok(menuBounds);
+      const blankPoint = [
+        { x: dialogBounds.x + 16, y: dialogBounds.y + dialogBounds.height - 16 },
+        { x: dialogBounds.x + dialogBounds.width - 16, y: dialogBounds.y + dialogBounds.height - 16 },
+        { x: dialogBounds.x + 16, y: dialogBounds.y + 16 },
+      ].find(
+        (candidate) =>
+          candidate.x < menuBounds.x ||
+          candidate.x > menuBounds.x + menuBounds.width ||
+          candidate.y < menuBounds.y ||
+          candidate.y > menuBounds.y + menuBounds.height,
+      );
+      assert.ok(blankPoint, `No blank dialog point outside ${kind} menu`);
+      point = blankPoint;
+    }
+    if (touch) await page.touchscreen.tap(point.x, point.y);
+    else await page.mouse.click(point.x, point.y);
+  }
+  await listbox.waitFor({ state: "hidden", timeout: 10000 });
+  assert.equal(await dialog.isVisible(), true);
+  assert.equal(await selector.textContent(), original);
+  assert.equal(await selector.evaluate((element) => element === document.activeElement), true);
+};
 const withScreenshotApp = async (capture) => {
   process.env.VITE_DOCS_SCREENSHOT_HAS_TAURI = "1";
   process.env.VITE_STARTUP_IDLE_TIMEOUT_MS = "0";
@@ -291,6 +330,12 @@ await withScreenshotApp(async ({ baseUrl }) => {
         await mode.click();
         await page.getByRole("option", { name: force, exact: true }).click();
       }
+      for (const kind of ["video", "audio", "image"]) {
+        for (const method of ["overlay", "blank", "escape"]) {
+          await verifyNestedFormatDismissal(page, dialog, kind, method);
+        }
+        await dialog.screenshot({ path: path.join(output, `cancelled-format-${kind}-${locale}.png`) });
+      }
       for (const [format, label, kind] of [
         ["mkv", "MKV / Matroska (.mkv)", "video"],
         ["mp3", "MP3 (.mp3)", "audio"],
@@ -485,6 +530,15 @@ await withScreenshotApp(async ({ baseUrl }) => {
     await touchPanel.waitFor();
     await touchTrigger.tap();
     await touchPanel.waitFor({ state: "hidden" });
+    await touchPage.getByTestId("ffui-queue-output-settings").tap();
+    const touchDialog = touchPage.getByRole("dialog");
+    await touchDialog.getByTestId("output-policy-container-mode-trigger").tap();
+    await touchPage.getByRole("option", { name: "Specify formats by output type", exact: true }).tap();
+    for (const kind of ["video", "audio", "image"]) {
+      await verifyNestedFormatDismissal(touchPage, touchDialog, kind, "overlay", true);
+    }
+    await touchPage.touchscreen.tap(6, 6);
+    await touchDialog.waitFor({ state: "hidden" });
     await touchPage.close();
     assert.deepEqual(errors, []);
     await fs.writeFile(
@@ -506,6 +560,8 @@ await withScreenshotApp(async ({ baseUrl }) => {
             "hover then click pins; keyboard Enter opens; nested Select portals stay open; Escape restores focus; outside and same-trigger dismissal",
           longPresetNames: "complete wrapped names in panel; bounded summaries at 1100 and 1600 pixels",
           touch: "button tap opens and a second tap closes",
+          outputFormatDismissal:
+            "video/audio/image menus cancel on overlay, blank-content and Escape without closing settings or changing values; touch tap cancels only the menu; focus returns to its trigger",
           queuedStatusCenter: centerDifference,
           queuedStatusAccessibility: statusSnapshots,
           knownOutputCopied: true,

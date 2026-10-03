@@ -3,14 +3,7 @@ import type { DialogContentEmits, DialogContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import { reactiveOmit } from "@vueuse/core";
 import { X } from "lucide-vue-next";
-import {
-  DialogClose,
-  DialogContent,
-  DialogOverlay,
-  DialogPortal,
-  injectDialogRootContext,
-  useForwardPropsEmits,
-} from "reka-ui";
+import { DialogClose, DialogContent, DialogOverlay, DialogPortal, useForwardPropsEmits } from "reka-ui";
 import { cn } from "@/lib/utils";
 
 defineOptions({ inheritAttrs: false });
@@ -46,14 +39,8 @@ const delegatedProps = reactiveOmit(
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
 
-const rootContext = injectDialogRootContext();
-
-const handleOverlayPointerDown = (event: PointerEvent) => {
-  if (!props.overlayClosable) return;
-  const ctrlLeftClick = event.button === 0 && event.ctrlKey === true;
-  const isRightClick = event.button === 2 || ctrlLeftClick;
-  if (isRightClick) return;
-  rootContext.onOpenChange(false);
+const handlePointerDownOutside = (event: Event) => {
+  if (!props.overlayClosable) event.preventDefault();
 };
 </script>
 
@@ -67,7 +54,6 @@ const handleOverlayPointerDown = (event: PointerEvent) => {
           props.overlayClass,
         )
       "
-      @pointerdown="handleOverlayPointerDown"
     />
     <DialogContent
       v-bind="{ ...$attrs, ...forwarded }"
@@ -77,6 +63,7 @@ const handleOverlayPointerDown = (event: PointerEvent) => {
           props.class,
         )
       "
+      @pointer-down-outside="handlePointerDownOutside"
     >
       <slot />
 
