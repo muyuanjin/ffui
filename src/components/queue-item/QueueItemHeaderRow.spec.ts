@@ -29,7 +29,7 @@ const baseJob = {
 const preset = { id: "p1", name: "Preset" } as any;
 
 describe("QueueItemHeaderRow tooltips", () => {
-  it("shows title tooltips for action buttons", () => {
+  it("shows action tooltips and a geometrically centered queued status icon", async () => {
     const wrapper = mount(QueueItemHeaderRow, {
       props: {
         job: baseJob as any,
@@ -63,5 +63,23 @@ describe("QueueItemHeaderRow tooltips", () => {
     expect(detail.attributes("title")).toBeDefined();
     expect(wait.attributes("title")).toBeDefined();
     expect(restart.attributes("title")).toBeDefined();
+    await wrapper.setProps({ job: { ...baseJob, type: "audio", status: "queued" } as any, localizedStatus: "Queued" });
+    const indicator = wrapper.get('[data-testid="queue-item-status-indicator"]');
+    expect(indicator.attributes("aria-label")).toBe("Queued");
+    expect(indicator.attributes("role")).toBe("img");
+    expect(indicator.element.tagName).toBe("SPAN");
+    expect(indicator.text()).toBe("");
+    const icon = indicator.get("svg");
+    expect(icon.attributes("viewBox")).toBe("0 0 24 24");
+    const dots = icon.findAll("circle");
+    expect(dots).toHaveLength(3);
+    expect(dots.map((dot) => Number(dot.attributes("cy")))).toEqual([12, 12, 12]);
+    const centers = dots.map((dot) => Number(dot.attributes("cx"))).sort((first, second) => first - second);
+    expect((centers[0] + centers[2]) / 2).toBe(12);
+    expect(centers[1]).toBe(12);
+    await wrapper.setProps({ localizedStatus: "排队中" });
+    expect(indicator.attributes("aria-label")).toBe("排队中");
+    expect(indicator.attributes("role")).toBe("img");
+    wrapper.unmount();
   });
 });

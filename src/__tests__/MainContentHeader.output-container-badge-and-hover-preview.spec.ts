@@ -98,11 +98,12 @@ describe("MainContentHeader output container badge + hover preview", () => {
     expect(count.classes()).toContain("shrink-0");
     expect(wrapper.get('[data-testid="ffui-queue-view-mode-trigger"]').classes()).toContain("w-auto");
     expect(badges().map((badge) => badge.attributes("data-media-kind"))).toEqual(["video", "audio", "image"]);
-    expect(badges().map((badge) => badge.text())).toEqual(["Video mkv", "Audio mp3", "Image png"]);
+    expect(badges().map((badge) => badge.get(".sr-only").text())).toEqual(["Video", "Audio", "Image"]);
+    expect(badges().map((badge) => badge.get(".truncate").text())).toEqual(["mkv", "mp3", "png"]);
     expect(badges()[0].classes()).toContain("rounded-l-full");
     for (const badge of badges()) {
-      expect(badge.classes()).toContain("whitespace-nowrap");
-      expect(badge.classes()).toContain("shrink-0");
+      expect(badge.classes()).toContain("min-w-0");
+      expect(badge.get(".truncate").classes()).toContain("truncate");
       expect(badge.get("svg").attributes("aria-hidden")).toBe("true");
       expect(badge.attributes("aria-label")).toBe(badge.attributes("title"));
     }
@@ -114,7 +115,8 @@ describe("MainContentHeader output container badge + hover preview", () => {
     expect(preview.text()).toContain("input.compressed.png");
     localI18n.global.locale.value = "zh-CN";
     await flushPromises();
-    expect(badges().map((badge) => badge.text())).toEqual(["视频 mkv", "音频 mp3", "图片 png"]);
+    expect(badges().map((badge) => badge.get(".sr-only").text())).toEqual(["视频", "音频", "图片"]);
+    expect(badges().map((badge) => badge.get(".truncate").text())).toEqual(["mkv", "mp3", "png"]);
     await wrapper.setProps({ queueOutputPolicy: { ...policy, container: { mode: "byMedia", audio: "mp3" } } });
     expect(badges()[0].text()).toContain("auto");
     expect(badges()[0].attributes("title")).toContain("跟随预设/模板");

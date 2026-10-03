@@ -12,6 +12,8 @@ Add files or folders to use a preset. Regular files are accepted without an exte
 
 You do not need the **Add command** button for this workflow. That separate entry is for one-off advanced invocations, not for applying a preset to added files.
 
+Hover over the default-preset button or its summaries to see the full preset names in a compact settings panel without moving keyboard focus. Move into the panel to change selections. Clicking the button or interacting with the panel keeps it open; Escape, an outside click or another button click closes it. Keyboard and touch users can open it with the button. The preset and output controls share the same capsule style; long toolbar summaries truncate while their full names remain visible in the panel.
+
 ### Preset targets and output formats
 
 **Output settings** offers **Default (follow preset/template)**, **Keep input container**, **Unified format**, or **Specify formats by output type**. Input type selects the preset; the preset's target output type selects the format. Video processed with an audio-extraction preset uses the audio format; a frame-extraction preset uses the image format. Unset and unresolved output types follow the preset. A unified format explicitly applies to every task and must be compatible with its codecs and mappings. Known video-to-audio-container and AAC-to-MP3 conflicts produce invalid-plan diagnostics instead of silently changing codecs.
@@ -67,6 +69,8 @@ Media data over application-fed/received stdin/stdout (`-`, `pipe:`, `fd:`) is n
 3. 点击转码任务页面的 **默认预设**，在弹层中选择 **统一预设** 或 **按输入类型**，再拖入文件/文件夹，或点击 **添加文件** / **添加文件夹**。工具栏在同一个按钮左侧显示统一预设摘要，或三个按输入类型划分的摘要。统一模式对所有文件使用同一预设，支持从视频提取音频等跨类型处理。分类模式为视频、音频、图片输入分别选择预设；未指定及未知类型跟随统一预设，统一预设也可在该弹层内调整。明确配置但已缺失的预设，在本次选择入队前给出诊断，不静默替换。展开后的文件顺序保持不变；不兼容输入会给出失败诊断。
 
 这条路径不需要点击 **添加命令任务** 按钮。该独立入口用于一次性的高级调用，不用于把预设应用到添加的文件。
+
+鼠标悬浮在默认预设按钮或摘要上，即可在紧凑的设置面板内查看完整预设名称，不会抢走键盘焦点。移入面板可修改选择；点击按钮或操作面板后，面板保持打开，按 Escape、点击外部或再次点击按钮关闭。键盘和触屏用户可通过按钮打开。预设与输出控件使用相同的胶囊样式，工具栏的长摘要截断显示，面板内保留完整名称。
 
 ### 预设目标与输出格式
 

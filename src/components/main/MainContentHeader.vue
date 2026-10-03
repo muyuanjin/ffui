@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Video, Music, Image as ImageIcon } from "lucide-vue-next";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, OutputPolicy, PresetSortDirection, PresetSortMode, QueuePresetSelection } from "@/types";
 import QueuePresetSelector from "./QueuePresetSelector.vue";
+import QueueSettingsPill from "./QueueSettingsPill.vue";
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -95,7 +95,7 @@ const outputContainerBadges = computed(() => {
       title: `${t(`formatSelect.groups.${kind}`)}: ${container[kind] ?? t("outputPolicy.container.followPreset")}`,
     }));
   }
-  const single = (label: string) => [{ kind: "all", label, title: label }];
+  const single = (label: string) => [{ kind: "all" as const, label, title: label }];
   if (policy.container.mode === "force") {
     return single(normalizeForcedContainerExtensionForPreview(policy.container.format));
   }
@@ -242,39 +242,24 @@ const hoverPreviewExamples = computed(() => {
     <div v-if="activeTab === 'queue'" class="ml-auto max-w-full flex flex-wrap items-center justify-end gap-3">
       <HoverCard :open-delay="150" :close-delay="100">
         <HoverCardTrigger as-child>
-          <div class="inline-flex items-center group">
-            <span
-              v-for="(badge, index) in outputContainerBadges"
-              :key="badge.kind"
-              data-testid="ffui-queue-output-container-badge"
-              :data-media-kind="badge.kind"
-              class="h-7 px-2 inline-flex shrink-0 items-center gap-1 whitespace-nowrap border border-border/40 border-r-0 bg-[#90a4ae]/60 text-[10px] font-mono font-semibold uppercase tracking-wide text-white/85 select-none group-hover:bg-[#90a4ae]/70"
-              :class="index === 0 ? 'rounded-l-full' : ''"
-              :title="badge.title"
-              :aria-label="badge.title"
-            >
-              <template v-if="badge.kind !== 'all'">
-                <component
-                  :is="badge.kind === 'video' ? Video : badge.kind === 'audio' ? Music : ImageIcon"
-                  class="h-3 w-3 shrink-0 text-white/65"
-                  aria-hidden="true"
-                />
-                <span class="sr-only">{{ t(`formatSelect.groups.${badge.kind}`) }}</span>
-              </template>
-              {{ badge.label }}
-            </span>
+          <QueueSettingsPill
+            v-slot="{ triggerClass }"
+            :badges="outputContainerBadges"
+            badge-test-id="ffui-queue-output-container-badge"
+            uppercase
+          >
             <Button
               data-testid="ffui-queue-output-settings"
               type="button"
               variant="outputSettings"
               size="sm"
-              class="h-7 px-3 py-0 text-xs rounded-full rounded-l-none font-semibold text-white"
+              :class="triggerClass"
               :title="t('app.outputSettings') as string"
               @click="outputDialogOpen = true"
             >
               {{ t("app.outputSettings") }}
             </Button>
-          </div>
+          </QueueSettingsPill>
         </HoverCardTrigger>
         <HoverCardContent align="end" side="bottom" :side-offset="8" class="w-[420px] p-3">
           <div data-testid="ffui-queue-output-settings-hover-preview" class="space-y-2">

@@ -18,7 +18,7 @@ const i18n = createI18n({
 });
 
 describe("MainContentHeader default preset select style", () => {
-  it("uses one neutral settings button with an adjacent preset summary", () => {
+  it("shares settings button geometry while distinguishing preset and output colors", () => {
     const DialogStub = defineComponent({
       name: "Dialog",
       props: { open: { type: Boolean, default: false } },
@@ -60,10 +60,24 @@ describe("MainContentHeader default preset select style", () => {
     const trigger = wrapper.get("[data-testid='ffui-queue-default-preset-trigger']");
     const className = trigger.attributes("class") ?? "";
 
-    expect(className).not.toContain("bg-primary");
+    const outputClassName = wrapper.get('[data-testid="ffui-queue-output-settings"]').attributes("class") ?? "";
+    for (const sharedClass of ["h-7", "rounded-full", "rounded-l-none", "px-3", "py-0", "text-xs", "font-semibold"]) {
+      expect(trigger.classes()).toContain(sharedClass);
+      expect(wrapper.get('[data-testid="ffui-queue-output-settings"]').classes()).toContain(sharedClass);
+    }
+    expect(className).toContain("bg-sky-700/90");
+    expect(className).toContain("hover:bg-sky-800/90");
+    expect(className).not.toContain("bg-[#b89069]/90");
+    expect(outputClassName).toContain("bg-[#b89069]/90");
+    expect(outputClassName).toContain("hover:bg-[#f9a825]/90");
+    expect(outputClassName).not.toContain("bg-sky-700/90");
     expect(className).not.toContain("w-full");
     expect(trigger.text()).toBe("Default preset");
     expect(wrapper.get('[data-testid="queue-preset-summary-badge"]').text()).toBe("Universal 1080p");
     expect(wrapper.find('[data-testid="queue-preset-selection-mode"]').exists()).toBe(false);
+    expect(wrapper.get('[data-testid="queue-preset-summary-badge"]').attributes("class")).toBe(
+      wrapper.get('[data-testid="ffui-queue-output-container-badge"]').attributes("class"),
+    );
+    wrapper.unmount();
   });
 });

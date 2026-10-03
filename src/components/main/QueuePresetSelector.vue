@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { unrefElement, useTimeoutFn } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
-import { Video, Music, Image as ImageIcon } from "lucide-vue-next";
+import { Video, Music, Image as ImageIcon, Layers } from "lucide-vue-next";
+import { RadioGroupRoot, RadioGroupItem } from "reka-ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import QueueSettingsPill from "./QueueSettingsPill.vue";
 import type { FFmpegPreset, QueuePresetSelection } from "@/types";
 import { OUTPUT_MEDIA_KINDS } from "@/lib/outputContainerPolicy";
 
@@ -18,7 +21,66 @@ const emit = defineEmits<{
   (event: "update:selection", value: QueuePresetSelection): void;
 }>();
 const { t } = useI18n();
+const triggerButton = ref<InstanceType<typeof Button> | null>(null);
 const open = ref(false);
+const pinned = ref(false);
+const returnFocus = ref(false);
+const triggerClick = ref(false);
+const activeSelect = ref<string | null>(null);
+const openDelay = useTimeoutFn(
+  () => {
+    returnFocus.value = false;
+    open.value = true;
+  },
+  150,
+  { immediate: false },
+);
+const closeDelay = useTimeoutFn(
+  () => {
+    if (!pinned.value && !activeSelect.value) open.value = false;
+  },
+  250,
+  { immediate: false },
+);
+const enter = (event: PointerEvent) => {
+  if (event.pointerType === "touch") return;
+  closeDelay.stop();
+  if (!open.value) openDelay.start();
+};
+const leave = () => {
+  openDelay.stop();
+  closeDelay.start();
+};
+const pin = () => {
+  if (!open.value) return;
+  pinned.value = true;
+  returnFocus.value = true;
+};
+const interactOutside = (event: Event) => {
+  if (event.target instanceof Node && unrefElement(triggerButton)?.contains(event.target)) event.preventDefault();
+};
+const updateOpen = (value: boolean) => {
+  openDelay.stop();
+  closeDelay.stop();
+  if (triggerClick.value) {
+    triggerClick.value = false;
+    open.value = !pinned.value;
+    pinned.value = open.value;
+    returnFocus.value = true;
+    return;
+  }
+  open.value = value;
+  pinned.value = value;
+};
+const updateSelectOpen = (id: string, value: boolean) => {
+  if (value) {
+    activeSelect.value = id;
+    pinned.value = true;
+    returnFocus.value = true;
+  } else if (activeSelect.value === id) {
+    activeSelect.value = null;
+  }
+};
 const fallbackLabel = computed(() =>
   props.unifiedPresetId
     ? (props.presets.find((preset) => preset.id === props.unifiedPresetId)?.name ??
@@ -38,13 +100,7 @@ const badges = computed(() =>
         label: selectedFor(kind) ? presetLabel(selectedFor(kind)) : fallbackLabel.value,
         title: `${t(`formatSelect.groups.${kind}`)}: ${presetLabel(selectedFor(kind))}`,
       }))
-    : [
-        {
-          kind: "all",
-          label: presetLabel(props.unifiedPresetId ?? undefined),
-          title: presetLabel(props.unifiedPresetId ?? undefined),
-        },
-      ],
+    : [{ kind: "all" as const, label: fallbackLabel.value, title: fallbackLabel.value }],
 );
 const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
   if (props.selection.mode !== "byMedia") return;
@@ -53,92 +109,120 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
 </script>
 
 <template>
-  <Popover v-model:open="open">
-    <div data-testid="queue-preset-summary" class="inline-flex min-w-0 max-w-full items-center">
-      <span
-        v-for="(badge, index) in badges"
-        :key="badge.kind"
-        data-testid="queue-preset-summary-badge"
-        :data-media-kind="badge.kind"
-        :title="badge.title"
-        :aria-label="badge.title"
-        class="inline-flex h-7 min-w-0 items-center gap-1 border border-border/60 border-r-0 bg-muted/60 px-2 text-[10px] text-muted-foreground"
-        :class="[index === 0 ? 'rounded-l-full' : '', badge.kind === 'all' ? 'max-w-40' : 'max-w-24']"
-      >
-        <component
-          :is="badge.kind === 'video' ? Video : badge.kind === 'audio' ? Music : ImageIcon"
-          v-if="badge.kind !== 'all'"
-          class="h-3 w-3 shrink-0"
-          aria-hidden="true"
-        />
-        <span class="truncate">{{ badge.label }}</span>
-      </span>
+  <Popover :open="open" @update:open="updateOpen">
+    <QueueSettingsPill
+      v-slot="{ triggerClass }"
+      :badges="badges"
+      badge-test-id="queue-preset-summary-badge"
+      data-testid="queue-preset-summary"
+      @pointerenter="enter"
+      @pointerleave="leave"
+    >
       <PopoverTrigger as-child>
         <Button
+          ref="triggerButton"
           data-testid="ffui-queue-default-preset-trigger"
-          variant="outline"
+          variant="presetSettings"
           size="sm"
-          class="h-7 shrink-0 rounded-full rounded-l-none bg-card/80 px-3 py-0 text-xs"
+          :class="triggerClass"
           :title="t('app.queueDefaultPresetLabel')"
+          @click.capture="triggerClick = true"
         >
           {{ t("app.queuePresetSettings") }}
         </Button>
       </PopoverTrigger>
-    </div>
-    <PopoverContent align="end" class="w-80 max-w-[calc(100vw-2rem)] space-y-3" data-testid="queue-preset-settings">
-      <div class="text-sm font-medium">{{ t("app.queueDefaultPresetLabel") }}</div>
-      <Select
+    </QueueSettingsPill>
+    <PopoverContent
+      align="end"
+      :side-offset="8"
+      class="w-[380px] max-w-[calc(100vw-2rem)] max-h-[var(--reka-popover-content-available-height)] overflow-y-auto rounded-xl border-border/70 bg-popover p-4 shadow-xl"
+      data-testid="queue-preset-settings"
+      @pointerenter="closeDelay.stop()"
+      @pointerleave="leave"
+      @pointerdown="pin"
+      @focusin="pin"
+      @interact-outside="interactOutside"
+      @open-auto-focus="
+        (event) => {
+          if (!pinned) event.preventDefault();
+        }
+      "
+      @close-auto-focus="
+        (event) => {
+          if (!returnFocus) event.preventDefault();
+        }
+      "
+    >
+      <div class="mb-3 flex items-center gap-2.5">
+        <Layers class="h-4 w-4 shrink-0 text-sky-400" aria-hidden="true" />
+        <div>
+          <div class="text-sm font-semibold">{{ t("app.queueDefaultPresetLabel") }}</div>
+          <div class="mt-0.5 text-[11px] text-muted-foreground">{{ t("app.queuePresetSelection.subtitle") }}</div>
+        </div>
+      </div>
+      <RadioGroupRoot
         :model-value="selection.mode"
+        orientation="horizontal"
+        class="mb-3 flex rounded-full border border-border/60 bg-background/30 p-0.5"
+        data-testid="queue-preset-selection-mode"
+        :aria-label="t('app.queueDefaultPresetLabel')"
         @update:model-value="
           (value) => emit('update:selection', value === 'byMedia' ? { mode: 'byMedia' } : { mode: 'unified' })
         "
       >
-        <SelectTrigger
-          data-testid="queue-preset-selection-mode"
-          class="h-8 text-xs"
-          :aria-label="t('app.queueDefaultPresetLabel')"
+        <RadioGroupItem
+          v-for="mode in ['unified', 'byMedia'] as const"
+          :key="mode"
+          :value="mode"
+          :data-testid="`queue-preset-mode-${mode}`"
+          class="flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-full px-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring data-[state=checked]:bg-sky-700/90 data-[state=checked]:text-white data-[state=checked]:shadow-sm"
         >
-          <SelectValue>{{ t(`app.queuePresetSelection.${selection.mode}`) }}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="unified">{{ t("app.queuePresetSelection.unified") }}</SelectItem>
-          <SelectItem value="byMedia">{{ t("app.queuePresetSelection.byMedia") }}</SelectItem>
-        </SelectContent>
-      </Select>
-      <div class="space-y-1">
-        <div class="text-xs text-muted-foreground">{{ t("app.queuePresetSelection.unified") }}</div>
+          {{ t(`app.queuePresetSelection.${mode}`) }}
+        </RadioGroupItem>
+      </RadioGroupRoot>
+      <div class="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2 py-2">
+        <div class="text-[11px] font-medium text-muted-foreground">{{ t("app.queuePresetSelection.unified") }}</div>
         <Select
           :model-value="unifiedPresetId"
+          @update:open="(value) => updateSelectOpen('unified', value)"
           @update:model-value="(value) => emit('update:unifiedPresetId', String(value))"
         >
           <SelectTrigger
             data-testid="queue-unified-preset-trigger"
-            class="h-8 text-xs"
-            :title="presetLabel(unifiedPresetId ?? undefined)"
+            class="h-auto min-h-8 rounded-lg border-border/60 bg-background/25 px-2 py-1.5 text-[11px] hover:border-sky-500/60 [&>div]:justify-start [&>div]:text-left [&>div>span]:whitespace-normal [&>div>span]:break-words"
+            :title="fallbackLabel"
             :aria-label="t('app.queuePresetSelection.unified')"
           >
-            <SelectValue>{{ presetLabel(unifiedPresetId ?? undefined) }}</SelectValue>
+            <SelectValue>{{ fallbackLabel }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="preset in presets" :key="preset.id" :value="preset.id">{{ preset.name }}</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      <template v-if="selection.mode === 'byMedia'">
-        <div v-for="kind in OUTPUT_MEDIA_KINDS" :key="kind" class="flex items-center gap-1">
-          <component
-            :is="kind === 'video' ? Video : kind === 'audio' ? Music : ImageIcon"
-            class="h-3 w-3"
-            :aria-label="t(`formatSelect.groups.${kind}`)"
-          />
+      <div v-if="selection.mode === 'byMedia'" class="mt-1 divide-y divide-border/40 border-t border-border/60">
+        <div
+          v-for="kind in OUTPUT_MEDIA_KINDS"
+          :key="kind"
+          class="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2 py-2"
+        >
+          <div class="flex items-center gap-2 text-xs font-medium">
+            <component
+              :is="kind === 'video' ? Video : kind === 'audio' ? Music : ImageIcon"
+              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+            {{ t(`formatSelect.groups.${kind}`) }}
+          </div>
           <Select
             :model-value="selectedFor(kind) ?? '__unified__'"
+            @update:open="(value) => updateSelectOpen(kind, value)"
             @update:model-value="(value) => updateKind(kind, value)"
           >
             <SelectTrigger
               :data-testid="`queue-preset-${kind}-trigger`"
               :aria-label="t('app.queuePresetSelection.inputLabel', { kind: t(`formatSelect.groups.${kind}`) })"
-              class="h-8 min-w-0 flex-1 text-xs"
+              class="h-auto min-h-8 rounded-lg border-border/60 bg-background/25 px-2 py-1.5 text-[11px] hover:border-sky-500/60 [&>div]:justify-start [&>div]:text-left [&>div>span]:whitespace-normal [&>div>span]:break-words"
               :title="presetLabel(selectedFor(kind))"
             >
               <SelectValue>{{ presetLabel(selectedFor(kind)) }}</SelectValue>
@@ -151,8 +235,10 @@ const updateKind = (kind: "video" | "audio" | "image", value: unknown) => {
             </SelectContent>
           </Select>
         </div>
-        <span class="sr-only">{{ t("app.queuePresetSelection.hint") }}</span>
-      </template>
+      </div>
+      <p class="mt-2 border-t border-border/40 pt-2 text-[10px] leading-relaxed text-muted-foreground">
+        {{ t("app.queuePresetSelection.hint") }}
+      </p>
     </PopoverContent>
   </Popover>
 </template>

@@ -12,6 +12,7 @@ export const buttonVariants = cva(
         manualFolder: "bg-cta-folder/90 text-white shadow hover:bg-[#f9a825]/90",
         destructive: "bg-destructive/90 text-destructive-foreground shadow-sm hover:bg-[#f9a825]/90",
         outputSettings: "bg-[#b89069]/90 text-slate-950 shadow hover:bg-[#f9a825]/90",
+        presetSettings: "bg-sky-700/90 text-white shadow hover:bg-sky-800/90",
         outline: "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary/90 text-secondary-foreground shadow-sm hover:bg-[#f9a825]/80",
         success: "bg-emerald-600/90 text-white shadow-sm hover:bg-emerald-600/80",

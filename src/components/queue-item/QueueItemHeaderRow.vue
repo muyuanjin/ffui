@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, toRef, toRefs } from "vue";
+import { Ellipsis } from "lucide-vue-next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
@@ -187,7 +188,10 @@ const emit = defineEmits<QueueItemRowEmits>();
         <QueueAudioPlaceholder v-else-if="job.type === 'audio'" />
       </div>
       <span
-        class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-[10px] font-semibold"
+        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border text-[10px] font-semibold leading-none"
+        data-testid="queue-item-status-indicator"
+        role="img"
+        :aria-label="String(localizedStatus)"
         :class="{
           'border-emerald-500/60 text-emerald-400 bg-emerald-500/10': job.status === 'completed',
           'border-blue-500/60 text-blue-400 bg-blue-500/10': job.status === 'processing',
@@ -199,7 +203,7 @@ const emit = defineEmits<QueueItemRowEmits>();
         <span v-if="job.status === 'completed'">✓</span>
         <span v-else-if="job.status === 'failed'">!</span>
         <span v-else-if="job.status === 'processing'">●</span>
-        <span v-else-if="job.status === 'queued'">…</span>
+        <Ellipsis v-else-if="job.status === 'queued'" class="block h-3.5 w-3.5" aria-hidden="true" />
         <span v-else-if="job.status === 'paused'">Ⅱ</span>
         <span v-else-if="job.status === 'skipped'">×</span>
         <span v-else>•</span>

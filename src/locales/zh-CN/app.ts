@@ -297,6 +297,7 @@ const app = {
   queuePresetSettings: "默认预设",
   queueDefaultPresetPlaceholder: "选择用于添加任务的预设",
   queuePresetSelection: {
+    subtitle: "用于新添加的任务",
     unified: "统一预设",
     byMedia: "按输入类型",
     inputLabel: "{kind}输入使用的预设",

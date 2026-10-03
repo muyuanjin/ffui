@@ -311,6 +311,7 @@ const app = {
   queuePresetSettings: "Default preset",
   queueDefaultPresetPlaceholder: "Select preset used when adding jobs",
   queuePresetSelection: {
+    subtitle: "Used for newly added jobs",
     unified: "Unified preset",
     byMedia: "By input type",
     inputLabel: "Preset for {kind} inputs",

@@ -7,6 +7,24 @@ import { build, preview } from "vite";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const output = path.resolve(process.argv[2] ?? path.join(repoRoot, ".cache/output-path-fix/screenshots"));
+const longPresetName = "MP3 高品质音频提取 / High quality audio extraction with loudness normalization and metadata";
+const backgroundChannels = async (locator) =>
+  locator.evaluate((element) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    context.fillStyle = getComputedStyle(element).backgroundColor;
+    context.fillRect(0, 0, 1, 1);
+    return Array.from(context.getImageData(0, 0, 1, 1).data);
+  });
+const verifyBlueAccent = async (locator) => {
+  const channels = await backgroundChannels(locator);
+  assert.ok(channels[2] > channels[0] + 40 && channels[1] > channels[0] + 20, `Expected blue: ${channels}`);
+};
+const verifyWarmAccent = async (locator) => {
+  const channels = await backgroundChannels(locator);
+  assert.ok(channels[0] > channels[2] + 30 && channels[1] > channels[2] + 15, `Expected warm: ${channels}`);
+};
 const withScreenshotApp = async (capture) => {
   process.env.VITE_DOCS_SCREENSHOT_HAS_TAURI = "1";
   process.env.VITE_STARTUP_IDLE_TIMEOUT_MS = "0";
@@ -15,6 +33,18 @@ const withScreenshotApp = async (capture) => {
     root: repoRoot,
     configFile: path.join(repoRoot, "tools/docs-screenshots/vite.config.screenshots.ts"),
     build: buildOptions,
+    plugins: [
+      {
+        name: "ffui-queue-preset-fixture",
+        enforce: "pre",
+        transform(code, id) {
+          if (!id.replaceAll("\\", "/").endsWith("/tools/docs-screenshots/mocks/backend.ts")) return;
+          const name = 'name: "Fast Preview"';
+          assert.ok(code.includes(name));
+          return code.replace(name, `name: ${JSON.stringify(longPresetName)}`);
+        },
+      },
+    ],
   };
   await build(config);
   const server = await preview({ ...config, preview: { host: "127.0.0.1", port: 0 } });
@@ -25,6 +55,8 @@ const withScreenshotApp = async (capture) => {
   }
 };
 const verifyHeaderLayout = async (page) => {
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(250);
   const header = page.locator("header").filter({ has: page.getByTestId("ffui-queue-output-settings") });
   assert.ok(await header.evaluate((element) => element.scrollWidth <= element.clientWidth));
   const headerBounds = await header.boundingBox();
@@ -35,6 +67,14 @@ const verifyHeaderLayout = async (page) => {
   const presetBounds = await presetButton.boundingBox();
   assert.ok(presetBounds && presetBounds.width < 180);
   assert.equal(await page.getByTestId("queue-preset-selection-mode").isVisible(), false);
+  const outputButton = page.getByTestId("ffui-queue-output-settings");
+  const styling = (element) => {
+    const styles = getComputedStyle(element);
+    return [styles.height, styles.borderRadius, styles.fontWeight, styles.fontSize];
+  };
+  assert.deepEqual(await presetButton.evaluate(styling), await outputButton.evaluate(styling));
+  await verifyBlueAccent(presetButton);
+  await verifyWarmAccent(outputButton);
   for (const badge of await page.getByTestId("queue-preset-summary-badge").all()) {
     const bounds = await badge.boundingBox();
     assert.ok(bounds);
@@ -58,6 +98,67 @@ const verifyHeaderLayout = async (page) => {
     assert.ok(bounds.x + bounds.width <= button.x + 1);
     assert.ok(Math.abs(bounds.y - button.y) <= 1);
   }
+};
+const verifyPresetHover = async (page) => {
+  const trigger = page.getByTestId("ffui-queue-default-preset-trigger");
+  const panel = page.getByTestId("queue-preset-settings");
+  const outside = page.getByTestId("ffui-queue-view-mode-trigger");
+  await page.mouse.move(0, 0);
+  await outside.focus();
+  await page.getByTestId("queue-preset-summary-badge").first().hover();
+  await panel.waitFor();
+  assert.equal(await outside.evaluate((element) => element === document.activeElement), true);
+  await panel.hover({ position: { x: 12, y: 12 } });
+  await page.waitForTimeout(400);
+  assert.equal(await panel.isVisible(), true);
+  await page.mouse.move(0, 0);
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await outside.evaluate((element) => element === document.activeElement), true);
+  await trigger.hover();
+  await panel.waitFor();
+  await page.waitForTimeout(250);
+  await verifyBlueAccent(trigger);
+  await verifyBlueAccent(panel.locator('[role="radio"][data-state="checked"]'));
+  await trigger.click();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(400);
+  assert.equal(await panel.isVisible(), true);
+  await page.getByTestId("queue-preset-mode-byMedia").click();
+  await page.keyboard.press("Escape");
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await trigger.evaluate((element) => element === document.activeElement), true);
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await panel.waitFor();
+  await page.keyboard.press("Escape");
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await trigger.evaluate((element) => element === document.activeElement), true);
+  await trigger.hover();
+  await panel.waitFor();
+  await trigger.click();
+  await page.getByTestId("queue-unified-preset-trigger").click();
+  await page.getByRole("listbox").waitFor();
+  await page.getByRole("option").first().click();
+  await page.getByRole("listbox").waitFor({ state: "hidden" });
+  assert.equal(await panel.isVisible(), true);
+  await page.keyboard.press("Escape");
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await trigger.evaluate((element) => element === document.activeElement), true);
+  await trigger.hover();
+  await panel.waitFor();
+  await page.getByTestId("queue-unified-preset-trigger").click();
+  await page.getByRole("listbox").waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("listbox").waitFor({ state: "hidden" });
+  assert.equal(await panel.isVisible(), true);
+  await page.keyboard.press("Escape");
+  await panel.waitFor({ state: "hidden" });
+  await trigger.hover();
+  await panel.waitFor();
+  await trigger.click();
+  await outside.focus();
+  await panel.waitFor({ state: "hidden" });
+  assert.equal(await outside.evaluate((element) => element === document.activeElement), true);
 };
 await fs.mkdir(output, { recursive: true });
 await withScreenshotApp(async ({ baseUrl }) => {
@@ -89,9 +190,10 @@ await withScreenshotApp(async ({ baseUrl }) => {
     await page.getByTestId("ffui-sidebar").waitFor();
     const setPresetMode = async (mode, locale) => {
       if (!(await page.getByTestId("queue-preset-settings").isVisible())) {
-        await page.getByTestId("ffui-queue-default-preset-trigger").click();
+        await page.mouse.move(0, 0);
+        await page.getByTestId("queue-preset-summary").hover();
+        await page.getByTestId("queue-preset-settings").waitFor();
       }
-      const trigger = page.getByTestId("queue-preset-selection-mode");
       const label =
         mode === "byMedia"
           ? locale === "zh-CN"
@@ -100,14 +202,9 @@ await withScreenshotApp(async ({ baseUrl }) => {
           : locale === "zh-CN"
             ? "统一预设"
             : "Unified preset";
-      if (!(await trigger.textContent()).includes(label)) {
-        await trigger.click();
-        await page.getByRole("listbox").waitFor();
-        await page.getByRole("option", { name: label, exact: true }).press("Enter");
-        await page.getByRole("listbox").waitFor({ state: "hidden" });
-      }
-      await trigger.filter({ hasText: label }).waitFor();
-      assert.ok((await trigger.textContent()).includes(label));
+      const radio = page.getByRole("radio", { name: label, exact: true });
+      if ((await radio.getAttribute("aria-checked")) !== "true") await radio.click();
+      assert.equal(await radio.getAttribute("aria-checked"), "true");
     };
     for (const locale of ["zh-CN", "en"]) {
       if (locale === "en") {
@@ -119,7 +216,10 @@ await withScreenshotApp(async ({ baseUrl }) => {
         for (const kind of ["video", "audio", "image"]) {
           assert.ok((await page.getByTestId(`queue-preset-${kind}-trigger`).textContent()).includes("Follow unified"));
         }
+        await page.keyboard.press("Escape");
+        await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       }
+      await verifyPresetHover(page);
       await setPresetMode("byMedia", locale);
       for (const kind of ["video", "audio", "image"]) {
         const trigger = page.getByTestId(`queue-preset-${kind}-trigger`);
@@ -127,11 +227,15 @@ await withScreenshotApp(async ({ baseUrl }) => {
       }
       const selectPreset = async (testId, name) => {
         await page.getByTestId(testId).click();
+        await page.getByRole("listbox").waitFor();
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(400);
+        assert.equal(await page.getByTestId("queue-preset-settings").isVisible(), true);
         await page.getByRole("option", { name, exact: true }).click();
         await page.getByRole("listbox").waitFor({ state: "hidden" });
         assert.equal(await page.getByTestId("queue-preset-settings").isVisible(), true);
       };
-      const presetBadges = page.getByTestId("queue-preset-summary-badge");
+      const presetBadges = page.getByTestId("queue-preset-summary-badge").locator(".truncate");
       await selectPreset("queue-unified-preset-trigger", "Archive Master");
       assert.deepEqual(await presetBadges.allTextContents(), Array(3).fill("Archive Master"));
       await selectPreset("queue-preset-audio-trigger", "Universal 1080p");
@@ -208,6 +312,24 @@ await withScreenshotApp(async ({ baseUrl }) => {
       await page.keyboard.press("Escape");
       await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       await verifyHeaderLayout(page);
+      await setPresetMode("byMedia", locale);
+      for (const kind of ["video", "audio", "image"]) {
+        await selectPreset(`queue-preset-${kind}-trigger`, longPresetName);
+        const text = page.getByTestId(`queue-preset-${kind}-trigger`).locator("span").first();
+        assert.equal(await text.textContent(), longPresetName);
+        assert.equal(
+          await text.evaluate(
+            (element) =>
+              element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1,
+          ),
+          true,
+        );
+      }
+      await page
+        .getByTestId("queue-preset-settings")
+        .screenshot({ path: path.join(output, `long-preset-settings-${locale}.png`) });
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       for (const width of [1100, 1600]) {
         await page.setViewportSize({ width, height: 850 });
         await verifyHeaderLayout(page);
@@ -217,6 +339,15 @@ await withScreenshotApp(async ({ baseUrl }) => {
           .screenshot({ path: path.join(output, `header-${width}-${locale}.png`) });
       }
       await page.setViewportSize({ width: 1200, height: 850 });
+      await setPresetMode("byMedia", locale);
+      for (const kind of ["video", "audio", "image"]) {
+        await selectPreset(
+          `queue-preset-${kind}-trigger`,
+          locale === "zh-CN" ? "跟随统一预设：Universal 1080p" : "Follow unified: Universal 1080p",
+        );
+      }
+      await page.keyboard.press("Escape");
+      await page.getByTestId("queue-preset-settings").waitFor({ state: "hidden" });
       await page
         .locator("header")
         .filter({ has: page.getByTestId("ffui-queue-output-settings") })
@@ -272,18 +403,54 @@ await withScreenshotApp(async ({ baseUrl }) => {
             outputPath: "D:/输出/known-template.mp3",
           },
           { id: "unknown", filename: "analysis.wav", inputPath: "C:/素材/analysis.wav" },
+          { id: "queued", filename: "queued-audio.mp3", inputPath: "C:/素材/queued-audio.mp3", status: "queued" },
         ].map((job) => ({
           ...job,
           type: "audio",
           source: "manual",
           presetId: "p1",
           originalSizeMB: 1,
-          status: "completed",
-          progress: 100,
+          status: job.status ?? "completed",
+          progress: job.status === "queued" ? 0 : 100,
           executionMode: "transparent",
         })),
       }),
     );
+    const queued = page.getByTestId("queue-item-card").filter({ hasText: "queued-audio.mp3" });
+    const indicator = queued.getByTestId("queue-item-status-indicator");
+    await indicator.waitFor();
+    assert.equal(await indicator.evaluate((element) => element.tagName), "SPAN");
+    const statusSnapshots = [];
+    for (const [locale, name] of [
+      ["en", "queued"],
+      ["zh-CN", "排队中"],
+      ["en", "queued"],
+    ]) {
+      await page.getByTestId("ffui-locale-trigger").click();
+      await page.getByTestId(`ffui-locale-${locale}`).click();
+      await page.getByRole("listbox").waitFor({ state: "hidden" });
+      const namedIndicator = queued.getByRole("img", { name, exact: true });
+      await namedIndicator.waitFor();
+      assert.equal(await namedIndicator.count(), 1);
+      const snapshot = await namedIndicator.ariaSnapshot();
+      assert.ok(snapshot.includes(`img "${name}"`));
+      statusSnapshots.push({ locale, name, snapshot });
+    }
+    const centerDifference = await indicator.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const dots = [...element.querySelectorAll("circle")].map((dot) => dot.getBoundingClientRect());
+      return {
+        count: dots.length,
+        horizontal:
+          (Math.min(...dots.map((dot) => dot.left)) + Math.max(...dots.map((dot) => dot.right))) / 2 -
+          (bounds.left + bounds.right) / 2,
+        vertical: dots.map((dot) => (dot.top + dot.bottom) / 2 - (bounds.top + bounds.bottom) / 2),
+      };
+    });
+    assert.equal(centerDifference.count, 3);
+    assert.ok(Math.abs(centerDifference.horizontal) < 0.5);
+    assert.ok(centerDifference.vertical.every((difference) => Math.abs(difference) < 0.5));
+    await queued.screenshot({ path: path.join(output, "queued-audio-centered-status.png") });
     const known = page.getByTestId("queue-item-card").filter({ hasText: "known-template.flac" });
     await known.click({ button: "right" });
     const copy = page.getByTestId("queue-context-menu-copy-output");
@@ -299,6 +466,15 @@ await withScreenshotApp(async ({ baseUrl }) => {
     await unknownCopy.dispatchEvent("click");
     assert.equal(await page.evaluate(() => window.__FFUI_COPIED_PATH__), "D:/输出/known-template.mp3");
     await page.getByTestId("queue-context-menu").screenshot({ path: path.join(output, "unknown-output-menu.png") });
+    const touchPage = await browser.newPage({ viewport: { width: 1100, height: 850 }, hasTouch: true });
+    await touchPage.goto(`${baseUrl}?ffuiLocale=en`, { waitUntil: "commit" });
+    const touchTrigger = touchPage.getByTestId("ffui-queue-default-preset-trigger");
+    const touchPanel = touchPage.getByTestId("queue-preset-settings");
+    await touchTrigger.tap();
+    await touchPanel.waitFor();
+    await touchTrigger.tap();
+    await touchPanel.waitFor({ state: "hidden" });
+    await touchPage.close();
     assert.deepEqual(errors, []);
     await fs.writeFile(
       path.join(output, "verification.json"),
@@ -314,6 +490,13 @@ await withScreenshotApp(async ({ baseUrl }) => {
             "one settings button with adjacent unified or per-input summaries; routing controls in popover",
           headerLayout: "single-line count, compact selector, contained controls and adjacent left-side badges",
           locales: ["zh-CN", "en"],
+          hover: "opens without stealing focus; crossing the gap keeps it open; leaving closes unpinned content",
+          interactions:
+            "hover then click pins; keyboard Enter opens; nested Select portals stay open; Escape restores focus; outside and same-trigger dismissal",
+          longPresetNames: "complete wrapped names in panel; bounded summaries at 1100 and 1600 pixels",
+          touch: "button tap opens and a second tap closes",
+          queuedStatusCenter: centerDifference,
+          queuedStatusAccessibility: statusSnapshots,
           knownOutputCopied: true,
           unknownOutputDisabled: true,
           ipc: "mocked",
